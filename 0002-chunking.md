@@ -215,7 +215,7 @@ In order to represent chunked proofs in the pickles circuits, it will also be ne
 
 Due to the requirement for proof layout homogeneity, the `Pickles.compile` interface must take parameters for the `step_num_chunks` and `wrap_num_chunks` at the top level. These arguments may be optional labelled arguments, since they will not be regularly used in the protocol circuits. These arguments will have to be passed explicitly by the user / caller when needed, since it will be prohibitively expensive to try all of the various options programmatically on every compile.
 
-The `Pickles.compile` function should be modified to check for the number of chunks in each inductive rule's previous rule tags. When these are not consistent between inductive rules, the code must throw an error in order to achieve layout homogeneity.
+The `Pickles.compile` function must be modified to check for the number of chunks in each inductive rule's previous rule tags. When these numbers are not consistent between inductive rules, the code must throw an error in order to achieve layout homogeneity.
 
 ### Prototype PRs
 
