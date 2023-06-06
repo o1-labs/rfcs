@@ -80,7 +80,7 @@ Thus, this chunking approach provides all of the features that we need to suppor
 
 ### Retaining zero-knowledge
 
-Once we have `c > 1` chunks, every column will come with `2 * c` evaluations, 1 for each chunk at each of `z` and `z * w`. In order to retain zero-knowledge, we need to ensure that we randomize more columns than there are evaluations. Thus, we must randomize at least `2 * c + 1` values at the end of each column. The helpers for adding zero-knowledge to columns should be updated to take the number of zk rows that are required as an argument.
+After we have `c > 1` chunks, every column will come with `2 * c` evaluations, 1 for each chunk at each of `z` and `z * w`. In order to retain zero-knowledge, we need to ensure that we randomize more columns than there are evaluations. Thus, we must randomize at least `2 * c + 1` values at the end of each column. The helpers for adding zero-knowledge to columns must be updated to take the number of zk rows that are required as an argument.
 
 #### Lookup argument
 
