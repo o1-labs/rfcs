@@ -199,7 +199,7 @@ The verifier logic for [the public input commitment](https://github.com/o1-labs/
 
 To avoid the `O(c n log(n))` cost of computing the chunked evaluation for the public input polynomial in the verifier, the prover should pass this evaluation as part of the proof. In order to avoid breaking compatibility with zkApps, this 'public input' field should be optional, as proofs submitted in zkApp commands will not have this field available. This value is already considered part of the transcript for the purposes of pickles, so there is no soundness risk of using a value provided by a malicious prover.
 
-Once all of the above are complete, the error checks in kimchi's prover and verifier can be removed, and chunking can be considered enabled in kimchi. This should be accompanied by a test that exercises this behavior.
+After all of the above changes are complete, the error checks in kimchi's prover and verifier can be removed, and chunking can be considered enabled in kimchi. This should be accompanied by a test that exercises this behavior.
 
 ### Technical approach in OCaml-to-rust bindings
 
