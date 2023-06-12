@@ -19,7 +19,7 @@ Each RFC captures technical details for a specific change within a limited syste
 
 ## Workflow
 
-1. Product teams define product requirements doc in the product requirements doc (PRD).
+1. Product teams define product requirements in the product requirements doc (PRD).
 2. An internal O(1) Labs team member creates a pull request using the [0000-template.md](0001-template.md).
 3. The RFC covers the changes in enough detail to inform the decision.
 4. Discussions occur in the RFC pull request within a rapid defined time period.
