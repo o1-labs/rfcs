@@ -82,7 +82,13 @@ Why should we *not* do this?
 ## Prior art
 [prior-art]: #prior-art
 
-Discuss prior art, both the good and the bad, in relation to this proposal.
+Discuss prior art, both the good and the bad, in relation to this proposal. 
+
+Prior art is any evidence that your feature (invention, change, proposal) is already known. Examples include:
+
+- For language, library, cargo, tools, implementation, and compiler RFCs: Does this feature exist in other programming languages and if so, what are pros and cons?
+
+Think about the lessons from other languages or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.
 
 ## Unresolved questions
 [unresolved-questions]: #unresolved-questions
