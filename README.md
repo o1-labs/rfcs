@@ -21,10 +21,10 @@ Each RFC captures technical details for a specific change within a limited syste
 
 1. Product teams define product requirements in the product requirements doc (PRD).
 2. An internal O(1) Labs team member creates a pull request using the [0000-template.md](0001-template.md).
-3. The RFC covers the changes in enough detail to inform the decision.
-4. Discussions occur in the RFC pull request within a rapid defined time period.
+3. The RFC describes changes in enough detail to inform the decision. This includes links to proposed changes to persistent or cannonical design records such as specs and code comments.
+4. Discussions occur in the RFC pull request within a rapid, defined time period.
 5. If architecture changes proposed in the initial RFC are significantly changed during the discussion, the submitter updates the RFC in a separate pull request.
-6. All architects must approve the RFC pull request within two business days.
+6. All architects must respond to the RFC pull request within two business days.
 7. RFC approval by all architects is required before implementation decisions.
 
 ## Qualities of effective RFCs
