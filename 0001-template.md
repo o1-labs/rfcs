@@ -1,7 +1,7 @@
 # RFC title
 [title]: #title
 
-Self-describing title of the proposal.
+Brief, self-describing title of the RFC.
 
 ## Summary
 [summary]: #summary
