@@ -15,7 +15,7 @@ The Dockerization of lightweight Mina Local Networks aims to address these chall
 The Dockerization process involves two main phases:
 
 1. **Building Phase**: Usual build procedure the engineers familiar with. In this phase, the Mina Daemon is built locally or on a CI server using the desired branch, revision, and compile-time constants. The build process can leverage the [lightnet](https://github.com/MinaProtocol/mina/blob/4e0b324912017c3ff576704ee397ade3d9bda412/src/config/lightnet.mlh) Dune profile to create a lightweight version of the Mina Daemon.
-2. **Dockerization Phase**: In this phase, scripts are invoked to prepare the filesystem (binaries, additional scripts, genesis ledger configuration with pre-funded accounts, etc.) and ensure that the Mina Local Network scripts work well inside the Docker environment. The Docker image is then built and uploaded to Docker Hub using provided credentials (Users have to be authenticated using `docker login` CLI).
+2. **Dockerization Phase**: In this phase, scripts are invoked to prepare the file system (binaries, additional scripts, genesis ledger configuration with pre-funded accounts, etc.) and ensure that the Mina Local Network scripts work well inside the Docker environment. The Docker image is then built and uploaded to Docker Hub using provided credentials. (Users have to be authenticated using [`docker login`](https://docs.docker.com/engine/reference/commandline/login/) CLI).
 
 The resulting Docker image allows users to spin up a Mina Local Network using a simple command like
 
@@ -46,7 +46,7 @@ For more details on how to manually set up and use the lightweight Mina Network,
 
 ## Drawbacks
 
-One drawback of this approach is the potential for discrepancies between the behavior of the lightweight Mina Local Network and the full Mina network. While the lightweight network is designed to be "close to real", it may not perfectly replicate all aspects of the full network, which could lead to misleading test results. To mitigate this drawback, we can state clearly in the documentation that the lightweight network is not intended to be a perfect replica of the full network and that users/developers should always double check their work against real networks.
+One drawback of this approach is the potential for discrepancies between the behavior of the lightweight Mina Local Network and the full Mina network. While the lightweight network is designed to be "close to real", it may not perfectly replicate all aspects of the full network, which could lead to misleading test results. To mitigate this drawback, we can state clearly in the documentation that the lightweight network is for local development only and is not intended to be a perfect replica of the full network. Mina Local Networks do not guarantee production-ready results. Users and developers must always double-check their work against real networks.
 
 Another potential drawback is the need for Docker as a dependency. Users who do not have Docker installed or who are unfamiliar with Docker may face additional hurdles in setting up and using the Mina Local Network.
 
