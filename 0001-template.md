@@ -1,15 +1,12 @@
 # RFC title
-[title]: #title
 
 Brief, self-describing title of the RFC.
 
 ## Summary
-[summary]: #summary
 
 One paragraph explanation of the feature. Describe the "why" and feature benefit.
 
 ## Motivation
-[motivation]: #motivation
 
 Reflect the will of the PRD (product requirements document). If the PRD is a linkable artifact, include the link here. If not, summarize the product requirement in your own words. Describe the delta of this change.
 
@@ -21,7 +18,6 @@ Be sure to include:
 * What use cases does it support?
 
 ## Detailed design
-[detailed-design]: #detailed-design
 
 In general:
 
@@ -63,7 +59,6 @@ For SnarkyJS and other zkApps-related projects:
 * The spec is inline comments. Prefer [cargo-spec](https://github.com/mimoo/cargo-specification) format, so we can extract them later.
 
 ## Test plan and functional requirements
-[test-plan-and-functional-requirements]: #test-plan-and-functional-requirements
 
 1. Testing goals and objectives: 
     * Specify the overall goals and objectives of testing for the proposed feature or project. This can help set the expectations for testing efforts once the implementation details are finalized.
@@ -82,14 +77,12 @@ For SnarkyJS and other zkApps-related projects:
 Why should we *not* do this?
 
 ## Rationale and alternatives
-[rationale-and-alternatives]: #rationale-and-alternatives
 
 * Why is this design the best in the space of possible designs?
 * What other designs have been considered and what is the rationale for not choosing them?
 * What is the impact of not doing this?
 
 ## Prior art
-[prior-art]: #prior-art
 
 Discuss prior art, both the good and the bad, in relation to this proposal. 
 
@@ -98,7 +91,6 @@ Prior art is any evidence that your feature (invention, change, proposal) is alr
 Think about the lessons from other blockchain projects or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.
 
 ## Unresolved questions
-[unresolved-questions]: #unresolved-questions
 
 * What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
 * What parts of the design do you expect to resolve through the implementation of this feature before merge?
