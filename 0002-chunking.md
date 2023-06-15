@@ -1,12 +1,10 @@
 # Chunking
 
 ## Summary
-[summary]: #summary
 
 This RFC proposes a modification to the Kimchi proof system and the pickles recursion layer to increase the circuit size limit by splitting the polynomials from a circuit into 'chunks' which are less than the hard limit of 2^16 that Mina / SnarkyJS supports.
 
 ## Motivation
-[motivation]: #motivation
 
 The motivation, assessment criteria, and exit criteria can be found in the [PRD](https://www.notion.so/minaprotocol/Chunked-Commitments-PRD-890c836529c545f082a3eeecd3d4f510).
 
@@ -15,7 +13,6 @@ This proposal raises the maximum 'circuit size' limit for kimchi proofs from `2^
 This proposal optimizes for compatibility with the kimchi and pickles [versions proposed for deployment in the Berkeley hard-fork](https://github.com/MinaProtocol/MIPs/blob/main/MIPS/mip-kimchi.md), as well as the [proposed zkApps feature](https://github.com/MinaProtocol/MIPs/blob/main/MIPS/mip-zkapps.md), at the expense of some potential loss of performance when the feature is in use.  Timing measurements can be found in the PR description for the [prototype implementation](https://github.com/o1-labs/proof-systems/pull/1033).
 
 ## Detailed design
-[detailed-design]: #detailed-design
 
 ### Theory overview
 
@@ -228,7 +225,6 @@ The `Pickles.compile` function must be modified to check for the number of chunk
 * [Update bindings to enable chunking](https://github.com/MinaProtocol/mina/pull/13286)
 
 ## Test Plan and Functional Requirements
-[test-plan-and-functional-requirements]: #test-plan-and-functional-requirements
 
 1. Testing Goals and Objectives:
   * A SnarkyJS proof is able to achieve use more than the previous circuit size limit.
@@ -242,12 +238,10 @@ The `Pickles.compile` function must be modified to check for the number of chunk
   * Additional CI time on each PR to proof-systems, mina, and SnarkyJS.
 
 ## Drawbacks
-[drawbacks]: #drawbacks
 
 The existing recursion layer in pickles allows most zkApps that would hit the limit to be restructured in a way that doesn't. However, to do this requires significant extra expertise.
 
 ## Rationale and alternatives
-[rationale-and-alternatives]: #rationale-and-alternatives
 
 A previous alternative was to increasing the circuit size limit by generating a larger (`2^17`) URS. This was rejected after the slow-down for verifying kimchi proofs on Berkeley was deemed unacceptable.
 
@@ -258,12 +252,10 @@ None of the other alternatives were able to increase the circuit size limit with
 Failure to complete this feature will result in less usability for zkApps, which will have a negative effect on both the Berkeley hard fork and SnarkyJS.
 
 ## Prior art
-[prior-art]: #prior-art
 
 The existing broken chunking implementation.
 
 ## Unresolved questions
-[unresolved-questions]: #unresolved-questions
 
 * What parts of the design do you expect to resolve through the RFC process before this gets merged?
   - SnarkyJS design
