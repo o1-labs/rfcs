@@ -85,6 +85,15 @@ const Sha3_512 = buildSha(512, true);
 const Keccak = buildSha(256, false);
 ```
 
+Another alternative to the factory pattern above could be to supply the developer with a single function that takes a range of parameters, so that the developer can choose their flavour of SHA3/Keccak on their own.
+
+```ts
+function SHA3(
+  length: 224 | 256 | 385 | 512,
+  nist?: boolean = true
+): { hash(xs: Field[]) };
+```
+
 Developers can then import these functions into their project via
 
 ```ts
