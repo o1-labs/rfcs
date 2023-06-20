@@ -115,18 +115,34 @@ Overall, exposing new gadgets and gates follow a strict pattern that has been us
 
 [test-plan-and-functional-requirements]: #test-plan-and-functional-requirements
 
+## SHA3/Keccak
+
+In order to test the implementation of SHA3 and Keccak in SnarkyJS, we will follow the testing approach we already apply to other gadgets and gates.
+This includes testing the out-of- and in-snark variants using our testing framework, as well as adding a SHA3 and Keccak regression test. The regression tests will also include a set of predetermined digests to make sure that the algorithm doesn't unexpectedly change over time (similar to the tests implemented for the OCaml gadget).
+
+In addition to that, we should provide a dedicated integration test that handles SHA3/Keccak hashing within a smart contract (proving enabled). This will allow us to not only provide developers with an example, but also ensure that SHA3 and Keccak proofs can be generated.
+
 ## Drawbacks
 
 [drawbacks]: #drawbacks
+
+Compared to Poseidon, hashing with SHA3 and Keccak is expensive. This should be made clear to the developer to avoid inefficient circuits. Additionally, it is important to educate developers of when to use SHA3/Keccak and when to use Poseidon. Additionally, the API should be secure.
+Adding new primitives, especially cryptographic primitives, always includes risks such as the possibility of not constraining the algorithm and input enough to provide the developer with a safe API that is required to build secure applications. However, adding these primitives to SnarkyJS enables developers to explore a new range of important use cases.
 
 ## Rationale and alternatives
 
 [rationale-and-alternatives]: #rationale-and-alternatives
 
+Keccak and SHA3 could not be exposed to SnarkyJS at all. However, this would essentially render these primitives useless since they were specifically designed to be used by developers with SnarkyJS. By adding these primitives, SnarkyJS will become an even more powerful zero-knowledge SDK that enables developers to explore a wide range of use cases.
+
 ## Prior art
 
 [prior-art]: #prior-art
 
+Exposing gates and gadgets from the OCaml layer to SnarkyJS is nothing new - the same procedure has been applied to other primitives such as Poseidon, Field and Elliptic Curve operations.
+
 ## Unresolved questions
 
 [unresolved-questions]: #unresolved-questions
+
+No unresolved questions.
