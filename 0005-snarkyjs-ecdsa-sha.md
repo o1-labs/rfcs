@@ -19,7 +19,7 @@ The initial [Ethereum Crypto Primitive PRD](https://www.notion.so/minaprotocol/E
 
 This RFC describes the steps needed to expose both ECDSA and SHA3/Keccak to SnarkyJS, enabling SnarkyJS developer to use these primitives in their applications and smart contracts.
 
-It is important to mention that this RFC only considers the work required to _expose_ already existing cryptographic primitives (gates and gates), which have previously been implemented by the crypto team, from the OCaml bindings layer to SnarkyJS - it is not required to implement additional cryptographic primitives. Changes will only impact [snarkyjs-bindings](https://github.com/o1-labs/snarkyjs-bindings) and [SnarkyJS](https://github.com/o1-labs/snarkyjs) itself.
+It is important to mention that this RFC only considers the work required to _expose_ already existing cryptographic primitives (gates and gadgets), which have previously been implemented by the crypto team, from the OCaml bindings layer to SnarkyJS - it is not required to implement additional cryptographic primitives. Changes will only impact [snarkyjs-bindings](https://github.com/o1-labs/snarkyjs-bindings) and [SnarkyJS](https://github.com/o1-labs/snarkyjs) itself.
 
 Once completed, SnarkyJS users will be able to leverage ECDSA and SHA3/Keccak to build applications that integrate with Ethereum and other use cases that require the use of said cryptographic primitives.
 
@@ -89,9 +89,49 @@ Developers can then import these functions into their project via
 
 ```ts
 import { Sha3_224, Sha3_256, Sha3_385, Sha3_512, Keccak } from "snarkyjs";
+
+Sha3_224.hash(xs);
+// ..
 ```
 
-_Note_: Another possibility is to combine all hash functions, including Poseidon, under a shared namespace `Hash`. Developers will then be able to use these functions by calling `Hash.[hash_name].hash(xs)`. However, this would not be equivalent to the existing `Poseidon` API.
+### Alternative Approach
+
+Another possibility is to combine all hash functions, including Poseidon, under a shared namespace `Hash`. Developers will then be able to use these functions by calling `Hash.[hash_name].hash(xs)`. However, this would not be equivalent to the existing `Poseidon` API.
+
+However, the existing `Poseidon` API could be deprecated in favour of the new `Hash` namespace.
+
+```ts
+const Hash = {
+  Poseidon: {
+    hash: (xs: any) => "digest",
+  },
+
+  // ..
+
+  SHA3_224: {
+    hash: (xs: any) => "digest",
+  },
+
+  Keccak: {
+    hash: (xs: any) => "digest",
+  },
+};
+```
+
+Developers would then be able to simply import the `Hash` namespace into their project and use all available hash functions.
+
+```ts
+import { Hash } from "snarkyjs";
+
+Hash.Poseidon.hash(xs);
+Hash.Keccak.hash(xs);
+// ..
+
+// deprecated in favor of Hash.Poseidon.hash
+Poseidon.hash(xs);
+```
+
+It is important to mention that we have a lot of freedom in the the implementation details of the API, as the gates and gadgets are already implemented in OCaml and just need to exposed and wrapped by a developer friendly API.
 
 One goal of the API is to design an easy to use interface for developers as well as maintaining consistency with already existing primitives (Poseidon in this case, Schnorr in the case of ECDSA).
 The usage of both Keccak/SHA3 and Poseidon is the same: The user passes an array of Field elements into the hash function and the output is returned. One important detail is that Keccak/SHA3 only accepts an array of Field element that each are no larger than 1 byte. We will also provide additional helper functions that allow conversion between Field element arrays and hexadecimal encoded strings.
