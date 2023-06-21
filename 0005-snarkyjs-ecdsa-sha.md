@@ -1,18 +1,10 @@
-# RFC title
-
-[title]: #title
-
-Exposing ECDSA and SHA3/Keccak to SnarkyJS
+# Exposing ECDSA and SHA3/Keccak to SnarkyJS
 
 ## Summary
 
-[summary]: #summary
-
-Foreign cryptography primitives such as ECDSA and SHA3 are widely used outside of Mina. For example, Ethereum uses ECDSA over secp256k1 for signatures - in order to "communicate" with the outside world and other blockchains, SnarkyJS (and therefor Mina) needs to support these primitives as well. This RFC describes how we will leverage the custom gates implemented by the crypto team and expose them to SnarkyJS, making them accessible to smart contact developers.
+Foreign cryptography primitives such as ECDSA and SHA3 are widely used outside of Mina. For example, Ethereum uses ECDSA over secp256k1 for signatures - in order to "communicate" with the outside world and other blockchains, SnarkyJS (and, therefore Mina) needs to support these primitives as well. This RFC describes how we will leverage the custom gates implemented by the crypto team and expose them to SnarkyJS, making them accessible to smart contract developers.
 
 ## Motivation
-
-[motivation]: #motivation
 
 The initial [Ethereum Crypto Primitive PRD](https://www.notion.so/minaprotocol/Ethereum-Primitives-Support-PRD-d89af720e1c94f7b90166709432e7bd5) describes the importance of establishing cryptographic compatibility with Ethereum. The [ECDSA PRD](https://www.notion.so/minaprotocol/ECDSA-ver-gadget-PoC-PRD-9458c38adf204d6b922deb8eed1ac193) and the
 [Keccak PRD](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) then go into detail and describe two of the most important building blocks to achieve Ethereum compatibility in a cryptographic sense.
@@ -24,8 +16,6 @@ It is important to mention that this RFC only considers the work required to _ex
 Once completed, SnarkyJS users will be able to leverage ECDSA and SHA3/Keccak to build applications that integrate with Ethereum and other use cases that require the use of said cryptographic primitives.
 
 ## Detailed design
-
-[detailed-design]: #detailed-design
 
 ### SHA3/Keccak
 
@@ -164,8 +154,6 @@ Overall, exposing new gadgets and gates follow a strict pattern that has been us
 
 ## Test plan and functional requirements
 
-[test-plan-and-functional-requirements]: #test-plan-and-functional-requirements
-
 ## SHA3/Keccak
 
 In order to test the implementation of SHA3 and Keccak in SnarkyJS, we will follow the testing approach we already apply to other gadgets and gates.
@@ -175,25 +163,17 @@ In addition to that, we should provide a dedicated integration test that handles
 
 ## Drawbacks
 
-[drawbacks]: #drawbacks
-
 Compared to Poseidon, hashing with SHA3 and Keccak is expensive. This should be made clear to the developer to avoid inefficient circuits. Additionally, it is important to educate developers of when to use SHA3/Keccak and when to use Poseidon. Additionally, the API should be secure.
 Adding new primitives, especially cryptographic primitives, always includes risks such as the possibility of not constraining the algorithm and input enough to provide the developer with a safe API that is required to build secure applications. However, adding these primitives to SnarkyJS enables developers to explore a new range of important use cases.
 
 ## Rationale and alternatives
 
-[rationale-and-alternatives]: #rationale-and-alternatives
-
 Keccak and SHA3 could not be exposed to SnarkyJS at all. However, this would essentially render these primitives useless since they were specifically designed to be used by developers with SnarkyJS. By adding these primitives, SnarkyJS will become an even more powerful zero-knowledge SDK that enables developers to explore a wide range of use cases.
 
 ## Prior art
 
-[prior-art]: #prior-art
-
-Exposing gates and gadgets from the OCaml layer to SnarkyJS is nothing new - the same procedure has been applied to other primitives such as Poseidon, Field and Elliptic Curve operations.
+Exposing gates and gadgets from the OCaml layer to SnarkyJS is nothing new - the same procedure has been applied to other primitives such as Poseidon, Field, and Elliptic Curve operations.
 
 ## Unresolved questions
-
-[unresolved-questions]: #unresolved-questions
 
 No unresolved questions.
