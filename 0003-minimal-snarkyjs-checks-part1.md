@@ -14,7 +14,7 @@ Having said that, there are important reasons to keep some tests running on Mina
 
 As of this RFC, all the SnarkyJS tests are configured to "soft-fail" on Mina's CI; this was a quickfix to empower quick Mina development, but is creating opportunities for bitrot in these situations so this RFC aims to quickly reconcile this temporary situation.
 
-Success Metric: Protocol developers are undisturbed by SnarkyJS tests in day-to-day development, but when deep changes to cryptography are taken, 
+Success Metric: Protocol developers are undisturbed by SnarkyJS tests in day-to-day development. However, when deep changes to cryptography are made, the following requirements apply.
 
 Requirements:
 
