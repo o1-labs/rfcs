@@ -105,7 +105,7 @@ Sha3_224.hash(xs);
 // ..
 ```
 
-### Alternative Approach
+#### Alternative Approach
 
 Another possibility is to combine all hash functions, including Poseidon, under a shared namespace `Hash`. Developers will then be able to use these functions by calling `Hash.[hash_name].hash(xs)`. However, this would not be equivalent to the existing `Poseidon` API.
 
@@ -156,7 +156,43 @@ Overall, exposing new gadgets and gates follow a strict pattern that has been us
 
 ## ECDSA
 
-**TODO** this will be a seperate PR stacked on top of this one
+Similar to SHA3 and Keccak, the gadget for ECDSA has been implemented by the crypto team and is available through exposing it in the bindings layer. However, designing and implementing a safe API for ECDSA is not as straight forward as it is for SHA3 and Keccak.
+
+The main verification step of ECDSA is implemented via a `verify` gadget in OCaml.
+
+```ocaml
+let verify (type f) (module Circuit : Snark_intf.Run with type field = f)
+    (base_checks : f Foreign_field.External_checks.t)
+    (scalar_checks : f Foreign_field.External_checks.t)
+    (curve : f Curve_params.InCircuit.t) (pubkey : f Affine.t)
+    ?(use_precomputed_gen_doubles = true) ?(scalar_mul_bit_length = 0)
+    ?(doubles : f Affine.t array option)
+    (signature :
+      f Foreign_field.Element.Standard.t * f Foreign_field.Element.Standard.t )
+    (msg_hash : f Foreign_field.Element.Standard.t)
+```
+
+The function takes the following arguments:
+
+- `base_check` := Context to track required base field external checks
+- `scalar_checks` := Context to track required scalar field external checks
+- `curve` := Elliptic curve parameters - for now, the goal is to make ECDSA over secp256k1 available. However, ECDSA accepts different curve parameters as well.
+- `pubkey` := Public key of signer
+- `doubles` := Optional powers of $2^i$ of the `pubkey`, $0 <= i < n$ where $n$ is `curve.order_bit_length`
+- `signature` := ECDSA signature (r, s) s.t. r, s $\in [1, n)$
+- `msg_hash` := Message hash s.t. msg_hash \in Fn - this will be the output of `Keccak`
+
+However, it is important to mention that the OCaml API has been designed with the assumption in mind that some of the inputs already satisfy a set of preconditions. These preconditions will not be checked internally, but are a requirement. Additionally, verifying ECDSA signatures is an expensive task and requires a lot of constraints. By moving the precondition checks of the inputs outside of the actual verification step (requiring them as preconditions), it allows us to optimize constraints but also provides a bigger API surface to cover in order for us to provide a safe API developers can use.
+
+The input preconditions are:
+
+- `pubkey` is on the curve and not O (`Ec_group.is_on_curve` gadget)
+- `pubkey` is in the subgroup (nP = O) (`Ec_group.check_subgroup` gadget)
+- `pubkey` is bounds checked (`multi-range-check` gadgets)
+- `r, s` $\in [1, n)$ (`signature_scalar_check` gadget)
+- `msg_hash` $\in Fn$ (`bytes_to_foreign_field_element` gadget)
+
+Each of these preconditions requires expensive checks so its important to choose wisely when and how to check these inputs. Its important to provide a safe API as well as giving experienced developers enough space to optimize their applications by avoiding double constraining of inputs.
 
 **Evergreen, wide-sweeping Details**
 
@@ -166,7 +202,7 @@ Overall, exposing new gadgets and gates follow a strict pattern that has been us
 
 [test-plan-and-functional-requirements]: #test-plan-and-functional-requirements
 
-## SHA3/Keccak
+### SHA3/Keccak
 
 In order to test the implementation of SHA3 and Keccak in SnarkyJS, we will follow the testing approach we already apply to other gadgets and gates.
 This includes testing the out-of- and in-snark variants using our testing framework, as well as adding a SHA3 and Keccak regression test. The regression tests will also include a set of predetermined digests to make sure that the algorithm doesn't unexpectedly change over time (similar to the tests implemented for the OCaml gadget).
