@@ -1,16 +1,16 @@
 ## Summary
 [summary]: #summary
 
-A minimal layer of SnarkyJS checks that won't break with typical protocol development.
+We describe a minimal layer of SnarkyJS checks that won't hinder typical protocol development.
 
 ## Motivation
 [motivation]: #motivation
 
 Objective: Empower the protocol development to continue swiftly, while preventing maximally complex SnarkyJS bitrot. Out-of-scope for this RFC: re-enabling the rest of those tests in SnarkyJS CI, and changing the submodule layout within Mina.
 
-Background: Currently, SnarkyJS and, transitively, SnarkyJS-bindings is included in the main Mina repo as a submodule. Until recently, extensive CI jobs ensured that SnarkyJS remains correct as Mina evolves. Unfortunately, this setup has many issues: (1) Mina is owned by the Mina Foundation and SnarkyJS is owned by O(1) Labs; it's semantically awkward to rely on Mina's CI for testing SnarkyJS, (2) the dependancy graph feels a bit inverted; as SnarkyJS is a client of the Mina daemon's internals rather than Mina daemon's internals being a client of SnarkyJS, and most importantly (3) it's causing velocity issues with protocol development. Why? Many parts of SnarkyJS is tightly coupled to zkApp representations and behavior -- this means that even trivial renaming or reordering of fields requires SnarkyJS changes (albeit in a semi-automatic fashion).
+Background: Currently, SnarkyJS and, transitively, SnarkyJS-bindings is included in the main Mina repo as a submodule. Until recently, extensive CI jobs ensured that SnarkyJS remains correct as Mina evolves. Unfortunately, this setup has many issues: (1) Mina is owned by the Mina Foundation and SnarkyJS is owned by O(1) Labs; it's semantically awkward to rely on Mina's CI for testing SnarkyJS, (2) the dependency graph feels a bit inverted; as SnarkyJS is a client of the Mina daemon's internals rather than Mina daemon's internals being a client of SnarkyJS, and most importantly (3) it's causing velocity issues with protocol development. Why? Many parts of SnarkyJS are tightly coupled to zkApp representations and behavior -- this means that even trivial renaming or reordering of fields requires SnarkyJS changes (albeit in a semi-automatic fashion).
 
-Having said that, there are important reasons to keep some tests running on Mina's PRs: For example, many cryptography changes have the potential to cause proof generation on SnarkyJS, and by far the best place to address that is the PR introducing the cryptography change.
+Having said that, there are important reasons to keep some tests running on Mina's PRs: For example, many cryptography changes have the potential to break proof generation on SnarkyJS, and by far the best place to address that is the PR introducing the cryptography change.
 
 As of this RFC, all the SnarkyJS are configured to "soft-fail" on Mina's CI; this was a quickfix to empower quick Mina development, but is creating opportunities for bitrot in these situations so this RFC aims to quickly reconcile this temporary situation.
 
@@ -39,12 +39,7 @@ In this RFC, we are optimizing for:
 ## Detailed design
 [detailed-design]: #detailed-design
 
-To meet the requirements, it suffices to extract a single creation of an end-to-end recursive proof in type-free SnarkyJS into a separate CI job:
-
-(TODO bkase: Move this to a comment in the test, and link to it in the RFC)
-* This test will compile and create a recursive proof of one layer using ZkProgram
-* This test will run with type-checking turned off on TypeScript, this way we won't worry about type schema changes
-* Since the smart contract interface isn't used, we don't need to worry about anything breaking if transaction or account structure changes
+To meet the requirements, it suffices to extract a single creation of an [end-to-end recursive proof](https://github.com/o1-labs/snarkyjs/pull/997/files#diff-32aa0e3ac39d1593084da877ed5ed544175d7058ebeeda1623157b31723b8a9bR40) into a separate CI job.
 
 The existing SnarkyJS will remain unchanged in the "soft-fail" job on the Mina repo.
 
