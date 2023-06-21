@@ -66,12 +66,14 @@ These two functions will be imported into the bindings layer and exposed via a n
 In order to reduce the bindings surface, Keccak and SHA3 will be exposed via a `create` function, which behaves like a factory pattern.
 By calling this function inside SnarkyJS, we can define and expose all possible variants of SHA3(224/256/384/512) and Keccak without the need to have an individual function in the bindings layer for each variant.
 
+In order to differentiate Poseidon, which works over native Field elements, and SHA3 and Keccak which works over byte-sized Field elements, it will be beneficial to introduce a new type `UInt8` (a Field element that is exactly a byte) to draw a clan line between both hash functions.
+
 In SnarkyJS, these new primitives will be declared as followed:
 
 ```ts
 function buildSha(length: 224 | 256 | 385 | 512, nist: boolean) {
   return {
-    hash(message: Field[]) {
+    hash(message: UInt8[]) {
       let payload = [0, ...message.map((f) => f.value)];
       return Snarky.sha.create(payload, nist, length).map(Field);
     },
@@ -91,7 +93,7 @@ Another alternative to the factory pattern above could be to supply the develope
 function SHA3(
   length: 224 | 256 | 385 | 512,
   nist?: boolean = true
-): { hash(xs: Field[]) };
+): { hash(xs: UInt8[]) };
 ```
 
 Developers can then import these functions into their project via
@@ -112,17 +114,17 @@ However, the existing `Poseidon` API could be deprecated in favour of the new `H
 ```ts
 const Hash = {
   Poseidon: {
-    hash: (xs: any) => "digest",
+    hash: (xs: UInt8[]) => "digest",
   },
 
   // ..
 
   SHA3_224: {
-    hash: (xs: any) => "digest",
+    hash: (xs: UInt8[]) => "digest",
   },
 
   Keccak: {
-    hash: (xs: any) => "digest",
+    hash: (xs: UInt8[]) => "digest",
   },
 };
 ```
@@ -146,8 +148,8 @@ One goal of the API is to design an easy to use interface for developers as well
 The usage of both Keccak/SHA3 and Poseidon is the same: The user passes an array of Field elements into the hash function and the output is returned. One important detail is that Keccak/SHA3 only accepts an array of Field element that each are no larger than 1 byte. We will also provide additional helper functions that allow conversion between Field element arrays and hexadecimal encoded strings.
 
 ```ts
-function fieldBytesFromHex(xs: Field[]): string;
-function hexToFieldBytes(hex: string): Field[];
+function fieldBytesFromHex(hex: string): UInt8[];
+function hexToFieldBytes(xs: UInt8[]): string;
 ```
 
 Overall, exposing new gadgets and gates follow a strict pattern that has been used all over in the SnarkyJS bindings layer. As an example, the [Poseidon](https://github.com/o1-labs/snarkyjs-bindings/blob/main/ocaml/lib/snarky_js_bindings_lib.ml#L386) implementation behaves similarly. From the point of view of SnarkyJS, these gadgets are just another set of function calls to OCaml.
