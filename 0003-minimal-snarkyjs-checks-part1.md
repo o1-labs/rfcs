@@ -12,7 +12,7 @@ Background: Currently, SnarkyJS and, transitively, SnarkyJS-bindings is included
 
 Having said that, there are important reasons to keep some tests running on Mina's PRs: For example, many cryptography changes have the potential to break proof generation on SnarkyJS, and by far the best place to address that is the PR introducing the cryptography change.
 
-As of this RFC, all the SnarkyJS are configured to "soft-fail" on Mina's CI; this was a quickfix to empower quick Mina development, but is creating opportunities for bitrot in these situations so this RFC aims to quickly reconcile this temporary situation.
+As of this RFC, all the SnarkyJS tests are configured to "soft-fail" on Mina's CI; this was a quickfix to empower quick Mina development, but is creating opportunities for bitrot in these situations so this RFC aims to quickly reconcile this temporary situation.
 
 Success Metric: Protocol developers are undisturbed by SnarkyJS tests in day-to-day development, but when deep changes to cryptography are taken, 
 
