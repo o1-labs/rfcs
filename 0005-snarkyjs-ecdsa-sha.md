@@ -209,18 +209,25 @@ This includes testing the out-of- and in-snark variants using our testing framew
 
 In addition to that, we should provide a dedicated integration test that handles SHA3/Keccak hashing within a smart contract (proving enabled). This will allow us to not only provide developers with an example, but also ensure that SHA3 and Keccak proofs can be generated.
 
+### ECDSA
+
+TODO
+
 ## Drawbacks
 
 [drawbacks]: #drawbacks
 
 Compared to Poseidon, hashing with SHA3 and Keccak is expensive. This should be made clear to the developer to avoid inefficient circuits. Additionally, it is important to educate developers of when to use SHA3/Keccak and when to use Poseidon. Additionally, the API should be secure.
+
+Especially in the case of ECDSA, verifying a signature is very expensive. It is important to provide both a safe API as well as avoiding double constraining of inputs. The developer needs to be educated that ECDSA is not the default signature scheme and should only be used in special cases and the API should reflect this difference.
+
 Adding new primitives, especially cryptographic primitives, always includes risks such as the possibility of not constraining the algorithm and input enough to provide the developer with a safe API that is required to build secure applications. However, adding these primitives to SnarkyJS enables developers to explore a new range of important use cases.
 
 ## Rationale and alternatives
 
 [rationale-and-alternatives]: #rationale-and-alternatives
 
-Keccak and SHA3 could not be exposed to SnarkyJS at all. However, this would essentially render these primitives useless since they were specifically designed to be used by developers with SnarkyJS. By adding these primitives, SnarkyJS will become an even more powerful zero-knowledge SDK that enables developers to explore a wide range of use cases.
+ECDSA, Keccak and SHA3 could not be exposed to SnarkyJS at all. However, this would essentially render these primitives useless since they were specifically designed to be used by developers with SnarkyJS. By adding these primitives, SnarkyJS will become an even more powerful zero-knowledge SDK that enables developers to explore a wide range of use cases. Besides that, not adding these primitives would essentially block the ecosystem from interacting with other chains, mainly Ethereum.
 
 ## Prior art
 
