@@ -26,7 +26,7 @@ Requirements:
 Non-requirements (future work):
 
 * The other SnarkyJS tests are executing automatically by CI somewhere (probably the SnarkyJS repo)
-* The submodule structure is changed -- this should be done carefully in conjunction with moving Pickles and other cryptography layers out of Mina; perhaps we can remove safely remove it altogether
+* The submodule structure is changed -- this structure change must be done carefully in conjunction with moving Pickles and other cryptography layers out of Mina; perhaps we can remove safely remove it altogether
 
 
 Hypotheses about how the change meets these needs:
