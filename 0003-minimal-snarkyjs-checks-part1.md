@@ -6,7 +6,7 @@ We describe a minimal layer of SnarkyJS checks that won't hinder typical protoco
 ## Motivation
 [motivation]: #motivation
 
-Objective: Empower the protocol development to continue swiftly, while preventing maximally complex SnarkyJS bitrot. Out-of-scope for this RFC: re-enabling the rest of those tests in SnarkyJS CI, and changing the submodule layout within Mina.
+Objective: Empower the protocol development to continue swiftly while preventing maximally complex SnarkyJS bitrot. Out-of-scope for this RFC: re-enabling the rest of those tests in SnarkyJS CI and changing the submodule layout within Mina.
 
 Background: Currently, SnarkyJS and, transitively, SnarkyJS-bindings is included in the main Mina repo as a submodule. Until recently, extensive CI jobs ensured that SnarkyJS remains correct as Mina evolves. Unfortunately, this setup has many issues: (1) Mina is owned by the Mina Foundation and SnarkyJS is owned by O(1) Labs; it's semantically awkward to rely on Mina's CI for testing SnarkyJS, (2) the dependency graph feels a bit inverted; as SnarkyJS is a client of the Mina daemon's internals rather than Mina daemon's internals being a client of SnarkyJS, and most importantly (3) it's causing velocity issues with protocol development. Why? Many parts of SnarkyJS are tightly coupled to zkApp representations and behavior -- this means that even trivial renaming or reordering of fields requires SnarkyJS changes (albeit in a semi-automatic fashion).
 
