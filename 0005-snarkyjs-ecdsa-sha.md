@@ -2,7 +2,7 @@
 
 ## Summary
 
-Foreign cryptography primitives such as ECDSA and SHA3 are widely used outside of Mina. For example, Ethereum uses ECDSA over secp256k1 for signatures - in order to "communicate" with the outside world and other blockchains, SnarkyJS (and, therefore Mina) needs to support these primitives as well. This RFC describes how we will leverage the custom gates implemented by the crypto team and expose them to SnarkyJS, making them accessible to smart contract developers.
+Cryptographic primitives such as ECDSA and SHA3 are widely used outside of Mina. For example, Ethereum uses ECDSA over secp256k1 for signatures - in order to "communicate" with the outside world and other blockchains, SnarkyJS (and, therefore Mina) needs to support these primitives as well. This RFC describes how we will leverage the custom gates implemented by the crypto team and expose them to SnarkyJS, making them accessible to smart contract developers.
 
 ## Motivation
 
@@ -32,7 +32,7 @@ val nist_sha3 :
   -> 'f Snarky_backendless.Cvar.t array
 
 (** Gadget for Keccak hash function for the parameters used in Ethereum *)
-val eth_keccak :
+val ethereum :
     (module Snarky_backendless.Snark_intf.Run with type field = 'f)
   -> 'f Snarky_backendless.Cvar.t list
   -> 'f Snarky_backendless.Cvar.t array
@@ -44,11 +44,11 @@ These two functions will be imported into the bindings layer and exposed via a n
 ```ocaml
 
   module Sha = struct
-    let create message nist length =
+    let create message nist_version length =
       let message_array = Array.to_list message in
-      if Js.to_bool nist then
+      if Js.to_bool nist_version then
         Kimchi_gadgets.Keccak.nist_sha3 (module Impl) length message_array
-      else Kimchi_gadgets.Keccak.eth_keccak (module Impl) message_array
+      else Kimchi_gadgets.Keccak.ethereum (module Impl) message_array
   end
 
 ```
@@ -56,7 +56,7 @@ These two functions will be imported into the bindings layer and exposed via a n
 In order to reduce the bindings surface, Keccak and SHA3 will be exposed via a `create` function, which behaves like a factory pattern.
 By calling this function inside SnarkyJS, we can define and expose all possible variants of SHA3(224/256/384/512) and Keccak without the need to have an individual function in the bindings layer for each variant.
 
-In order to differentiate Poseidon, which works over native Field elements, and SHA3 and Keccak which works over byte-sized Field elements, it will be beneficial to introduce a new type `UInt8` (a Field element that is exactly a byte) to draw a clan line between both hash functions.
+In order to differentiate Poseidon, which works over native Field elements, and SHA3 and Keccak which works over byte-sized Field elements, it will be beneficial to introduce a new type `UInt8` (a Field element that is exactly a byte) to draw a clean line between both hash functions.
 
 In SnarkyJS, these new primitives will be declared as followed:
 
@@ -78,6 +78,8 @@ const Keccak = buildSha(256, false);
 ```
 
 Another alternative to the factory pattern above could be to supply the developer with a single function that takes a range of parameters, so that the developer can choose their flavour of SHA3/Keccak on their own.
+
+_Note_: Currently, if `nist` is set to `false`, we only support an output length of 256.
 
 ```ts
 function SHA3(
@@ -157,7 +159,7 @@ Overall, exposing new gadgets and gates follow a strict pattern that has been us
 ## SHA3/Keccak
 
 In order to test the implementation of SHA3 and Keccak in SnarkyJS, we will follow the testing approach we already apply to other gadgets and gates.
-This includes testing the out-of- and in-snark variants using our testing framework, as well as adding a SHA3 and Keccak regression test. The regression tests will also include a set of predetermined digests to make sure that the algorithm doesn't unexpectedly change over time (similar to the tests implemented for the OCaml gadget).
+This includes testing the out-of- and in-snark variants using our testing framework, as well as adding a SHA3 and Keccak regression test. The regression tests will also include a set of predetermined digests to make sure that the algorithm doesn't unexpectedly change over time (similar to the tests implemented for the OCaml gadget). We will include a range of edge cases in the tests (e.g. empty input, zero, etc).
 
 In addition to that, we should provide a dedicated integration test that handles SHA3/Keccak hashing within a smart contract (proving enabled). This will allow us to not only provide developers with an example, but also ensure that SHA3 and Keccak proofs can be generated.
 
