@@ -19,7 +19,7 @@ Once completed, SnarkyJS users will be able to leverage ECDSA and SHA3/Keccak to
 
 ### SHA3/Keccak
 
-The Keccak and SHA3 gadget has been implemented by the crypto team, enabling us to leverage the already existing bindings layer to and from OCaml. This design allows us to simply integrate the new gadgets into SnarkyJS by simply exposing them in `ocaml/lib/snarky_js_bindings_lib.ml`.
+The Keccak and SHA3 gadget has been implemented by the crypto team ([minaprotocol/mina PR#13196](https://github.com/MinaProtocol/mina/pull/13196)), enabling us to leverage the already existing bindings layer to and from OCaml. This design allows us to simply integrate the new gadgets into SnarkyJS by simply exposing them in `ocaml/lib/snarky_js_bindings_lib.ml`.
 
 For Keccak/SHA3, the implementation exposes two ready-to-go functions.
 
@@ -164,6 +164,8 @@ In addition to that, we should provide a dedicated integration test that handles
 ## Drawbacks
 
 Compared to Poseidon, hashing with SHA3 and Keccak is expensive. This should be made clear to the developer to avoid inefficient circuits. Additionally, it is important to educate developers of when to use SHA3/Keccak and when to use Poseidon. Additionally, the API should be secure.
+It should be mentioned that developers should ideally use Poseidon for everything that does not explicitly require SHA3/Keccak (e.g. a Merkle Tree in SnarkyJS, checksums of Field elements and provable structures `Struct`, etc.) and only use SHA3/Keccak if it is really required (e.g. interacting with Ethereum, verifying Ethereum signatures, etc.).
+
 Adding new primitives, especially cryptographic primitives, always includes risks such as the possibility of not constraining the algorithm and input enough to provide the developer with a safe API that is required to build secure applications. However, adding these primitives to SnarkyJS enables developers to explore a new range of important use cases.
 
 ## Rationale and alternatives
