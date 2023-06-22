@@ -1,18 +1,10 @@
-# RFC title
-
-[title]: #title
-
-Exposing ECDSA and SHA3/Keccak to SnarkyJS
+# Exposing ECDSA and SHA3/Keccak to SnarkyJS
 
 ## Summary
 
-[summary]: #summary
-
-Foreign cryptography primitives such as ECDSA and SHA3 are widely used outside of Mina. For example, Ethereum uses ECDSA over secp256k1 for signatures - in order to "communicate" with the outside world and other blockchains, SnarkyJS (and therefor Mina) needs to support these primitives as well. This RFC describes how we will leverage the custom gates implemented by the crypto team and expose them to SnarkyJS, making them accessible to smart contact developers.
+Cryptographic primitives such as ECDSA and SHA3 are widely used outside of Mina. For example, Ethereum uses ECDSA over secp256k1 for signatures - in order to "communicate" with the outside world and other blockchains, SnarkyJS (and, therefore Mina) needs to support these primitives as well. This RFC describes how we will leverage the custom gates implemented by the crypto team and expose them to SnarkyJS, making them accessible to smart contract developers.
 
 ## Motivation
-
-[motivation]: #motivation
 
 The initial [Ethereum Crypto Primitive PRD](https://www.notion.so/minaprotocol/Ethereum-Primitives-Support-PRD-d89af720e1c94f7b90166709432e7bd5) describes the importance of establishing cryptographic compatibility with Ethereum. The [ECDSA PRD](https://www.notion.so/minaprotocol/ECDSA-ver-gadget-PoC-PRD-9458c38adf204d6b922deb8eed1ac193) and the
 [Keccak PRD](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) then go into detail and describe two of the most important building blocks to achieve Ethereum compatibility in a cryptographic sense.
@@ -25,11 +17,9 @@ Once completed, SnarkyJS users will be able to leverage ECDSA and SHA3/Keccak to
 
 ## Detailed design
 
-[detailed-design]: #detailed-design
-
 ### SHA3/Keccak
 
-The Keccak and SHA3 gadget has been implemented by the crypto team, enabling us to leverage the already existing bindings layer to and from OCaml. This design allows us to simply integrate the new gadgets into SnarkyJS by simply exposing them in `ocaml/lib/snarky_js_bindings_lib.ml`.
+The Keccak and SHA3 gadget has been implemented by the crypto team ([minaprotocol/mina PR#13196](https://github.com/MinaProtocol/mina/pull/13196)), enabling us to leverage the already existing bindings layer to and from OCaml. This design allows us to simply integrate the new gadgets into SnarkyJS by simply exposing them in `ocaml/lib/snarky_js_bindings_lib.ml`.
 
 For Keccak/SHA3, the implementation exposes two ready-to-go functions.
 
@@ -42,7 +32,7 @@ val nist_sha3 :
   -> 'f Snarky_backendless.Cvar.t array
 
 (** Gadget for Keccak hash function for the parameters used in Ethereum *)
-val eth_keccak :
+val ethereum :
     (module Snarky_backendless.Snark_intf.Run with type field = 'f)
   -> 'f Snarky_backendless.Cvar.t list
   -> 'f Snarky_backendless.Cvar.t array
@@ -54,11 +44,11 @@ These two functions will be imported into the bindings layer and exposed via a n
 ```ocaml
 
   module Sha = struct
-    let create message nist length =
+    let create message nist_version length =
       let message_array = Array.to_list message in
-      if Js.to_bool nist then
+      if Js.to_bool nist_version then
         Kimchi_gadgets.Keccak.nist_sha3 (module Impl) length message_array
-      else Kimchi_gadgets.Keccak.eth_keccak (module Impl) message_array
+      else Kimchi_gadgets.Keccak.ethereum (module Impl) message_array
   end
 
 ```
@@ -66,7 +56,7 @@ These two functions will be imported into the bindings layer and exposed via a n
 In order to reduce the bindings surface, Keccak and SHA3 will be exposed via a `create` function, which behaves like a factory pattern.
 By calling this function inside SnarkyJS, we can define and expose all possible variants of SHA3(224/256/384/512) and Keccak without the need to have an individual function in the bindings layer for each variant.
 
-In order to differentiate Poseidon, which works over native Field elements, and SHA3 and Keccak which works over byte-sized Field elements, it will be beneficial to introduce a new type `UInt8` (a Field element that is exactly a byte) to draw a clan line between both hash functions.
+In order to differentiate Poseidon, which works over native Field elements, and SHA3 and Keccak which works over byte-sized Field elements, it will be beneficial to introduce a new type `UInt8` (a Field element that is exactly a byte) to draw a clean line between both hash functions.
 
 In SnarkyJS, these new primitives will be declared as followed:
 
@@ -88,6 +78,8 @@ const Keccak = buildSha(256, false);
 ```
 
 Another alternative to the factory pattern above could be to supply the developer with a single function that takes a range of parameters, so that the developer can choose their flavour of SHA3/Keccak on their own.
+
+_Note_: Currently, if `nist` is set to `false`, we only support an output length of 256.
 
 ```ts
 function SHA3(
@@ -205,7 +197,7 @@ Each of these preconditions requires expensive checks so its important to choose
 ### SHA3/Keccak
 
 In order to test the implementation of SHA3 and Keccak in SnarkyJS, we will follow the testing approach we already apply to other gadgets and gates.
-This includes testing the out-of- and in-snark variants using our testing framework, as well as adding a SHA3 and Keccak regression test. The regression tests will also include a set of predetermined digests to make sure that the algorithm doesn't unexpectedly change over time (similar to the tests implemented for the OCaml gadget).
+This includes testing the out-of- and in-snark variants using our testing framework, as well as adding a SHA3 and Keccak regression test. The regression tests will also include a set of predetermined digests to make sure that the algorithm doesn't unexpectedly change over time (similar to the tests implemented for the OCaml gadget). We will include a range of edge cases in the tests (e.g. empty input, zero, etc).
 
 In addition to that, we should provide a dedicated integration test that handles SHA3/Keccak hashing within a smart contract (proving enabled). This will allow us to not only provide developers with an example, but also ensure that SHA3 and Keccak proofs can be generated.
 
@@ -215,11 +207,10 @@ TODO
 
 ## Drawbacks
 
-[drawbacks]: #drawbacks
-
 Compared to Poseidon, hashing with SHA3 and Keccak is expensive. This should be made clear to the developer to avoid inefficient circuits. Additionally, it is important to educate developers of when to use SHA3/Keccak and when to use Poseidon. Additionally, the API should be secure.
 
 Especially in the case of ECDSA, verifying a signature is very expensive. It is important to provide both a safe API as well as avoiding double constraining of inputs. The developer needs to be educated that ECDSA is not the default signature scheme and should only be used in special cases and the API should reflect this difference.
+It should be mentioned that developers should ideally use Poseidon for everything that does not explicitly require SHA3/Keccak (e.g. a Merkle Tree in SnarkyJS, checksums of Field elements and provable structures `Struct`, etc.) and only use SHA3/Keccak if it is really required (e.g. interacting with Ethereum, verifying Ethereum signatures, etc.).
 
 Adding new primitives, especially cryptographic primitives, always includes risks such as the possibility of not constraining the algorithm and input enough to provide the developer with a safe API that is required to build secure applications. However, adding these primitives to SnarkyJS enables developers to explore a new range of important use cases.
 
@@ -228,15 +219,12 @@ Adding new primitives, especially cryptographic primitives, always includes risk
 [rationale-and-alternatives]: #rationale-and-alternatives
 
 ECDSA, Keccak and SHA3 could not be exposed to SnarkyJS at all. However, this would essentially render these primitives useless since they were specifically designed to be used by developers with SnarkyJS. By adding these primitives, SnarkyJS will become an even more powerful zero-knowledge SDK that enables developers to explore a wide range of use cases. Besides that, not adding these primitives would essentially block the ecosystem from interacting with other chains, mainly Ethereum.
+Keccak and SHA3 could not be exposed to SnarkyJS at all. However, this would essentially render these primitives useless since they were specifically designed to be used by developers with SnarkyJS. By adding these primitives, SnarkyJS will become an even more powerful zero-knowledge SDK that enables developers to explore a wide range of use cases.
 
 ## Prior art
 
-[prior-art]: #prior-art
-
-Exposing gates and gadgets from the OCaml layer to SnarkyJS is nothing new - the same procedure has been applied to other primitives such as Poseidon, Field and Elliptic Curve operations.
+Exposing gates and gadgets from the OCaml layer to SnarkyJS is nothing new - the same procedure has been applied to other primitives such as Poseidon, Field, and Elliptic Curve operations.
 
 ## Unresolved questions
-
-[unresolved-questions]: #unresolved-questions
 
 No unresolved questions.
