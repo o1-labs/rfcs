@@ -192,8 +192,6 @@ Each of these preconditions requires expensive checks so its important to choose
 
 ## Test plan and functional requirements
 
-s
-
 ### SHA3/Keccak
 
 In order to test the implementation of SHA3 and Keccak in SnarkyJS, we will follow the testing approach we already apply to other gadgets and gates.
