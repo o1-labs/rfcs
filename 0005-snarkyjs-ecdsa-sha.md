@@ -139,8 +139,10 @@ One goal of the API is to design an easy to use interface for developers as well
 The usage of both Keccak/SHA3 and Poseidon is the same: The user passes an array of Field elements into the hash function and the output is returned. One important detail is that Keccak/SHA3 only accepts an array of Field element that each are no larger than 1 byte. We will also provide additional helper functions that allow conversion between Field element arrays and hexadecimal encoded strings.
 
 ```ts
-function fieldBytesFromHex(hex: string): UInt8[];
-function hexToFieldBytes(xs: UInt8[]): string;
+class UInt8 {
+  fromHex(hex: string): UInt8[];
+  static toHex(xs: UInt8[]): string;
+}
 ```
 
 Additionally, we will add a function
