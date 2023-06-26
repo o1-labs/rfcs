@@ -82,10 +82,9 @@ Another alternative to the factory pattern above could be to supply the develope
 _Note_: Currently, if `nist` is set to `false`, we only support an output length of 256.
 
 ```ts
-function SHA3(
-  length: 224 | 256 | 385 | 512,
-  nist?: boolean = true
-): { hash(xs: UInt8[]) };
+function SHA3(length: 224 | 256 | 385 | 512 | { nist: 256 }): {
+  hash(xs: UInt8[]);
+};
 ```
 
 Developers can then import these functions into their project via
@@ -143,6 +142,14 @@ The usage of both Keccak/SHA3 and Poseidon is the same: The user passes an array
 function fieldBytesFromHex(hex: string): UInt8[];
 function hexToFieldBytes(xs: UInt8[]): string;
 ```
+
+Additionally, we will add a function
+
+```ts
+ForeignField.fromBytes(bytes: UInt8[]): ForeignField;
+```
+
+to the `ForeignField` implementation that constraints the output of Keccak to a foreign field, which will later be an important constraint for ECDSA.
 
 Overall, exposing new gadgets and gates follow a strict pattern that has been used all over in the SnarkyJS bindings layer. As an example, the [Poseidon](https://github.com/o1-labs/snarkyjs-bindings/blob/main/ocaml/lib/snarky_js_bindings_lib.ml#L386) implementation behaves similarly. From the point of view of SnarkyJS, these gadgets are just another set of function calls to OCaml.
 
