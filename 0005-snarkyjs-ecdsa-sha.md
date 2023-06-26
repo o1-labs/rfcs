@@ -140,7 +140,11 @@ The usage of both Keccak/SHA3 and Poseidon is the same: The user passes an array
 
 ```ts
 class UInt8 {
+  // constraints an array of Field elements to be at most 1 byte per Field
+  static fromFields(xs: Field[]): UInt8[];
+  // conversion from a hex-string to an array of UInt8 elements
   fromHex(hex: string): UInt8[];
+  // conversion of UInt8 elements to a hex-string
   static toHex(xs: UInt8[]): string;
 }
 ```
