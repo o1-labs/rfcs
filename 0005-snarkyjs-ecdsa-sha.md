@@ -186,9 +186,9 @@ The input preconditions are:
 
 Each of these preconditions requires expensive checks so its important to choose wisely when and how to check these inputs. Its important to provide a safe API as well as giving experienced developers enough space to optimize their applications by avoiding double constraining of inputs.
 
-**Evergreen, wide-sweeping Details**
+By building on top of the [`ForeignField`](https://github.com/o1-labs/snarkyjs/pull/985) implementation, we can leverage the modular approach taken by it to implement an ECDSA API which provides developers with a powerful modular interface. This approach allows us to potentially enable multiple versions of ECDSA with different curves, within the same API. We will also implement a `ForeignCurve` API which relies on the non-native elliptic curve primitives and gadgets introduce in the original [ECDAS PR](https://github.com/MinaProtocol/mina/pull/13279) so developers can not only profit from a modular ECDSA API, but can also access non-native elliptic curves directly.
 
-**Ephemeral details**
+TODO API preview
 
 ## Test plan and functional requirements
 
@@ -201,7 +201,8 @@ In addition to that, we should provide a dedicated integration test that handles
 
 ### ECDSA
 
-TODO
+ECDSA testing will follow a similar approach to SHA3 and Keccak. We will utilize the regression test framework in SnarkyJS to make sure no unintended changes are introduced and backwards compatibility is guaranteed. Similar to the original ECDSA gadget tests, we will also test a set of pre-defined ECDSA signatures (e.g. Ethereum transaction signatures).
+The implementation will also be tested in provable code (a smart contract) to make sure proofs can be generated correctly while also providing developers with an example of how to use ECDSA within smart contracts.
 
 ## Drawbacks
 
