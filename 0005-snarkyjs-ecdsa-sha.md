@@ -192,7 +192,7 @@ Each of these preconditions requires expensive checks so its important to choose
 
 ## Test plan and functional requirements
 
-[test-plan-and-functional-requirements]: #test-plan-and-functional-requirements
+s
 
 ### SHA3/Keccak
 
@@ -216,8 +216,6 @@ Especially in the case of ECDSA, verifying a signature is very expensive. It is 
 Adding new primitives, especially cryptographic primitives, always includes risks such as the possibility of not constraining the algorithm and input enough to provide the developer with a safe API that is required to build secure applications. However, adding these primitives to SnarkyJS enables developers to explore a new range of important use cases.
 
 ## Rationale and alternatives
-
-[rationale-and-alternatives]: #rationale-and-alternatives
 
 ECDSA, Keccak and SHA3 could not be exposed to SnarkyJS at all. However, this would essentially render these primitives useless since they were specifically designed to be used by developers with SnarkyJS. By adding these primitives, SnarkyJS will become an even more powerful zero-knowledge SDK that enables developers to explore a wide range of use cases. Besides that, not adding these primitives would essentially block the ecosystem from interacting with other chains, mainly Ethereum.
 
