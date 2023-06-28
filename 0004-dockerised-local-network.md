@@ -20,19 +20,26 @@ The Dockerization process involves two main phases:
 The resulting Docker image allows users to spin up a Mina local network using a simple command like
 
 ```shell
-docker run -it --env PROOF_LEVEL=none -p 4001:4001 -p 4006:4006 -p 5001:5001 -p 6001:6001 mina-local-network
+docker run -it --env NETWORK_TYPE="single-node" --env PROOF_LEVEL="none" -p 3085:3085 -p 8080:8080 -p 8181:8181 <org>/mina-local-network:rampup-latest-lightnet
 ```
 
 The Docker image can also be used in CI jobs to run end-to-end tests, particularly for tools that don't require fully fledged networks but still need to test integration with "close to real" networks. This significantly improves the developer experience (DX) and user experience (UX). Example candidates for this kind of testing include tools like [SnarkyJS](https://github.com/o1-labs/snarkyjs), [zkapp-cli](https://github.com/o1-labs/zkapp-cli), and [Archive-Node-API](https://github.com/o1-labs/Archive-Node-API).
 
+The lightweight Mina local network created by the Docker image will provide the following options and features:
+
+- It will allow users to choose between a `single-node` network and a `multi-node` network. Either to run a single node or a network with diverse types of participants.
+- It will provide a `Genesis Ledger` with pre-funded accounts, allowing users to quickly start testing their applications.
+- It will provide the `Accounts-Manger` service which will allow users to retrieve accounts to work with in automated way.
+- It will provide an additional port served by reverse proxy and passing requests to the Mina Daemon's `GraphQL` endpoint in order to properly manage the `CORS` configuration so that the `SnarkyJS` (formerly known as `SnarkyJS`) applications can work with the network without any additional configuration.
+
 The lightweight Mina local network created by the Docker image will have the following properties:
 
-- Transaction finality (`k`) is `30` blocks.
-- There are `720 slots` per `epoch`.
-- New blocks are produced every `~20-40` seconds.
-- Each block contains `5-8` transactions.
-- The network consumes `~4.5GB` of RAM at the beginning on `Linux` platform and `~5.5Gb` of RAM on `macOS`.
-- The startup and sync time is approximately `4` minutes.
+- Transaction finality (`k`) in `30` blocks.
+- `720 slots` per `epoch`.
+- New blocks production every `~20-40` seconds.
+- `5-8` transactions per block.
+- `~625-650Mb` of RAM consumption (after initial spike and if stays alive during less than `~2hrs` = `1/2 epoch`).
+- The startup and sync time `~1-2` minutes.
 
 For more details on how to manually set up and use the lightweight Mina Network, please refer to the [Mina local network manager](https://github.com/MinaProtocol/mina/tree/rampup/scripts/mina-local-network#mina-lightweight-network) documentation on GitHub.
 
@@ -55,6 +62,8 @@ Another potential drawback is the need for Docker as a dependency. Users who do 
 The Dockerization of Mina local networks is proposed as a solution to the current challenges in deploying and running local Mina networks for testing purposes. By encapsulating the Mina daemon and other necessary components in a Docker image, we can provide a simple, fast, and resource-efficient solution for spinning up local Mina networks.
 
 An alternative to this approach would be to improve the existing methods for deploying and running Mina networks, such as optimizing the setup process or providing better support for cloud-based solutions. However, these alternatives would likely be more complex and time-consuming to implement and would not offer the same level of simplicity and efficiency as the Docker-based solution.
+
+Another future option might be in utilizing [OpenMina](https://openmina.com/) project, which can target `Web` / `JS` runtime and provide a lightweight Mina local network in a browser. This would be a great option for developers, however, it is not available at the moment.
 
 ## Prior art
 
