@@ -96,7 +96,7 @@ Sha3_224.hash(xs);
 // ..
 ```
 
-### Alternative Approach
+#### Alternative Approach
 
 Another possibility is to combine all hash functions, including Poseidon, under a shared namespace `Hash`. Developers will then be able to use these functions by calling `Hash.[hash_name].hash(xs)`. However, this would not be equivalent to the existing `Poseidon` API.
 
@@ -161,31 +161,125 @@ Overall, exposing new gadgets and gates follow a strict pattern that has been us
 
 ## ECDSA
 
-**TODO** this will be a seperate PR stacked on top of this one
+Similar to SHA3 and Keccak, the gadget for ECDSA has been implemented by the crypto team and is available through exposing it in the bindings layer. However, designing and implementing a safe API for ECDSA is not as straight forward as it is for SHA3 and Keccak.
 
-**Evergreen, wide-sweeping Details**
+The main verification step of ECDSA is implemented via a `verify` gadget in OCaml.
 
-**Ephemeral details**
+```ocaml
+let verify (type f) (module Circuit : Snark_intf.Run with type field = f)
+    (base_checks : f Foreign_field.External_checks.t)
+    (scalar_checks : f Foreign_field.External_checks.t)
+    (curve : f Curve_params.InCircuit.t) (pubkey : f Affine.t)
+    ?(use_precomputed_gen_doubles = true) ?(scalar_mul_bit_length = 0)
+    ?(doubles : f Affine.t array option)
+    (signature :
+      f Foreign_field.Element.Standard.t * f Foreign_field.Element.Standard.t )
+    (msg_hash : f Foreign_field.Element.Standard.t)
+```
+
+The function takes the following arguments:
+
+- `base_check` := Context to track required base field external checks
+- `scalar_checks` := Context to track required scalar field external checks
+- `curve` := Elliptic curve parameters - for now, the goal is to make ECDSA over secp256k1 available. However, ECDSA accepts different curve parameters as well.
+- `pubkey` := Public key of signer
+- `doubles` := Optional powers of $2^i$ of the `pubkey`, $0 <= i < n$ where $n$ is `curve.order_bit_length`
+- `signature` := ECDSA signature (r, s) s.t. r, s $\in [1, n)$
+- `msg_hash` := Message hash s.t. msg_hash \in Fn - this will be the output of `Keccak`
+
+However, it is important to mention that the OCaml API has been designed with the assumption in mind that some of the inputs already satisfy a set of preconditions. These preconditions will not be checked internally, but are a requirement. Additionally, verifying ECDSA signatures is an expensive task and requires a lot of constraints. By moving the precondition checks of the inputs outside of the actual verification step (requiring them as preconditions), it allows us to optimize constraints but also provides a bigger API surface to cover in order for us to provide a safe API developers can use.
+
+The input preconditions are:
+
+- `pubkey` is on the curve and not O (`Ec_group.is_on_curve` gadget)
+- `pubkey` is in the subgroup (nP = O) (`Ec_group.check_subgroup` gadget)
+- `pubkey` is bounds checked (`multi-range-check` gadgets)
+- `r, s` $\in [1, n)$ (`signature_scalar_check` gadget)
+- `msg_hash` $\in Fn$ (`bytes_to_foreign_field_element` gadget)
+
+Each of these preconditions requires expensive checks so its important to choose wisely when and how to check these inputs. Its important to provide a safe API as well as giving experienced developers enough space to optimize their applications by avoiding double constraining of inputs.
+
+By building on top of the [`ForeignField`](https://github.com/o1-labs/snarkyjs/pull/985) implementation, we can leverage the modular approach taken by it to implement an ECDSA API which provides developers with a powerful modular interface. This approach allows us to potentially enable multiple versions of ECDSA with different curves, within the same API. We will also implement a `ForeignCurve` API which relies on the non-native elliptic curve primitives and gadgets introduce in the original [ECDAS PR](https://github.com/MinaProtocol/mina/pull/13279) so developers can not only profit from a modular ECDSA API, but can also access non-native elliptic curves directly.
+
+Similar to [`ForeignField`](https://github.com/o1-labs/snarkyjs/pull/985), the API of `ForeignCurve` will make use of a modular approach.
+
+```ts
+type CurveParams = {
+  /**
+   * Base field modulus
+   */
+  modulus: bigint;
+  /**
+   * Scalar field modulus = group order
+   */
+  order: bigint;
+  /**
+   * The `a` parameter in the curve equation y^2 = x^3 + ax + b
+   */
+  a: bigint;
+  /**
+   * The `b` parameter in the curve equation y^2 = x^3 + ax + b
+   */
+  b: bigint;
+  /**
+   * Generator point
+   */
+  gen: AffineBigint;
+};
+```
+
+The `ForeignCurve` API will accept a set of `CurveParams`, which can then be used to create a `ForeignCurve` and serve as the foundation for ECDSA.
+
+```ts
+function createForeignCurve(curve: CurveParams) {
+  class BaseField extends createForeignField(curve.modulus) {}
+  class ScalarField extends createForeignField(curve.order) {}
+
+  class ForeignCurve implements Affine {
+    x: BaseField;
+    y: BaseField;
+
+    constructor() {}
+
+    add() {}
+
+    static BaseField = BaseField;
+    static ScalarField = ScalarField;
+  }
+
+  return ForeignCurve;
+}
+```
+
+TODO ECDSA API preview
 
 ## Test plan and functional requirements
 
-## SHA3/Keccak
+### SHA3/Keccak
 
 In order to test the implementation of SHA3 and Keccak in SnarkyJS, we will follow the testing approach we already apply to other gadgets and gates.
 This includes testing the out-of- and in-snark variants using our testing framework, as well as adding a SHA3 and Keccak regression test. The regression tests will also include a set of predetermined digests to make sure that the algorithm doesn't unexpectedly change over time (similar to the tests implemented for the OCaml gadget). We will include a range of edge cases in the tests (e.g. empty input, zero, etc).
 
 In addition to that, we should provide a dedicated integration test that handles SHA3/Keccak hashing within a smart contract (proving enabled). This will allow us to not only provide developers with an example, but also ensure that SHA3 and Keccak proofs can be generated.
 
+### ECDSA
+
+ECDSA testing will follow a similar approach to SHA3 and Keccak. We will utilize the regression test framework in SnarkyJS to make sure no unintended changes are introduced and backwards compatibility is guaranteed. Similar to the original ECDSA gadget tests, we will also test a set of pre-defined ECDSA signatures (e.g. Ethereum transaction signatures).
+The implementation will also be tested in provable code (a smart contract) to make sure proofs can be generated correctly while also providing developers with an example of how to use ECDSA within smart contracts.
+
 ## Drawbacks
 
 Compared to Poseidon, hashing with SHA3 and Keccak is expensive. This should be made clear to the developer to avoid inefficient circuits. Additionally, it is important to educate developers of when to use SHA3/Keccak and when to use Poseidon. Additionally, the API should be secure.
+
 It should be mentioned that developers should ideally use Poseidon for everything that does not explicitly require SHA3/Keccak (e.g. a Merkle Tree in SnarkyJS, checksums of Field elements and provable structures `Struct`, etc.) and only use SHA3/Keccak if it is really required (e.g. interacting with Ethereum, verifying Ethereum signatures, etc.).
+
+Especially in the case of ECDSA, verifying a signature is very expensive. It is important to provide both a safe API as well as avoiding double constraining of inputs. The developer needs to be educated that ECDSA is not the default signature scheme and should only be used in special cases and the API should reflect this difference.
 
 Adding new primitives, especially cryptographic primitives, always includes risks such as the possibility of not constraining the algorithm and input enough to provide the developer with a safe API that is required to build secure applications. However, adding these primitives to SnarkyJS enables developers to explore a new range of important use cases.
 
 ## Rationale and alternatives
 
-Keccak and SHA3 could not be exposed to SnarkyJS at all. However, this would essentially render these primitives useless since they were specifically designed to be used by developers with SnarkyJS. By adding these primitives, SnarkyJS will become an even more powerful zero-knowledge SDK that enables developers to explore a wide range of use cases.
+ECDSA, Keccak and SHA3 could not be exposed to SnarkyJS at all. However, this would essentially render these primitives useless since they were specifically designed to be used by developers with SnarkyJS. By adding these primitives, SnarkyJS will become an even more powerful zero-knowledge SDK that enables developers to explore a wide range of use cases. Besides that, not adding these primitives would essentially block the ecosystem from interacting with other chains, mainly Ethereum.
 
 ## Prior art
 
