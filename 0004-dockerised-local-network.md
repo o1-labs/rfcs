@@ -15,7 +15,7 @@ The Dockerization of lightweight Mina local networks aims to address these chall
 The Dockerization process involves two main phases:
 
 1. **Building Phase**: Usual build procedure the engineers familiar with. In this phase, the Mina Daemon is built locally or on a CI server using the desired branch, revision, and compile-time constants. The build process can leverage the [lightnet](https://github.com/MinaProtocol/mina/blob/4e0b324912017c3ff576704ee397ade3d9bda412/src/config/lightnet.mlh) Dune profile to create a lightweight version of the Mina Daemon.
-2. **Dockerization Phase**: In this phase, scripts are invoked to prepare the file system (binaries, additional scripts, genesis ledger configuration with pre-funded accounts, etc.) and ensure that the Mina local network scripts work well inside the Docker environment. The Docker image is then built and uploaded to Docker Hub using provided credentials. (Users have to be authenticated using [`docker login`](https://docs.docker.com/engine/reference/commandline/login/) CLI).
+2. **Dockerization Phase**: In this phase, scripts are invoked to prepare the file system (binaries, additional scripts, genesis ledger configuration with pre-funded accounts, etc.) and ensure that the Mina local network scripts work well inside the Docker environment. The Docker image is then built and uploaded to preferred cloud registry (for example `GCP Artifact Registry`, `Docker Hub`, `AWS Elastic Container Registry`).
 
 The resulting Docker image allows users to spin up a Mina local network using a simple command like
 
@@ -74,4 +74,3 @@ Dockerization is a common practice in software development, particularly for app
 - What is the best way to handle the building phase? And how can we ensure that the Docker image is kept up-to-date with the latest changes to the Mina Daemon and other components?
   - Should we add additional Minaprotocol CI job to periodically (say, once a day) build the lightweight Mina Daemon, build Docker image and publish it on behalf of O(1) Labs Docker Hub account?
   - Which Mina branches should be used to prepare the corresponding Docker images with the lightweight Mina Network inside?
-- How can we best handle the potential discrepancies between the lightweight Mina local network and the full Mina network?
