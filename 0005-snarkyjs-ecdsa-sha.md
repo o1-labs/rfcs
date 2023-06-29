@@ -188,7 +188,57 @@ Each of these preconditions requires expensive checks so its important to choose
 
 By building on top of the [`ForeignField`](https://github.com/o1-labs/snarkyjs/pull/985) implementation, we can leverage the modular approach taken by it to implement an ECDSA API which provides developers with a powerful modular interface. This approach allows us to potentially enable multiple versions of ECDSA with different curves, within the same API. We will also implement a `ForeignCurve` API which relies on the non-native elliptic curve primitives and gadgets introduce in the original [ECDAS PR](https://github.com/MinaProtocol/mina/pull/13279) so developers can not only profit from a modular ECDSA API, but can also access non-native elliptic curves directly.
 
-TODO API preview
+Similar to [`ForeignField`](https://github.com/o1-labs/snarkyjs/pull/985), the API of `ForeignCurve` will make use of a modular approach.
+
+```ts
+type CurveParams = {
+  /**
+   * Base field modulus
+   */
+  modulus: bigint;
+  /**
+   * Scalar field modulus = group order
+   */
+  order: bigint;
+  /**
+   * The `a` parameter in the curve equation y^2 = x^3 + ax + b
+   */
+  a: bigint;
+  /**
+   * The `b` parameter in the curve equation y^2 = x^3 + ax + b
+   */
+  b: bigint;
+  /**
+   * Generator point
+   */
+  gen: AffineBigint;
+};
+```
+
+The `ForeignCurve` API will accept a set of `CurveParams`, which can then be used to create a `ForeignCurve` and serve as the foundation for ECDSA.
+
+```ts
+function createForeignCurve(curve: CurveParams) {
+  class BaseField extends createForeignField(curve.modulus) {}
+  class ScalarField extends createForeignField(curve.order) {}
+
+  class ForeignCurve implements Affine {
+    x: BaseField;
+    y: BaseField;
+
+    constructor() {}
+
+    add() {}
+
+    static BaseField = BaseField;
+    static ScalarField = ScalarField;
+  }
+
+  return ForeignCurve;
+}
+```
+
+TODO ECDSA API preview
 
 ## Test plan and functional requirements
 
