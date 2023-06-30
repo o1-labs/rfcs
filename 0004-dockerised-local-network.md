@@ -20,19 +20,19 @@ The Dockerization process involves two main phases:
 The resulting Docker image allows users to spin up a Mina local network using a simple command like
 
 ```shell
-docker run -it --env NETWORK_TYPE="single-node" --env PROOF_LEVEL="none" -p 3085:3085 -p 8080:8080 -p 8181:8181 <org>/mina-local-network:rampup-latest-lightnet
+docker run -it --env NETWORK_TYPE="single-node" --env PROOF_LEVEL="none" -p 3085:3085 -p 8080:8080 -p 8181:8181 <org>/mina-local-network:<tag>
 ```
 
-The Docker image can also be used in CI jobs to run end-to-end tests, particularly for tools that don't require fully fledged networks but still need to test integration with "close to real" networks. This significantly improves the developer experience (DX) and user experience (UX). Example candidates for this kind of testing include tools like [SnarkyJS](https://github.com/o1-labs/snarkyjs), [zkapp-cli](https://github.com/o1-labs/zkapp-cli), and [Archive-Node-API](https://github.com/o1-labs/Archive-Node-API).
+The Docker image can also be used in CI jobs to run end-to-end tests, particularly for tools that don't require fully fledged networks but still need to test integration with "close to real" networks. This significantly improves the developer experience (DX) and user experience (UX). Example candidates for this kind of testing include tools like [SnarkyJS](https://github.com/o1-labs/snarkyjs), [zkapp-cli](https://github.com/o1-labs/zkapp-cli) and [Archive-Node-API](https://github.com/o1-labs/Archive-Node-API), as well as the 3rd party applications built using these tools.
 
-The lightweight Mina local network created by the Docker image will provide the following options and features:
+### Solution options and features
 
 - It will allow users to choose between a `single-node` network and a `multi-node` network. Either to run a single node or a network with diverse types of participants.
 - It will provide a `Genesis Ledger` with pre-funded accounts, allowing users to quickly start testing their applications.
 - It will provide the `Accounts-Manger` service which will allow users to retrieve accounts to work with in automated way.
 - It will provide an additional port served by reverse proxy and passing requests to the Mina Daemon's `GraphQL` endpoint in order to properly manage the `CORS` configuration so that the `SnarkyJS` (formerly known as `SnarkyJS`) applications can work with the network without any additional configuration.
 
-The lightweight Mina local network created by the Docker image will have the following properties:
+### Resulting network properties
 
 - Transaction finality (`k`) in `30` blocks.
 - `720 slots` per `epoch`.
@@ -42,6 +42,13 @@ The lightweight Mina local network created by the Docker image will have the fol
 - The startup and sync time `~1-2` minutes.
 
 For more details on how to manually set up and use the lightweight Mina Network, please refer to the [Mina local network manager](https://github.com/MinaProtocol/mina/tree/rampup/scripts/mina-local-network#mina-lightweight-network) documentation on GitHub.
+
+## Delivery plan and cadence
+
+The resulting Docker images will be published to the `GCP Artifact Registry`. Accompanying this, we envision updates to our publicly accessible documentation such as [docs.minaprotocol.com](https://docs.minaprotocol.com/) and the relevant GitHub repositories README.md files.  
+Our approach involves distribution of Docker images for key branches, like `rampup`, `berkeley`, `develop`.  
+To maintain the utility of this solution, regular reviews of user needs and expectations may be conducted. This could lead to the introduction of new features, relevant changes, and adjustments to the focus on particular branches and the frequency of updates.  
+The delivery cadence for the Docker images is currently set to be daily.
 
 ## Test plan and functional requirements
 
@@ -68,9 +75,3 @@ Another future option might be in utilizing [OpenMina](https://openmina.com/) pr
 ## Prior art
 
 Dockerization is a common practice in software development, particularly for applications that require complex setup processes or that need to run in isolated environments. Many blockchain projects also provide Docker images for their nodes or other components, recognizing the benefits of Docker in terms of simplicity, reproducibility, and resource efficiency.
-
-## Unresolved questions
-
-- What is the best way to handle the building phase? And how can we ensure that the Docker image is kept up-to-date with the latest changes to the Mina Daemon and other components?
-  - Should we add additional Minaprotocol CI job to periodically (say, once a day) build the lightweight Mina Daemon, build Docker image and publish it on behalf of O(1) Labs Docker Hub account?
-  - Which Mina branches should be used to prepare the corresponding Docker images with the lightweight Mina Network inside?
