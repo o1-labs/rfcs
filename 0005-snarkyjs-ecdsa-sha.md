@@ -77,28 +77,9 @@ const Sha3_512 = buildSha(512, true);
 const Keccak = buildSha(256, false);
 ```
 
-Another alternative to the factory pattern above could be to supply the developer with a single function that takes a range of parameters, so that the developer can choose their flavour of SHA3/Keccak on their own.
+### Implementation (previously Alternative Approach)
 
-_Note_: Currently, if `nist` is set to `false`, we only support an output length of 256.
-
-```ts
-function SHA3(length: 224 | 256 | 385 | 512 | { nist: 256 }): {
-  hash(xs: UInt8[]);
-};
-```
-
-Developers can then import these functions into their project via
-
-```ts
-import { Sha3_224, Sha3_256, Sha3_385, Sha3_512, Keccak } from "snarkyjs";
-
-Sha3_224.hash(xs);
-// ..
-```
-
-### Alternative Approach
-
-Another possibility is to combine all hash functions, including Poseidon, under a shared namespace `Hash`. Developers will then be able to use these functions by calling `Hash.[hash_name].hash(xs)`. However, this would not be equivalent to the existing `Poseidon` API.
+After discussing different API approaches, the overall consensus agreed on pursuing this particular approach over others. The implementation will combine all hash functions, including Poseidon, under a shared namespace `Hash`. Developers will then be able to use these functions by calling `Hash.[hash_name].hash(xs)`. However, this would not be equivalent to the existing `Poseidon` API.
 
 However, the existing `Poseidon` API could be deprecated in favour of the new `Hash` namespace.
 
@@ -131,6 +112,27 @@ Hash.Keccak.hash(xs);
 
 // deprecated in favor of Hash.Poseidon.hash
 Poseidon.hash(xs);
+```
+
+### Alternative Approach
+
+Another alternative to the factory pattern above could be to supply the developer with a single function that takes a range of parameters, so that the developer can choose their flavour of SHA3/Keccak on their own.
+
+_Note_: Currently, if `nist` is set to `false`, we only support an output length of 256.
+
+```ts
+function SHA3(length: 224 | 256 | 385 | 512 | { nist: 256 }): {
+  hash(xs: UInt8[]);
+};
+```
+
+Developers can then import these functions into their project via
+
+```ts
+import { Sha3_224, Sha3_256, Sha3_385, Sha3_512, Keccak } from "snarkyjs";
+
+Sha3_224.hash(xs);
+// ..
 ```
 
 It is important to mention that we have a lot of freedom in the the implementation details of the API, as the gates and gadgets are already implemented in OCaml and just need to exposed and wrapped by a developer friendly API.
