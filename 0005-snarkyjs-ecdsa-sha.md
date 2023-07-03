@@ -191,54 +191,87 @@ By building on top of the [`ForeignField`](https://github.com/o1-labs/snarkyjs/p
 Similar to [`ForeignField`](https://github.com/o1-labs/snarkyjs/pull/985), the API of `ForeignCurve` will make use of a modular approach.
 
 ```ts
+// curve parameters to specify a foreign curve; secp256k1 and other curves will be provided to the developer
 type CurveParams = {
-  /**
-   * Base field modulus
-   */
+  name: string;
   modulus: bigint;
-  /**
-   * Scalar field modulus = group order
-   */
   order: bigint;
-  /**
-   * The `a` parameter in the curve equation y^2 = x^3 + ax + b
-   */
   a: bigint;
-  /**
-   * The `b` parameter in the curve equation y^2 = x^3 + ax + b
-   */
   b: bigint;
-  /**
-   * Generator point
-   */
   gen: AffineBigint;
 };
 ```
 
-The `ForeignCurve` API will accept a set of `CurveParams`, which can then be used to create a `ForeignCurve` and serve as the foundation for ECDSA.
+The `ForeignCurve` API will accept a set of `CurveParams`, which can then be used to create a `ForeignCurve` and serve as the foundation for ECDSA. The function `createForeignCurve` returns a `ForeignCurve` class based on the specified parameters.
 
 ```ts
-function createForeignCurve(curve: CurveParams) {
-  class BaseField extends createForeignField(curve.modulus) {}
-  class ScalarField extends createForeignField(curve.order) {}
+function createForeignCurve(curve: CurveParams): ForeignCurve;
+```
 
-  class ForeignCurve implements Affine {
-    x: BaseField;
-    y: BaseField;
+The returned class `ForeignCurve` will have a set of helper methods associated with it, most notably is the `initialize` method which will need to be called at least once per provable method before using the curve. This ensures the curve parameters are set in the circuit, however, this operation is relatively costly.
 
-    constructor() {}
+In order to utilize a `ForeignCurve` and build an ECDSA signer with it, the developer can simply call the `createEcdsa` function (similarly to `createForeignCurve`) and specify the curve the developer wants to use.
 
-    add() {}
+```ts
+function createEcdsa(curve: CurveParams | ForeignCurveClass): EcdsaSignature;
+```
 
-    static BaseField = BaseField;
-    static ScalarField = ScalarField;
-  }
+The `EcdsaSignature` class can then be used to create ECDSA-signatures, which includes a set of helper methods:
 
-  return ForeignCurve;
+```ts
+class EcdsaSignature extends Signature {
+  static Curve: ForeignCurve;
+
+  // used to deserialize a signature
+  static from(sig: { r: Scalar | bigint; s: Scalar | bigint }): EcdsaSignature;
+
+  // used to create a signature from the corresponding raw hex encoding
+  static fromHex(rawSignature: string): EcdsaSignature;
+
+  // verification of the signature
+  verify(
+    msgHash: Scalar | bigint,
+    publicKey: Curve | { x: BaseField | bigint; y: BaseField | bigint }
+  ): void;
+
+  // check if the signature is valid
+  static check(signature: { r: Scalar; s: Scalar }): void;
+
+  // dummy signature
+  static dummy: EcdsaSignature;
 }
 ```
 
-TODO ECDSA API preview
+Developers will then be able to use the APIs as follows:
+
+```ts
+import {
+  createEcdsa,
+  secp256k1Params,
+  createForeignCurve,
+  Provable,
+} from "snarkyjs";
+
+class Secp256k1 extends createForeignCurve(secp256k1Params) {}
+
+class EthSigner extends createEcdsa(Secp256k1) {}
+
+let publicKey = Secp256k1.from({
+  x: 49781623198970027997721070672560275063607048368575198229673025608762959476014n,
+  y: 44999051047832679156664607491606359183507784636787036192076848057884504239143n,
+});
+
+let signature = EthSigner.fromHex(
+  "0x82de9950cc5aac0dca7210cb4b77320ac9e844717d39b1781e9d941d920a12061da497b3c134f50b2fce514d66e20c5e43f9615f097395a5527041d14860a52f1b"
+);
+
+let msgHash =
+  0x3e91cd8bd233b3df4e4762b329e2922381da770df1b31276ec77d0557be7fcefn;
+
+Secp256k1.initialize();
+
+signature.verify(msgHash, publicKey);
+```
 
 ## Test plan and functional requirements
 
