@@ -4,8 +4,7 @@
 
 We implement a revised version of the foreign field multiplication (ffmul) custom gate described in the [original ffmul RFC](https://o1-labs.github.io/proof-systems/rfcs/foreign_field_mul.html). The gate constrains integers $a$, $b$ (inputs), $q$ (quotient) and $r$ (remainder) to satisfy
 
-$$
-\tag{1}
+$$\tag{1}
 a b = qf + r
 $$
 
@@ -47,17 +46,15 @@ Our range-check (RC) gates support a "compact mode" where a variable $r_{01}$ is
 
 We will now derive the constraints necessary to prove that
 
-$$
-\tag{1}
+$$\tag{1}
 a b = qf + r
 $$
 
-At the same time, we will prove soundness (i.e., the constraints are _sufficient_ to imply $(1)$).
+At the same time, we will prove soundness -- i.e., the constraints are _sufficient_ to imply $(1)$.
 
 Let $n$ be the _native_ field modulus (for example, $n$ is one of the Pasta primes). Our first constraint is to check $(1)$ modulo $n$:
 
-$$
-\tag{C1: native}
+$$\tag{C1: native}
 ab = qf + r\mod n
 $$
 
@@ -83,13 +80,13 @@ First, we assume the following bounds. These have to be ensured using $\ell$-bit
 
 \begin{align}
 \tag{RC $a$}
-& a*0, a_1, a_2 \in [0,2^\ell) \\
+& a_0, a_1, a_2 \in [0,2^\ell) \\
 \tag{RC $b$}
 & b_0, b_1, b_2 \in [0,2^\ell) \\
 \tag{RC $q$}
 & q_0, q_1, q_2 \in [0,2^\ell) \\
 \tag{RC $r$}
-& r*{01} \in [0,2^{2\ell}), r_2 \in [0,2^\ell) \\
+& r_{01} \in [0,2^{2\ell}), r_2 \in [0,2^\ell) \\
 \end{align}
 
 Also, we define $f' := 2^{3\ell} - f > 0$ with limbs $(f'_0, f'_1, f'_2) \in [0, 2^\ell)^3$ and write
@@ -104,23 +101,22 @@ Next, we expand our equation into limbs, but collect all terms higher than $2^{3
 
 \begin{align}
 & a b - q f - r = \\
-& (a*0 b_0 + q_0 f'\_0) + 2^{\ell} (a_0 b_1 + a_1 b_0 + q_0 f'\_1 + q_1 f'\_0) - r*{01} \\
-&+ 2^{2\ell} (a_0 b_2 + a_2 b_0 + q_0 f'\_2 + q_2 f'\_0 + a_1 b_1 + q_1 f'\_1 - r_2) \\
+&  (a_0 b_0 + q_0 f'_0) + 2^{\ell} (a_0 b_1 + a_1 b_0 + q_0 f'_1 + q_1 f'_0) - r_{01} \\
+&+ 2^{2\ell} (a_0 b_2 + a_2 b_0 + q_0 f'_2 + q_2 f'_0 + a_1 b_1 + q_1 f'_1 - r_2) \\
 &+ 2^{3\ell} w
 \end{align}
 
 To make our equations less unwieldy, we define
 
 \begin{align}
-& p_0 := a_0b_0 + q_0f'\_0 \\
-& p_1 := a_0b_1 + a_1b_0 + q_0f'\_1 + q_1f'\_0 \\
-& p_2 := a_0b_2 + a_2b_0 + q_0f'\_2 + q_2f'\_0 + a_1b_1 + q_1f'\_1
+& p_0 := a_0b_0 + q_0f'_0 \\
+& p_1 := a_0b_1 + a_1b_0 + q_0f'_1 + q_1f'_0 \\
+& p_2 := a_0b_2 + a_2b_0 + q_0f'_2 + q_2f'_0 + a_1b_1 + q_1f'_1
 \end{align}
 
 Now our limb-wise equation reads
 
-$$
-\tag{2}
+$$\tag{2}
 a b - q f - r = (p_0 + 2^{\ell} p_1 - r_{01}) + 2^{2\ell} (p_2 - r_2) + 2^{3\ell} w
 $$
 
@@ -133,9 +129,9 @@ We want to constrain the right-hand side (RHS) of $(2)$ in pieces that fit withi
 In fact, thanks to our range-checks, we know that a product such as $a_0 b_0$ satisfies $0 \le a_0 b_0 < 2^{\ell} \cdot 2^{\ell} = 2^{2\ell}$. This gives us estimates on $p_0, p_1, p_2$:
 
 \begin{align}
-& 0 \le p_0 = a_0b_0 + q_0f'\_0 < 2 \cdot 2^{2\ell} \\
-& 0 \le p_1 = a_0b_1 + a_1b_0 + q_0f'\_1 + q_1f'\_0 < 4 \cdot 2^{2\ell} \\
-& 0 \le p_2 = a_0b_2 + a_2b_0 + q_0f'\_2 + q_2f'\_0 + a_1b_1 + q_1f'\_1 < 6 \cdot 2^{2\ell}
+& 0 \le p_0 = a_0b_0 + q_0f'_0 < 2 \cdot 2^{2\ell} \\
+& 0 \le p_1 = a_0b_1 + a_1b_0 + q_0f'_1 + q_1f'_0 < 4 \cdot 2^{2\ell} \\
+& 0 \le p_2 = a_0b_2 + a_2b_0 + q_0f'_2 + q_2f'_0 + a_1b_1 + q_1f'_1 < 6 \cdot 2^{2\ell}
 \end{align}
 
 In particular, $p_1$ has at most $2\ell+2$ bits and so $2^\ell p_1$ might be larger than $2^{3\ell} > n$. This is the motivation to split $p_1$ into an $\ell$-bit bottom half and a $(\ell+2)$-bit top half:
@@ -152,20 +148,18 @@ $$
 
 where $p_{110}$ has $\ell$ bits and $p_{111}$ has the remaining 2 bits.
 
-- **Introduce 3 witnesses**: $p_{10}$, $p_{110}$ and $p_{111}$
+* **Introduce 3 witnesses**: $p_{10}$, $p_{110}$ and $p_{111}$
 
 In summary, the split of $p_1$ gives our our second constraint:
 
-$$
-\tag{C2: split middle}
+$$\tag{C2: split middle}
 p_1 = p_{10} + 2^\ell p_{110} + 2^{2\ell} p_{111} \mod n
 $$
 
 Constraining $p_{111}$ to two bits is our third constraint:
 
 $$\tag{C3: 2-bit $p_{111}$}
-p*{111}(p*{111}-1)(p*{111}-2)(p*{111}-3) = 0 \mod n
-
+p_{111}(p_{111}-1)(p_{111}-2)(p_{111}-3) = 0 \mod n
 $$
 
 And we add two RCs that have to be performed externally:
@@ -177,11 +171,8 @@ And we add two RCs that have to be performed externally:
 
 Using these RCs and our earlier estimate on $p_1$, we can prove that $\text{(C2)}$ not only holds modulo $n$, but over the integers:
 
-
 $$
-
-|p*1 - p*{10} - 2^\ell p*{110} - 2^{2\ell} p*{111}| < 4\cdot2^{2\ell} + 2^{\ell} + 2^{\ell} + 4 < n
-
+|p_1 - p_{10} - 2^\ell p_{110} - 2^{2\ell} p_{111}| < 4\cdot2^{2\ell} + 2^{\ell} + 2^{\ell} + 4 < n
 $$
 
 Therefore, we can use $\text{(C2)}$ to expand $p_1$ in our earlier equation $(2)$:
@@ -194,17 +185,15 @@ $$
 
 Now both terms in brackets of $(2')$ fit within $n$. We add a constraint that the first bracket is zero, except for a possible carry $c_0$:
 
-$$
-\tag{C4: bottom limbs}
+$$\tag{C4: bottom limbs}
 p_0 + 2^\ell p_{01} - r_{01} = 2^{2\ell} c_0\mod n
 $$
 
-- **Introduce 1 witness**: $c_{0}$
+* **Introduce 1 witness**: $c_{0}$
 
 Note first that we can constrain $c_0$ to be non-negative since $r_{01}$ is at most $2\ell$ bits and the lower $2\ell$ bits of the LHS are supposed to be zero. Let's estimate the LHS to compute how many bits $c_0$ can have:
 
-$$
-\tag{3}
+$$\tag{3}
 p_0 + 2^\ell p_{01} - r_{01} < 2^{2\ell + 1} + 2^{2\ell} - 0 < 2^{2\ell + 2}
 $$
 
@@ -212,7 +201,6 @@ This shows that $c_0$ will have at most 2 bits, which motivates our next constra
 
 $$\tag{C5: 2-bit $c_0$}
 c_0(c_0-1)(c_0-2)(c_0-3) = 0 \mod n
-
 $$
 
 This constraint -- together with our estimate of $p_0$ and RCs on $p_{01}$ and $r_{01}$ -- allows us to prove that $\text{(C4)}$ doesn't overflow $n$ and holds over the integers:
@@ -224,8 +212,7 @@ $$
 Therefore, we can use $\text{(C4)}$ in $(2')$ to eliminate the bottom part:
 
 $$\tag{$2''$}
-a b - q f - r = 2^{2\ell} (p*2 - r_2 + p*{11} + c_0) + 2^{3\ell} w
-
+a b - q f - r = 2^{2\ell} (p_2 - r_2 + p_{11} + c_0) + 2^{3\ell} w
 $$
 
 The next step is to constrain the $2^{2\ell}$ term, to be zero in its lower $\ell$ bits:
@@ -242,19 +229,19 @@ $$
 
 We see that $c_1$ has at most $\ell + 3$ bits. To save rows and not fill more space among the permutable witness cells, we won't pass $c_1$ to a RC gate. Instead, we inline the entire RC into the ffmul gate itself, using a combination of 7x 12-bit lookups, giving us $7 \cdot 12 = 84$ bits, plus 3x 2-bit constraints plus 1x 1-bit constraint, giving us the remaining 7 bits to get $84 + 7 = 91 = \ell + 3$ bits. We name the 11 new carry witnesses after the lowest bit of $c_1$ they cover (counting bits from 0 to 90):
 
-- **Introduce 11 witnesses**: $c_{1,0}$, $c_{1,12}$, $c_{1,24}$, $c_{1,36}$, $c_{1,48}$, $c_{1,60}$, $c_{1,72}$, $c_{1,84}$, $c_{1,86}$, $c_{1,88}$, $c_{1,90}$
+* **Introduce 11 witnesses**: $c_{1,0}$, $c_{1,12}$, $c_{1,24}$, $c_{1,36}$, $c_{1,48}$, $c_{1,60}$, $c_{1,72}$, $c_{1,84}$, $c_{1,86}$, $c_{1,88}$, $c_{1,90}$
 
 \begin{align}
 \tag{12-bit lookups}
-& c*{1,0}, c*{1,12}, c*{1,24}, c*{1,36}, c*{1,48}, c*{1,60}, c*{1,72} \in [0,2^{12}) \\
+& c_{1,0}, c_{1,12}, c_{1,24}, c_{1,36}, c_{1,48}, c_{1,60}, c_{1,72} \in [0,2^{12}) \\
 \tag{C7: 2-bit}
-& c*{1,84}(c*{1,84}-1)(c*{1,84}-2)(c*{1,84}-3) = 0 \bmod n \quad \\
+& c_{1,84}(c_{1,84}-1)(c_{1,84}-2)(c_{1,84}-3) = 0 \bmod n \quad \\
 \tag{C8: 2-bit}
-& c*{1,86}(c*{1,86}-1)(c*{1,86}-2)(c*{1,86}-3) = 0 \bmod n \quad \\
+& c_{1,86}(c_{1,86}-1)(c_{1,86}-2)(c_{1,86}-3) = 0 \bmod n \quad \\
 \tag{C9: 2-bit}
-& c*{1,88}(c*{1,88}-1)(c*{1,88}-2)(c*{1,88}-3) = 0 \bmod n \quad \\
+& c_{1,88}(c_{1,88}-1)(c_{1,88}-2)(c_{1,88}-3) = 0 \bmod n \quad \\
 \tag{C10: 1-bit}
-& c*{1,90}(c\_{1,90}-1) = 0 \mod n \\
+& c_{1,90}(c_{1,90}-1) = 0 \mod n \\
 \end{align}
 
 In place of $c_1$, the gate uses the expression
@@ -275,7 +262,6 @@ Therefore, we can plug in $\text{(C6)}$ into $(2'')$ to prove that
 
 $$\tag{$2'''$}
 a b - q f - r = 2^{3\ell} (w + c_1)
-
 $$
 
 
@@ -285,18 +271,13 @@ By our first constraint $\text{(C1)}$, the LHS of $(2''')$ is a multiple of $n$,
 
 
 $$
-
-2^{3\ell} (w + v\_{1}) = 0 \mod{n}
-
+2^{3\ell} (w + v_{1})  = 0 \mod{n}
 $$
 
 Because $2^{3\ell}$ and $n$ are co-prime, we can multiply with $2^{-3\ell}$ to see that
 
-
 $$
-
-w + v\_{1} = 0 \mod{n}
-
+w + v_{1}  = 0 \mod{n}
 $$
 
 Therefore, we can write $w + v_{1} = \delta n$ for some $\delta \in \mathbb{Z}$. From $(2''')$ we conclude that
@@ -311,8 +292,8 @@ To do this, our strategy is to add an additional bound on the highest limbs of $
 
 For a variable $x = (x_0, x_1, x_2)$ define the _bounds check_ as the following two constraints:
 
-- $x_2 + (2^\ell - f_2) = z \mod n$
-- $z \in [0,2^\ell)$
+* $x_2 + (2^\ell - f_2) = z \mod n$
+* $z \in [0,2^\ell)$
 
 We write this succinctly as "$x_2 + (2^\ell - f_2) \in [0,2^\ell)$" but we must not forget that "$+$" is finite field addition.
 
@@ -341,13 +322,12 @@ This estimate is what we need for $a$, $b$ and $q$. We assume that bounds checks
 
 For the bounds check on $q$, we use some free space in the ffmul gate to expose $q'_2 := q_2 + (2^\ell - f_2)$ as a witness.
 
-- **Introduce 1 witness**: $q'_2$
+* **Introduce 1 witness**: $q'_2$
 
 The addition is another constraint:
 
 $$\tag{C11: bound for $q$}
-q'\_2 = q_2 + (2^\ell - f_2) \mod n
-
+q'_2 = q_2 + (2^\ell - f_2) \mod n
 $$
 
 And a range check on $q'_2$ completes the bounds check on $q$:
@@ -391,27 +371,27 @@ and so $ab = qr + f$, which proves the soundness of the ffmul gate, when used to
 ### Gate layout
 
 The following 14 witnesses have to be made available to other gates:
-
-- The 6 input limbs $a_0, a_1, a_2$ and $b_0, b_1, b_2$
-- The 5 output limbs $q_0, q_1, q_2$ and $r_{01}$, $r_2$
-- Intermediate range-checked values $p_{10}$ and $p_{110}$
-- The high-limb bound $q'_2$ for the quotient $q$
+* The 6 input limbs $a_0, a_1, a_2$ and $b_0, b_1, b_2$
+* The 5 output limbs $q_0, q_1, q_2$ and $r_{01}$, $r_2$
+* Intermediate range-checked values $p_{10}$ and $p_{110}$
+* The high-limb bound $q'_2$ for the quotient $q$
 
 To make them available, they have to go in permutable cells. Kimchi has 7 permutable cells per row, so we exactly fit these values in the current and next row of a single-row gate.
 
-| FFmul  | 0p       | 1p    | 2p    | 3p    | 4p    | 5p     | 6p        | 7   | 8   | 9   | 10  | 11  | 12  | 13  | 14  |
-| ------ | -------- | ----- | ----- | ----- | ----- | ------ | --------- | --- | --- | --- | --- | --- | --- | --- | --- |
-| _Curr_ | $a_0$    | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$  | $p_{10}$  |     |     |     |     |     |     |     |     |
-| _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ |     |     |     |     |     |     |     |
+
+| FFmul  | 0p | 1p | 2p | 3p | 4p | 5p | 6p | 7  | 8  | 9  | 10 | 11 | 12 | 13 | 14 |
+| -------| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+| _Curr_ | $a_0$ | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$ | $p_{10}$ |  |  |  |  |  |  |  |  | 
+| _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ |  |  |  |  |  |  |  | 
 
 Another constraint on the gate layout is that we can only do 4 lookups per row, and we need 7 lookups on the carry chunks $c_{1,0},\ldots,c_{1,72}$. So these have to be divided up between the two rows.
 
 The remaining witnesses are just put into any free cells to define the final gate layout:
 
-| FFmul  | 0p       | 1p    | 2p    | 3p    | 4p    | 5p     | 6p        | 7          | 8          | 9          | 10         | 11         | 12         | 13         | 14  |
-| ------ | -------- | ----- | ----- | ----- | ----- | ------ | --------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | --- |
-| _Curr_ | $a_0$    | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$  | $p_{10}$  | $c_{1,0}$  | $c_{1,12}$ | $c_{1,36}$ | $c_{1,84}$ | $c_{1,86}$ | $c_{1,88}$ | $c_{1,90}$ |     |
-| _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ | $c_{1,48}$ | $c_{1,60}$ | $c_{1,72}$ | $c_0$      |            |            |            |
+| FFmul  | 0p | 1p | 2p | 3p | 4p | 5p | 6p | 7  | 8  | 9  | 10 | 11 | 12 | 13 | 14 |
+| -------| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+| _Curr_ | $a_0$ | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$ | $p_{10}$ | $c_{1,0}$ | $c_{1,12}$ | $c_{1,36}$ | $c_{1,84}$ | $c_{1,86}$ | $c_{1,88}$ | $c_{1,90}$ |  | 
+| _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ | $c_{1,48}$ | $c_{1,60}$ | $c_{1,72}$ | $c_0$ |  |  |  | 
 
 ### FFmul gadget
 
