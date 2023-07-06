@@ -72,7 +72,7 @@ $$
 
 If the foreign field was small enough so that we could prove $|ab - qf - r| < n$, we would be finished at this point, because we could conclude that $\varepsilon = 0$ (after adding a few range checks). However, for the fields $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
 
-The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies that it holds modulo the product $2^{3\ell}n$ (this the "chinese remainder theorem", CRT). The modulus $2^{3\ell}n$ is large enough that it can replace $n$ in the last paragraph and the argument actually works.
+The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies that it holds modulo the product $2^{3\ell}n$ (this the "chinese remainder theorem"). The modulus $2^{3\ell}n$ is large enough that it can replace $n$ in the last paragraph and the argument actually works.
 
 #### Expanding into limbs
 
@@ -295,7 +295,7 @@ For a variable $x = (x_0, x_1, x_2)$ define the _bounds check_ as the following 
 * $x_2 + (2^\ell - f_2) = z \mod n$
 * $z \in [0,2^\ell)$
 
-We write this succinctly as "$x_2 + (2^\ell - f_2) \in [0,2^\ell)$" but we must not forget that "$+$" is finite field addition.
+We write this succinctly as $x_2 + (2^\ell - f_2) \in [0,2^\ell)$ but we must not forget that "+" is finite field addition.
 
 For a field element $x_2 \in [0, n)$ the bounds check implies that
 
@@ -443,7 +443,8 @@ function multiply(
   addCompactRangeCheck(r, r01);
 
   // compute bound for r bounds check using provable native addition
-  let rBound = r2.add(2n ** limbSize - foreignModulus);
+  let [_f0, _f1, f2] = toLimbs(foreignModulus);
+  let rBound = r2.add(2n ** limbSize - f2);
 
   // add single range check on r bound to accumulator for external checks
   externalChecks.addRangeCheck(rBound);
