@@ -371,7 +371,7 @@ $$
 |ab - qf - r| < 2^{4\ell}(f_2 + 1)^2 + 2^{3\ell} = 2^{3\ell}\cdot(2^\ell (f_2 + 1)^2 + 1)
 $$
 
-In the case that $f < 2^{259}$, we have $(f_2 + 1) \le 2^{259 - 2\ell} = 2^{83}$, and so our estimate works out to be 
+In the case that $f < 2^{259}$, we have $(f_2 + 1) \le 2^{259 - 2\ell} = 2^{83}$, and our estimate works out to be 
 
 $$
 |ab - qf - r| < 2^{3\ell} \cdot (2^{254} + 1)
@@ -416,11 +416,11 @@ The limbs of $f' = 2^{3\ell} - f$, which feature in a few of the constraints, ar
 
 As the soundness proof showed, the ffmul gate is not complete without a number external checks. The job of an ffmul _gadget_ (a provable method which wraps the gate) is to take care of these checks and provide an API without pitfalls.
 
-As usual, we want the gadget to add all necessary checks to its outputs $q$ and $r$ but not to its inputs $a$ and $b$ (because, if all gadgets fully constrained their inputs, then we would add these constraints multiple times if we used the same inputs in mulitple gadgets, which can be very inefficient).
+As usual, we want the gadget to add all necessary checks to its outputs $q$ and $r$ but not to its inputs $a$ and $b$ (because, if all gadgets fully constrained their inputs, then we would add these constraints multiple times if we used the same inputs in multiple gadgets, which can be very inefficient).
 
 In addition, there should be an advanced flag to skip range checks on $r$, for use cases where $r$ is later asserted to equal a value which is already known to be in the range (for example, the constant 1 when constraining a foreign field inverse).
 
-By default, we will do even more checks on $r$ than required in our soundness proof: We also add a bounds check for $r$ which shows that $r < f + 2^\ell$. This enables us to just use $r$ as input to another ffmul gate or other foreign field operations, which is what we expect from a safe API. 
+By default, we will do even more checks on $r$ than required in our soundness proof: We also add a bounds check for $r$ which shows that $r < 2^{2\ell}(f_2 + 1)$. This enables us to use $r$ as input to another ffmul gate or other foreign field operations without extra checks, which is what we expect from a safe API. 
 
 From these considerations, we propose the following logic of the ffmul gadget in pseudo-code:
 
@@ -444,7 +444,7 @@ function multiply(
   // add the ffmul gate
   addFFmulGate({ a, b, q, r, p10, p11, c0, c1, qBound }, foreignModulus);
 
-  // add 3 range checks on q (normal mode)
+  // add 3 range checks on limbs of q
   addMultiRangeCheck(q);
 
   // add single range check on q bound to an accumulator for external checks
@@ -458,16 +458,16 @@ function multiply(
 
   // split up the compact r01 limb to get witnesses for r range check
   let [r0, r1] = exists([Field, Field], () => splitCompactLimb(r01));
-  let r = ForeignField.from([r0, r1, r2]);
+  let r = ForeignField.fromLimbs([r0, r1, r2]);
 
   // add range check on r (compact mode)
   addCompactRangeCheck(r, r01);
 
-  // compute bound for r bounds check using provable native addition
+  // compute r bound using provable native field addition
   let [_f0, _f1, f2] = toLimbs(foreignModulus);
-  let rBound = r2.add(2n ** limbSize - f2);
+  let rBound = r2.add(2n ** limbSize - f2 - 1n);
 
-  // add single range check on r bound to accumulator for external checks
+  // add range check on r bound to external checks
   externalChecks.addRangeCheck(rBound);
 
   // return q, r, rCompact
@@ -491,13 +491,13 @@ I'm not aware of drawbacks.
 
 We considered [two alternative gate designs similar to this one](https://hackmd.io/@mitschabaude/ByEVBlXKn), but everyone involved agreed that this one is the best.
 
-A different alternative which still follows the same overall strategy would be to not split the middle limb, but instead have 3 limb-wise equations of the form
+An alternative not mentioned in that document would be to not split the middle limb, but instead have 3 limb-wise equations of the form
 
 $$
 p_i - r_i = 2^{\ell} c_i
 $$
 
-where $c_i$ is a carry of about $\ell$ bits. This would need 3 RCs on the 3 carries, the same amount as our current design uses for intermediate values. So efficiency-wise there is no difference. The advantage would be to make the gate equations more uniform and thus easier to reason about. However, we don't think this is worth changing the existing design.
+where $c_i$ is a carry of about $\ell$ bits. This would need 3 RCs on the 3 carries, the same amount as our current design uses for intermediate values. So efficiency-wise there is no difference. The advantage would be to make the gate equations more uniform and thus easier to reason about. However, I don't think this is worth changing the existing design.
 
 Yet another alternative which is quite different from the present design is to not rely on the CRT at all. This means we constrain all 5 instead of just 3 limb-wise equations, because we're not taking the equation modulo $2^{3\ell}$ or $n$. A benefit is that we don't have to bounds-check $q$, and even don't require bounds checks on $a$ and $b$, and the entire argument becomes even simpler. This is balanced by the fact that a fourth range check becomes necessary on carry values, and we need more witnesses in total and so need two rows for the gate. However, the last row is not as stuffed as the second row in the present design, and so we can chain several multiplications. Overall, the efficiency of this design is probably similar or slightly worse than the present one.
 
