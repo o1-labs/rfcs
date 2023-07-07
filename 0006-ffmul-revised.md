@@ -277,7 +277,6 @@ a b - q f - r = 2^{3\ell} (w + c_1)
 $$
 
 
-#### Final bound
 
 By our first constraint $\text{(C1)}$, the LHS of $(2''')$ is a multiple of $n$, so we have
 
@@ -298,29 +297,33 @@ $$\tag{$2''''$}
 a b - q f - r = 2^{3\ell} n \delta
 $$
 
+#### Final bound
+
 There is one step remaining to make our gate sound: We must prove that $a b - q f - r$ cannot overflow $2^{3\ell} n$, so $\delta$ is in fact zero.
 
 To do this, our strategy is to add an additional bound on the highest limbs of $a$, $b$, $q$. Skipping the lower limbs and $r$ is fine because they all contribute a negligible amount to the overall estimate.
 
 For a variable $x = (x_0, x_1, x_2)$ define the _bounds check_ as the following two constraints:
 
-* $x_2 + (2^\ell - f_2) = z \mod n$
+* $x_2 + (2^\ell - f_2 - 1) = z \mod n$
 * $z \in [0,2^\ell)$
 
-We write this succinctly as $x_2 + (2^\ell - f_2) \in [0,2^\ell)$ but we must not forget that "+" is finite field addition.
+We write this succinctly as $x_2 + (2^\ell - f_2 - 1) \in [0,2^\ell)$ but we must not forget that "+" is finite field addition.
 
 For a field element $x_2 \in [0, n)$ the bounds check implies that
 
-$$x_2 \in [0, f_2) \cup [n - 2^\ell + f_2, n).$$
+$$x_2 \in [0, f_2 + 1) \cup [n - 2^\ell + f_2 + 1, n).$$
 
 If, in addition, $x_2$ is range-checked to be at most $\ell$ bits, the high interval is excluded:
 
-$$x_2 \in [0, 2^\ell) \quad\text{and}\quad x_2 + (2^\ell - f_2) \in [0,2^\ell) \quad\Longrightarrow\quad x_2 \in [0, f_2)$$
+$$x_2 \in [0, 2^\ell) \quad\text{and}\quad x_2 + (2^\ell - f_2 - 1) \in [0,2^\ell) \quad\Longrightarrow\quad x_2 \in [0, f_2 + 1)$$
+
+> NB: It's important to use $x_2 + (2^\ell - f_2 - 1)$ and not $x_2 + (2^\ell - f_2)$ in the bounds check, so that $f_2$ is an _inclusive_ upper bound on $x_2$. Otherwise, the check would exclude valid foreign field elements which have $x_2 = f_2$.
 
 For $x = (x_0, x_1, x_2)$, an $\ell$-bit range check on all limbs plus bounds check imply $x < f + 2^{2\ell}$, as follows:
 
 $$
-x = 2^{2\ell} x_2 + 2^\ell x_1 + x_0  < 2^{2\ell} f_2 + 2^{2\ell} \le f + 2^{2\ell}
+x = 2^{2\ell} \underbrace{x_2}_{\le f_2} + \underbrace{2^\ell x_1 + x_0}_{< 2^\ell}  < \underbrace{2^{2\ell} f_2}_{< f} + 2^{2\ell} < f + 2^{2\ell}
 $$
 
 This estimate is what we need for $a$, $b$ and $q$. We assume that bounds checks happened externally for $a$ and $b$:
@@ -328,20 +331,20 @@ This estimate is what we need for $a$, $b$ and $q$. We assume that bounds checks
 $$
 \begin{align}
 \tag{Bounds check: $a$}
-& a_2 + (2^\ell - f_2) \in [0,2^\ell) \\
+& a_2 + (2^\ell - f_2 - 1) \in [0,2^\ell) \\
 \tag{Bounds check: $b$}
-& b_2 + (2^\ell - f_2) \in [0,2^\ell) \\
+& b_2 + (2^\ell - f_2 - 1) \in [0,2^\ell) \\
 \end{align}
 $$
 
-For the bounds check on $q$, we use some free space in the ffmul gate to expose $q'_2 := q_2 + (2^\ell - f_2)$ as a witness.
+For the bounds check on $q$, we use some free space in the ffmul gate to expose $q'_2 := q_2 + (2^\ell - f_2 - 1)$ as a witness.
 
 * **Introduce 1 witness**: $q'_2$
 
 The addition is another constraint:
 
 $$\tag{C11: bound for $q$}
-q'_2 = q_2 + (2^\ell - f_2) \mod n
+q'_2 = q_2 + (2^\ell - f_2 - 1) \mod n
 $$
 
 And a range check on $q'_2$ completes the bounds check on $q$:
