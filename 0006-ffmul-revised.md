@@ -415,6 +415,8 @@ As usual, we want the gadget to add all necessary checks to its outputs $q$ and 
 
 In addition, there should be an advanced flag to skip range checks on $r$, for use cases where $r$ is later asserted to equal a value which is already known to be in the range (for example, the constant 1 when constraining a foreign field inverse).
 
+By default, we will do even more checks on $r$ than required in our soundness proof: We also add a bounds check for $r$ which shows that $r < f + 2^\ell$. This enables us to just use $r$ as input to another ffmul gate or other foreign field operations, which is what we expect from a safe API. 
+
 From these considerations, we propose the following logic of the ffmul gadget in pseudo-code:
 
 ```ts
@@ -426,7 +428,7 @@ function multiply(
   skipRCheck?: boolean
 ): {
   q: ForeignField;
-  r: ForeignField;
+  r: Option<ForeignField>;
   rCompact: [Field, Field];
 } {
   // compute witnesses
@@ -482,19 +484,21 @@ I'm not aware of drawbacks.
 
 ## Rationale and alternatives
 
-We considered [two alternative gate designs](https://hackmd.io/@mitschabaude/ByEVBlXKn), but everyone involved agreed that this one is the best.
+We considered [two alternative gate designs similar to this one](https://hackmd.io/@mitschabaude/ByEVBlXKn), but everyone involved agreed that this one is the best.
 
-An alternative which is still similar to the overall strategy of this design is to not split the middle limb, but instead have 3 limb-wise equations of the form
+A different alternative which still follows the same overall strategy would be to not split the middle limb, but instead have 3 limb-wise equations of the form
 
 $$
 p_i - r_i = 2^{\ell} c_i
 $$
 
-where $c_i$ is a carry. TODO
+where $c_i$ is a carry of about $\ell$ bits. This would need 3 RCs on the 3 carries, the same amount as our current design uses for intermediate values. So efficiency-wise there is no difference. The advantage would be to make the gate equations more uniform and thus easier to reason about. However, we don't think this is worth changing the existing design.
 
-An alternative which is quite different from the present design is to not rely on the CRT at all. This means we have to constrain all 5 instead of just 3 limb-wise equations TODO
+Yet another alternative which is quite different from the present design is to not rely on the CRT at all. This means we constrain all 5 instead of just 3 limb-wise equations, because we're not taking the equation modulo $2^{3\ell}$ or $n$. A benefit is that we don't have to bounds-check $q$, and even don't require bounds checks on $a$ and $b$, and the entire argument becomes even simpler. This is balanced by the fact that a fourth range check becomes necessary on carry values, and we need more witnesses in total and so need two rows for the gate. However, the last row is not as stuffed as the second row in the present design, and so we can chain several multiplications. Overall, the efficiency of this design is probably similar or slightly worse than the present one.
 
-- This is the most efficient design we came up with so far
+In summary, we chose the gate design presented in this RFC because:
+
+- It's the most efficient design we came up with so far
 - It's close to the original design and therefore easy to adapt
 
 
