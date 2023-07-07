@@ -16,7 +16,7 @@ The revised ffmul gate is proved sound, which means that the constraints imposed
 
 Implementing foreign field multiplication as a custom gate is a requirement for efficiently supporting many important operations in provable code, such as ECDSA signature verification which unlocks interopability with Ethereum.
 
-Revising the existing ffmul RFC and implementation is necessary because we found soundness issues which allow a prover to provide incorrect values of $r$ for most inputs $a$ and $b$, leading to devastating attacks such as verifying (multiple different) invalid versions of a signature which is supposed to be deterministic.
+Revising the existing ffmul RFC and implementation is necessary because we found soundness issues which allow a prover to [provide incorrect values of $r$](https://hackmd.io/@mitschabaude/SJsLdMgFn#Counter-example-1-Skipping-q_2-in-0-2ell) for most inputs $a$ and $b$, leading to devastating attacks such as verifying (multiple different) invalid versions of a signature which is supposed to be deterministic.
 
 This RFC optimizes for provable correctness while requiring minimal changes to the pre-existing design and implementation.
 
