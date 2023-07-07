@@ -104,8 +104,8 @@ Next, we expand our equation into limbs, but collect all terms higher than $2^{3
 $$
 \begin{align}
 & a b - q f - r = \\
-&  (a_0 b_0 + q_0 f'_0) + 2^{\ell} (a_0 b_1 + a_1 b_0 + q_0 f'_1 + q_1 f'_0) - r_{01} \\
-&+ 2^{2\ell} (a_0 b_2 + a_2 b_0 + q_0 f'_2 + q_2 f'_0 + a_1 b_1 + q_1 f'_1 - r_2) \\
+&  (a_0 b_0 + q_0 f_0') + 2^{\ell} (a_0 b_1 + a_1 b_0 + q_0 f_1' + q_1 f_0') - r_{01} \\
+&+ 2^{2\ell} (a_0 b_2 + a_2 b_0 + q_0 f_2' + q_2 f_0' + a_1 b_1 + q_1 f_1' - r_2) \\
 &+ 2^{3\ell} w
 \end{align}
 $$
