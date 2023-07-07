@@ -460,39 +460,36 @@ function multiply(
 
 ## Test plan and functional requirements
 
-1. Testing goals and objectives:
-   - Specify the overall goals and objectives of testing for the proposed feature or project. This can help set the expectations for testing efforts once the implementation details are finalized.
-2. Testing approach:
-   - Outline the general approach or strategy for testing that will be followed. This can include mentioning the types of testing to be performed (e.g., unit testing, integration testing, performance testing) and any specific methodologies or tools that will be utilized.
-3. Testing scope:
-   - Define the scope of testing by identifying the key areas or functionalities that will be covered by testing efforts.
-4. Testing requirements:
-   - Specify any specific testing requirements that need to be considered, such as compliance requirements, security testing, or specific user scenarios to be tested.
-5. Testing resources:
-   - Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.
+This RFC builds on an existing implementation with plenty of tests. The test plan is to get the existing tests to run with the new layout. No additional tests are planned, but some existing tests will need to be adapted.
 
 ## Drawbacks
 
-[drawbacks]: #drawbacks
-
-Why should we _not_ do this?
+I'm not aware of drawbacks.
 
 ## Rationale and alternatives
 
-- Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not choosing them?
-- What is the impact of not doing this?
+We considered [two alternative gate designs](https://hackmd.io/@mitschabaude/ByEVBlXKn), but everyone involved agreed that this one is the best.
+
+An alternative which is still similar to the overall strategy of this design is to not split the middle limb, but instead have 3 limb-wise equations of the form
+
+$$
+p_i - r_i = 2^{\ell} c_i
+$$
+
+where $c_i$ is a carry. TODO
+
+An alternative which is quite different from the present design is to not rely on the CRT at all. This means we have to constrain all 5 instead of just 3 limb-wise equations TODO
+
+- This is the most efficient design we came up with so far
+- It's close to the original design and therefore easy to adapt
+
 
 ## Prior art
 
-Discuss prior art, both the good and the bad, in relation to this proposal.
+[Original ffmul RFC](https://o1-labs.github.io/proof-systems/rfcs/foreign_field_mul.html)
 
-Prior art is any evidence that your feature (invention, change, proposal) is already known.
-
-Think about the lessons from other blockchain projects or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.
+[Ariel Gabizon's write-up on CRT technique](https://hackmd.io/@arielg/B13JoihA8)
 
 ## Unresolved questions
 
-- What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
-- What parts of the design do you expect to resolve through the implementation of this feature before merge?
-- What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
+Currently, there are no unresolved questions.
