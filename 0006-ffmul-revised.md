@@ -78,6 +78,7 @@ The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies 
 
 First, we assume the following bounds. These have to be ensured using $\ell$-bit range checks:
 
+$$
 \begin{align}
 \tag{RC $a$}
 & a_0, a_1, a_2 \in [0,2^\ell) \\
@@ -88,6 +89,7 @@ First, we assume the following bounds. These have to be ensured using $\ell$-bit
 \tag{RC $r$}
 & r_{01} \in [0,2^{2\ell}), r_2 \in [0,2^\ell) \\
 \end{align}
+$$
 
 Also, we define $f' := 2^{3\ell} - f > 0$ with limbs $(f'_0, f'_1, f'_2) \in [0, 2^\ell)^3$ and write
 
@@ -99,20 +101,24 @@ This is a trick from the original RFC to [avoid negative intermediate values](ht
 
 Next, we expand our equation into limbs, but collect all terms higher than $2^{3\ell}$ into a single term $w$.
 
+$$
 \begin{align}
 & a b - q f - r = \\
 &  (a_0 b_0 + q_0 f'_0) + 2^{\ell} (a_0 b_1 + a_1 b_0 + q_0 f'_1 + q_1 f'_0) - r_{01} \\
 &+ 2^{2\ell} (a_0 b_2 + a_2 b_0 + q_0 f'_2 + q_2 f'_0 + a_1 b_1 + q_1 f'_1 - r_2) \\
 &+ 2^{3\ell} w
 \end{align}
+$$
 
 To make our equations less unwieldy, we define
 
+$$
 \begin{align}
 & p_0 := a_0b_0 + q_0f'_0 \\
 & p_1 := a_0b_1 + a_1b_0 + q_0f'_1 + q_1f'_0 \\
 & p_2 := a_0b_2 + a_2b_0 + q_0f'_2 + q_2f'_0 + a_1b_1 + q_1f'_1
 \end{align}
+$$
 
 Now our limb-wise equation reads
 
@@ -128,11 +134,13 @@ We want to constrain the right-hand side (RHS) of $(2)$ in pieces that fit withi
 
 In fact, thanks to our range-checks, we know that a product such as $a_0 b_0$ satisfies $0 \le a_0 b_0 < 2^{\ell} \cdot 2^{\ell} = 2^{2\ell}$. This gives us estimates on $p_0, p_1, p_2$:
 
+$$
 \begin{align}
 & 0 \le p_0 = a_0b_0 + q_0f'_0 < 2 \cdot 2^{2\ell} \\
 & 0 \le p_1 = a_0b_1 + a_1b_0 + q_0f'_1 + q_1f'_0 < 4 \cdot 2^{2\ell} \\
 & 0 \le p_2 = a_0b_2 + a_2b_0 + q_0f'_2 + q_2f'_0 + a_1b_1 + q_1f'_1 < 6 \cdot 2^{2\ell}
 \end{align}
+$$
 
 In particular, $p_1$ has at most $2\ell+2$ bits and so $2^\ell p_1$ might be larger than $2^{3\ell} > n$. This is the motivation to split $p_1$ into an $\ell$-bit bottom half and a $(\ell+2)$-bit top half:
 
@@ -164,10 +172,12 @@ $$
 
 And we add two RCs that have to be performed externally:
 
+$$
 \begin{align}
 \tag{RC $p_{1}$}
 & p_{10}, p_{110} \in [0,2^\ell) \\
 \end{align}
+$$
 
 Using these RCs and our earlier estimate on $p_1$, we can prove that $\text{(C2)}$ not only holds modulo $n$, but over the integers:
 
@@ -231,6 +241,7 @@ We see that $c_1$ has at most $\ell + 3$ bits. To save rows and not fill more sp
 
 * **Introduce 11 witnesses**: $c_{1,0}$, $c_{1,12}$, $c_{1,24}$, $c_{1,36}$, $c_{1,48}$, $c_{1,60}$, $c_{1,72}$, $c_{1,84}$, $c_{1,86}$, $c_{1,88}$, $c_{1,90}$
 
+$$
 \begin{align}
 \tag{12-bit lookups}
 & c_{1,0}, c_{1,12}, c_{1,24}, c_{1,36}, c_{1,48}, c_{1,60}, c_{1,72} \in [0,2^{12}) \\
@@ -243,6 +254,7 @@ We see that $c_1$ has at most $\ell + 3$ bits. To save rows and not fill more sp
 \tag{C10: 1-bit}
 & c_{1,90}(c_{1,90}-1) = 0 \mod n \\
 \end{align}
+$$
 
 In place of $c_1$, the gate uses the expression
 
@@ -313,12 +325,14 @@ $$
 
 This estimate is what we need for $a$, $b$ and $q$. We assume that bounds checks happened externally for $a$ and $b$:
 
+$$
 \begin{align}
 \tag{Bounds check: $a$}
 & a_2 + (2^\ell - f_2) \in [0,2^\ell) \\
 \tag{Bounds check: $b$}
 & b_2 + (2^\ell - f_2) \in [0,2^\ell) \\
 \end{align}
+$$
 
 For the bounds check on $q$, we use some free space in the ffmul gate to expose $q'_2 := q_2 + (2^\ell - f_2)$ as a witness.
 
