@@ -70,7 +70,7 @@ $$
 ab - qf - r =  \varepsilon n.
 $$
 
-If the foreign field was small enough, we could prove $|ab - qf - r| < n$, and we would be finished at this point, because we could conclude that $\varepsilon = 0$ (after adding a few range checks). However, for the fields $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
+If the foreign field was small enough, we could prove $|ab - qf - r| < n$, and we would be finished at this point, because we could conclude that $\varepsilon = 0$ (after adding a few range checks). However, for the moduli $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
 
 The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies that it holds modulo the product $2^{3\ell}n$ (this the "chinese remainder theorem"). The modulus $2^{3\ell}n$ is large enough that it can replace $n$ in the last paragraph and the argument actually works.
 
@@ -182,7 +182,7 @@ $$
 Using these RCs and our earlier estimate on $p_1$, we can prove that $\text{(C2)}$ not only holds modulo $n$, but over the integers:
 
 $$
-|p_1 - p_{10} - 2^\ell p_{110} - 2^{2\ell} p_{111}| < 4\cdot2^{2\ell} + 2^{\ell} + 2^{\ell} + 4 < n
+|p_1 - p_{10} - 2^\ell p_{110} - 2^{2\ell} p_{111}| < 4\cdot2^{2\ell} + 2^{\ell} + 2^{2\ell} + 4\cdot 2^{2\ell} < n
 $$
 
 Therefore, we can use $\text{(C2)}$ to expand $p_1$ in our earlier equation $(2)$:
@@ -234,10 +234,10 @@ $$
 Again, we introduce a carry value $c_1$ which is supposed to be positive, since $r_2$ has at most $\ell$ bits. Estimating the LHS shows us how many bits $c_1$ will at most have:
 
 $$
-p_2 - r_2 + p_{11} + c_0 < 6 \cdot 2^{2\ell} - 0 + 2^{2\ell + 2} + 4 < 2^{2\ell + 3}
+p_2 - r_2 + p_{11} + c_0 < 6 \cdot 2^{2\ell} - 0 + 2^{\ell + 2} + 4 < 2^{2\ell + 3}
 $$
 
-We see that $c_1$ has at most $\ell + 3$ bits. To save rows and not fill more space among the permutable witness cells, we won't pass $c_1$ to a RC gate. Instead, we inline the entire RC into the ffmul gate itself, using a combination of 7x 12-bit lookups, giving us $7 \cdot 12 = 84$ bits, plus 3x 2-bit constraints plus 1x 1-bit constraint, giving us the remaining 7 bits to get $84 + 7 = 91 = \ell + 3$ bits. We name the 11 new carry witnesses after the lowest bit of $c_1$ they cover (counting bits from 0 to 90):
+We see that $c_1$ has at most $\ell + 3$ bits. To save rows and not fill more space among the permutable witness cells, we won't pass $c_1$ to a RC gate. Instead, we inline the entire RC into the ffmul gate itself, using a combination of 7x 12-bit lookups plus 3x 2-bit constraints plus 1x 1-bit constraint, giving us $7 \cdot 12 + 3 \cdot 2 + 1 = 91 = \ell + 3$ bits. We name the 11 new carry witnesses after the lowest bit of $c_1$ they cover (counting bits from 0 to 90):
 
 * **Introduce 11 witnesses**: $c_{1,0}$, $c_{1,12}$, $c_{1,24}$, $c_{1,36}$, $c_{1,48}$, $c_{1,60}$, $c_{1,72}$, $c_{1,84}$, $c_{1,86}$, $c_{1,88}$, $c_{1,90}$
 
@@ -318,7 +318,7 @@ If, in addition, $x_2$ is range-checked to be at most $\ell$ bits, the high inte
 
 $$x_2 \in [0, 2^\ell) \quad\text{and}\quad x_2 + (2^\ell - f_2 - 1) \in [0,2^\ell) \quad\Longrightarrow\quad x_2 \in [0, f_2 + 1)$$
 
-> NB: It's important to use $x_2 + (2^\ell - f_2 - 1)$ and not $x_2 + (2^\ell - f_2)$ in the bounds check, so that $f_2$ is an _inclusive_ upper bound on $x_2$. Otherwise, the check would exclude valid foreign field elements which have $x_2 = f_2$.
+> NB: It's important to use $x_2 + (2^\ell - f_2 - 1)$ and not $x_2 + (2^\ell - f_2)$ in the bounds check, so that $x_2$ can be at most $f_2$ and not $f_2 - 1$. Otherwise, the check would exclude valid foreign field elements for which $x_2 = f_2$.
 
 For $x = (x_0, x_1, x_2)$, an $\ell$-bit range check on all limbs plus bounds check imply $x < f + 2^{2\ell}$, as follows:
 
@@ -326,7 +326,7 @@ $$
 x = 2^{2\ell} x_2 + 2^\ell x_1 + x_0  < 2^{2\ell} f_2 + 2^{2\ell} < f + 2^{2\ell}
 $$
 
-This estimate is what we need for $a$, $b$ and $q$. We assume that bounds checks happened externally for $a$ and $b$:
+This estimate is what we need for $a$, $b$ and $q$. We assume that bounds checks happen externally for $a$ and $b$:
 
 $$
 \begin{align}
@@ -337,7 +337,7 @@ $$
 \end{align}
 $$
 
-For the bounds check on $q$, we use some free space in the ffmul gate to expose $q'_2 := q_2 + (2^\ell - f_2 - 1)$ as a witness.
+To help with the bounds check on $q$, we use some free space in the ffmul gate to expose $q'_2 := q_2 + (2^\ell - f_2 - 1)$ as a witness.
 
 * **Introduce 1 witness**: $q'_2$
 
