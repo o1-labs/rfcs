@@ -320,10 +320,10 @@ $$x_2 \in [0, 2^\ell) \quad\text{and}\quad x_2 + (2^\ell - f_2 - 1) \in [0,2^\el
 
 > NB: It's important to use $x_2 + (2^\ell - f_2 - 1)$ and not $x_2 + (2^\ell - f_2)$ in the bounds check, so that $x_2$ can be at most $f_2$ and not $f_2 - 1$. Otherwise, the check would exclude valid foreign field elements for which $x_2 = f_2$.
 
-For $x = (x_0, x_1, x_2)$, an $\ell$-bit range check on all limbs plus bounds check imply $x < f + 2^{2\ell}$, as follows:
+For $x = (x_0, x_1, x_2)$, an $\ell$-bit range check on all limbs plus bounds check imply $x < 2^{2\ell}(f_2 + 1)$, as follows:
 
 $$
-x = 2^{2\ell} x_2 + 2^\ell x_1 + x_0  < 2^{2\ell} f_2 + 2^{2\ell} < f + 2^{2\ell}
+x = 2^{2\ell} x_2 + 2^\ell x_1 + x_0  < 2^{2\ell} f_2 + 2^{2\ell} = 2^{2\ell}(f_2 + 1)
 $$
 
 This estimate is what we need for $a$, $b$ and $q$. We assume that bounds checks happen externally for $a$ and $b$:
@@ -353,37 +353,37 @@ $$\tag{RC: bound for $q$}
 q'_2 \in [0,2^\ell)
 $$
 
-This implies that $a,b,q \in[0, f + 2^\ell)$. For $r$, we already know that $r \in [0, 2^{3\ell})$ .
+This implies that $a,b,q \in[0, 2^{2\ell}(f_2 + 1))$. For $r$, we already know that $r \in [0, 2^{3\ell})$.
 
 We now get the following upper bound and lower bound:
 
 $$
-ab - qr - f < ab < (f + 2^\ell)^2
+ab - qf - r \le ab < 2^{4\ell}(f_2 + 1)^2
 $$
 
 $$
--ab + qr + f < qr + f < (f + 2^\ell)^2 + 2^{3\ell}
+-ab + qf + r \le qf + r < 2^{4\ell}(f_2 + 1)^2 + 2^{3\ell}
 $$
 
 In summary, we have
 
 $$
-|ab - qr - f| < (f + 2^\ell)^2 + 2^{3\ell}
+|ab - qf - r| < 2^{4\ell}(f_2 + 1)^2 + 2^{3\ell} = 2^{3\ell}\cdot(2^\ell (f_2 + 1)^2 + 1)
 $$
 
-In the case that $f < 2^{259}$, we have
+In the case that $f < 2^{259}$, we have $(f_2 + 1) \le 2^{259 - 2\ell} = 2^{83}$, and so our estimate works out to be 
 
 $$
-(f + 2^\ell)^2 + 2^{3\ell} < 2^{3\ell} \cdot (2^{254} + 2^{84} + 2)
+|ab - qf - r| < 2^{3\ell} \cdot (2^{254} + 1)
 $$
 
-For $n > 2^{254} + 2^{84} + 2$, wich is true for both Pasta moduli, we conclude that
+For $n > 2^{254}$, wich is true for both Pasta moduli, we conclude that
 
 $$
-|ab - qr - f| < 2^{3\ell}n
+|ab - qf - r| < 2^{3\ell}n
 $$
 
-and so $ab = qr + f$, which proves the soundness of the ffmul gate, when used together with the listed external checks.
+and so $ab = qf + r$, which proves the soundness of the ffmul gate, when used together with the listed external checks.
 
 ### Gate layout
 
