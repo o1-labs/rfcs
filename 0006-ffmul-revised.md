@@ -8,19 +8,19 @@ $$\tag{1}
 a b = qf + r
 $$
 
-where $f$ (the modulus) is any uneven number up to 259 bits. This means that $ab = r \bmod{f}$, so if $f$ is a prime number we are constraining multiplication in the foreign field $\mathbb{F}_f$.
+where $f$ (the modulus) is any number up to 259 bits. This means that $ab = r \bmod{f}$, so if $f$ is a prime we are constraining multiplication in the foreign field $\mathbb{F}_f$.
 
 The revised ffmul gate is proved sound, which means that the constraints imposed by the gate, together with additional constraints that must be added alongside the gate, imply the intended relation $(1)$ in a strict mathematical sense.
 
 ## Motivation
 
-Implementing foreign field multiplication as a custom gate is a requirement for efficiently supporting many important operations in provable code, such as ECDSA signature verification which unlocks interopability with Ethereum.
+Implementing foreign field multiplication as a custom gate is a requirement for efficiently supporting many important operations in provable code, such as ECDSA signature verification which unlocks interoperability with Ethereum.
 
-Revising the existing ffmul RFC and implementation is necessary because we found soundness issues which allow a prover to [provide incorrect values of $r$](https://hackmd.io/@mitschabaude/SJsLdMgFn#Counter-example-1-Skipping-q_2-in-0-2ell) for most inputs $a$ and $b$, leading to devastating attacks such as verifying (multiple different) invalid versions of a signature which is supposed to be deterministic.
+Revising the existing ffmul RFC and implementation is necessary because we found soundness issues which [allow a prover to provide incorrect values](https://hackmd.io/@mitschabaude/SJsLdMgFn#Counter-example-1-Skipping-q_2-in-0-2ell) of $r$ for most inputs $a$ and $b$, leading to devastating attacks such as verifying (multiple different) invalid versions of a signature which is supposed to be deterministic.
 
 This RFC optimizes for provable correctness while requiring minimal changes to the pre-existing design and implementation.
 
-**Expected outcome**: An implementation of the ffmul gate and supporting gadgets (provable methods) which we are confident to be secure.
+**Expected outcome**: An implementation of the ffmul gate and supporting gadgets which we are confident in to be secure.
 
 ## Detailed design
 
@@ -32,7 +32,7 @@ $$
 x = x_0 + 2^\ell x_1 + 2^{2\ell} x_2.
 $$
 
-The limb size $\ell = 88$ is chosen to enable efficient $\ell$-bit range checks, so we can prove that $x_i \in [0, 2^\ell)$. This constraint allows us to express any integer $x \in [0, 2^{3\ell}) = [0, 2^{264})$ in limb form, covering important 256-bit finite fields like secp256r1. From now on, we work under the assumption that $f < 2^{3\ell}$.
+The limb size $\ell = 88$ is chosen to enable efficient $\ell$-bit range checks, so we can prove that $x_i \in [0, 2^\ell)$. This allows us to express any integer $x \in [0, 2^{3\ell}) = [0, 2^{264})$ in limb form, covering important 256-bit finite fields like secp256r1. From now on, we work under the assumption that $f < 2^{3\ell}$.
 
 The ffmul gate represents $a$, $b$, $q$ in 3-limb form. However, $r$ is represented in an alternative compact 2-limb form $(r_{01}, r_2)$ where the two bottom limbs are combined into a single variable,
 
@@ -40,7 +40,7 @@ $$
 r = r_{01} + 2^{2\ell}r_2.
 $$
 
-Our range-check (RC) gates support a "compact mode" where a variable $r_{01}$ is checked to be split like $r_{01} = r_0 + 2^\ell r_{1}$, and $r_0$ and $r_1$ have $\ell$ bits. This will be used to range-check $r$ and expose its individual limbs to other gates. The motivation for using the compact form for $r$ is to free up permutable cells in the gate design, as described below.
+Our range-check (RC) gates support a "compact mode" where a variable $r_{01}$ is checked to be split like $r_{01} = r_0 + 2^\ell r_{1}$, and $r_0$ and $r_1$ have $\ell$ bits. This will be used to range-check $r$ and expose its individual limbs to other gates. The motivation for using the compact form for $r$ is to free up permutable cells in the gate layout, which is described below.
 
 ### Constraints and soundness
 
@@ -50,7 +50,7 @@ $$\tag{1}
 a b = qf + r
 $$
 
-At the same time, we will prove soundness -- i.e., the constraints are _sufficient_ to imply $(1)$.
+At the same time, we will prove soundness -- i.e., the constraints we add imply $(1)$.
 
 Let $n$ be the _native_ field modulus (for example, $n$ is one of the Pasta primes). Our first constraint is to check $(1)$ modulo $n$:
 
@@ -58,7 +58,7 @@ $$\tag{C1: native}
 ab = qf + r\mod n
 $$
 
-Note: In the actual implementation, variables in this constraint are expanded into their limbs, like
+Note: In the implementation, variables in this constraint are expanded into their limbs, like
 
 $$
 ab = (a_0 + 2^\ell a_1 + 2^{2\ell} a_2)(b_0 + 2^\ell b_1 + 2^{2\ell} b_2).
@@ -70,7 +70,7 @@ $$
 ab - qf - r =  \varepsilon n.
 $$
 
-If the foreign field was small enough so that we could prove $|ab - qf - r| < n$, we would be finished at this point, because we could conclude that $\varepsilon = 0$ (after adding a few range checks). However, for the fields $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
+If the foreign field was small enough, we could prove $|ab - qf - r| < n$, and we would be finished at this point, because we could conclude that $\varepsilon = 0$ (after adding a few range checks). However, for the fields $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
 
 The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies that it holds modulo the product $2^{3\ell}n$ (this the "chinese remainder theorem"). The modulus $2^{3\ell}n$ is large enough that it can replace $n$ in the last paragraph and the argument actually works.
 
@@ -110,7 +110,7 @@ $$
 \end{align}
 $$
 
-To make our equations less unwieldy, we define
+To make our equations easier to read, we define
 
 $$
 \begin{align}
@@ -130,7 +130,7 @@ This equation holds over the integers, by definition of the terms involved.
 
 #### Splitting the middle limb
 
-We want to constrain the right-hand side (RHS) of $(2)$ in pieces that fit within the native modulus $n$ without overflow. The two pieces we want to use are $(p_0 + 2^{\ell} p_1 - r_{01})$ and $(p_2 - r_2)$. The only problem with that is that $2^\ell p_1$ doesn't quite fit within $n$.
+We want to constrain the right-hand side (RHS) of $(2)$ in parts that fit within the native modulus $n$ without overflow. The two parts we want to use are $(p_0 + 2^{\ell} p_1 - r_{01})$ and $(p_2 - r_2)$. The only problem with that is that $2^\ell p_1$ doesn't quite fit within $n$.
 
 In fact, thanks to our range-checks, we know that a product such as $a_0 b_0$ satisfies $0 \le a_0 b_0 < 2^{\ell} \cdot 2^{\ell} = 2^{2\ell}$. This gives us estimates on $p_0, p_1, p_2$:
 
@@ -142,7 +142,7 @@ $$
 \end{align}
 $$
 
-In particular, $p_1$ has at most $2\ell+2$ bits and so $2^\ell p_1$ might be larger than $2^{3\ell} > n$. This is the motivation to split $p_1$ into an $\ell$-bit bottom half and a $(\ell+2)$-bit top half:
+In particular, $p_1$ has at most $2\ell+2$ bits and so $2^\ell p_1$ might be larger than $2^{3\ell} > n$. This is the motivation to split $p_1$ into an $\ell$-bit bottom half and an $(\ell+2)$-bit top half:
 
 $$
 p_1 = p_{10} + 2^\ell p_{11}.
@@ -158,7 +158,7 @@ where $p_{110}$ has $\ell$ bits and $p_{111}$ has the remaining 2 bits.
 
 * **Introduce 3 witnesses**: $p_{10}$, $p_{110}$ and $p_{111}$
 
-In summary, the split of $p_1$ gives our our second constraint:
+In summary, the split of $p_1$ gives us our second constraint:
 
 $$\tag{C2: split middle}
 p_1 = p_{10} + 2^\ell p_{110} + 2^{2\ell} p_{111} \mod n
@@ -203,7 +203,7 @@ $$
 
 Note first that we can constrain $c_0$ to be non-negative since $r_{01}$ is at most $2\ell$ bits and the lower $2\ell$ bits of the LHS are supposed to be zero. Let's estimate the LHS to compute how many bits $c_0$ can have:
 
-$$\tag{3}
+$$
 p_0 + 2^\ell p_{01} - r_{01} < 2^{2\ell + 1} + 2^{2\ell} - 0 < 2^{2\ell + 2}
 $$
 
@@ -215,7 +215,7 @@ $$
 
 This constraint -- together with our estimate of $p_0$ and RCs on $p_{01}$ and $r_{01}$ -- allows us to prove that $\text{(C4)}$ doesn't overflow $n$ and holds over the integers:
 
-$$\tag{3}
+$$
 |p_0 + 2^\ell p_{01} - r_{01} - 2^{2\ell}c_0| < (2 + 1 + 1 + 4)\cdot 2^{2\ell}  < n
 $$
 
@@ -323,7 +323,7 @@ $$x_2 \in [0, 2^\ell) \quad\text{and}\quad x_2 + (2^\ell - f_2 - 1) \in [0,2^\el
 For $x = (x_0, x_1, x_2)$, an $\ell$-bit range check on all limbs plus bounds check imply $x < f + 2^{2\ell}$, as follows:
 
 $$
-x = 2^{2\ell} \underbrace{x_2}_{\le f_2} + \underbrace{2^\ell x_1 + x_0}_{< 2^\ell}  < \underbrace{2^{2\ell} f_2}_{< f} + 2^{2\ell} < f + 2^{2\ell}
+x = 2^{2\ell} x_2 + 2^\ell x_1 + x_0  < 2^{2\ell} f_2 + 2^{2\ell} < f + 2^{2\ell}
 $$
 
 This estimate is what we need for $a$, $b$ and $q$. We assume that bounds checks happened externally for $a$ and $b$:
@@ -409,6 +409,8 @@ The remaining witnesses are just put into any free cells to define the final gat
 | -------| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
 | _Curr_ | $a_0$ | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$ | $p_{10}$ | $c_{1,0}$ | $c_{1,12}$ | $c_{1,36}$ | $c_{1,84}$ | $c_{1,86}$ | $c_{1,88}$ | $c_{1,90}$ |  | 
 | _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ | $c_{1,48}$ | $c_{1,60}$ | $c_{1,72}$ | $c_0$ |  |  |  | 
+
+The limbs of $f' = 2^{3\ell} - f$, which feature in a few of the constraints, are embedded into the gate as coefficients.
 
 ### FFmul gadget
 
