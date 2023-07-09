@@ -414,7 +414,7 @@ The limbs of $f' = 2^{3\ell} - f$, which feature in a few of the constraints, ar
 
 ### FFmul gadget
 
-As the soundness proof showed, the ffmul gate is not complete without a number external checks. The job of an ffmul _gadget_ (a provable method which wraps the gate) is to take care of these checks and provide an API without pitfalls.
+As the soundness proof showed, the ffmul gate is not complete without a number of external checks. The job of an ffmul _gadget_ (a provable method which wraps the gate) is to take care of these checks and provide an API without pitfalls.
 
 As usual, we want the gadget to add all necessary checks to its outputs $q$ and $r$ but not to its inputs $a$ and $b$ (because, if all gadgets fully constrained their inputs, then we would add these constraints multiple times if we used the same inputs in multiple gadgets, which can be very inefficient).
 
@@ -430,7 +430,7 @@ function multiply(
   b: ForeignField,
   externalChecks: ExternalChecks,
   foreignModulus: bigint,
-  skipRCheck?: boolean
+  skipRemainderCheck?: boolean
 ): {
   q: ForeignField;
   r: Option<ForeignField>;
@@ -442,7 +442,7 @@ function multiply(
   });
 
   // add the ffmul gate
-  addFFmulGate({ a, b, q, r, p10, p11, c0, c1, qBound }, foreignModulus);
+  addFFmulGate({ a, b, q, r01, r2, p10, p11, c0, c1, qBound }, foreignModulus);
 
   // add 3 range checks on limbs of q
   addMultiRangeCheck(q);
@@ -452,7 +452,7 @@ function multiply(
   externalChecks.addRangeCheck(qBound);
 
   // if we're skipping the r checks, only return q and r in compact form
-  if (skipRCheck) {
+  if (skipRemainderCheck) {
     return { q, r: None, rCompact: [r01, r2] };
   }
 
