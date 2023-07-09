@@ -42,7 +42,7 @@ $$
 
 Our range-check (RC) gates support a "compact mode" where a variable $r_{01}$ is checked to be split like $r_{01} = r_0 + 2^\ell r_{1}$, and $r_0$ and $r_1$ have $\ell$ bits. This will be used to range-check $r$ and expose its individual limbs to other gates. The motivation for using the compact form for $r$ is to free up permutable cells in the gate layout, which is described below.
 
-### Constraints and soundness
+### Constraints and soundness proof
 
 We will now derive the constraints necessary to prove that
 
@@ -70,7 +70,7 @@ $$
 ab - qf - r =  \varepsilon n.
 $$
 
-If the foreign field was small enough, we could prove $|ab - qf - r| < n$, and we would be finished at this point, because we could conclude that $\varepsilon = 0$ (after adding a few range checks). However, for the moduli $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
+If the foreign field was small enough, we could prove $|ab - qf - r| < n$ (after adding a few range checks), and we would be finished at this point, because we could conclude that $\varepsilon = 0$. However, for the moduli $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
 
 The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies that it holds modulo the product $2^{3\ell}n$ (this the "chinese remainder theorem"). The modulus $2^{3\ell}n$ is large enough that it can replace $n$ in the last paragraph and the argument actually works.
 
@@ -120,7 +120,7 @@ $$
 \end{align}
 $$
 
-Now our limb-wise equation reads
+Note: we don't introduce separate witnesses to hold $p_i$. Instead, the implementation will expand out the $p_i$ into their definitions wherever they are used in constraints. Now our limb-wise equation reads
 
 $$\tag{2}
 a b - q f - r = (p_0 + 2^{\ell} p_1 - r_{01}) + 2^{2\ell} (p_2 - r_2) + 2^{3\ell} w
@@ -390,8 +390,8 @@ and so $ab = qf + r$, which proves the soundness of the ffmul gate, when used to
 The following 14 witnesses have to be made available to other gates:
 * The 6 input limbs $a_0, a_1, a_2$ and $b_0, b_1, b_2$
 * The 5 output limbs $q_0, q_1, q_2$ and $r_{01}$, $r_2$
-* Intermediate range-checked values $p_{10}$ and $p_{110}$
-* The high-limb bound $q'_2$ for the quotient $q$
+* Intermediate values $p_{10}$ and $p_{110}$ for the RC
+* The high-limb qotient bound $q'_2$ for the RC
 
 To make them available, they have to go in permutable cells. Kimchi has 7 permutable cells per row, so we exactly fit these values in the current and next row of a single-row gate.
 
@@ -407,7 +407,7 @@ The remaining witnesses are just put into any free cells to define the final gat
 
 | FFmul  | 0p | 1p | 2p | 3p | 4p | 5p | 6p | 7  | 8  | 9  | 10 | 11 | 12 | 13 | 14 |
 | -------| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
-| _Curr_ | $a_0$ | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$ | $p_{10}$ | $c_{1,0}$ | $c_{1,12}$ | $c_{1,36}$ | $c_{1,84}$ | $c_{1,86}$ | $c_{1,88}$ | $c_{1,90}$ |  | 
+| _Curr_ | $a_0$ | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$ | $p_{10}$ | $c_{1,0}$ | $c_{1,12}$ | $c_{1,24}$ | $c_{1,36}$ | $c_{1,84}$ | $c_{1,86}$ | $c_{1,88}$ | $c_{1,90}$ | 
 | _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ | $c_{1,48}$ | $c_{1,60}$ | $c_{1,72}$ | $c_0$ |  |  |  | 
 
 The limbs of $f' = 2^{3\ell} - f$, which feature in a few of the constraints, are embedded into the gate as coefficients.
