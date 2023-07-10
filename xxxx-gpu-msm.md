@@ -9,7 +9,7 @@ other projects that make use of MSMs with the pasta curves.
 
 ## Motivation
 
-One of the mains components of kimchi's runtime is the multi scalar multiplication (MSM), it consist of
+One of the main components of kimchi's runtime is the multi scalar multiplication (MSM), it consist of
 basically taking a list of points, adding each point to itself N times, and then add all the resulting
 points together.
 This library will accelerate that process doing the computation in a gpu, it will also serve as a reference
@@ -25,6 +25,8 @@ will consist of 3 crates:
     - arithmetic
     - shader
     - runner
+The runner crate will be the one intended for use inside another projects, it will be added to kimchi as
+an optional, non-default dependency, and potentially promoted in the future to default.
 
 ### arithmetic
 
@@ -37,15 +39,22 @@ it will be generally slower that other cpu implementations it can be used for th
 ### shader
 
 The shader is a small crate that will be compiled to WGSL, the code is very simple, mostly calls to
-functions from the arithmetic crate, compilation takes a significative time and thus the compiled
+functions from the arithmetic crate, compilation takes a significant time and thus the compiled
 shader will be saved and the runner will used that precompiled shader by default.
 
 ### runner
 
-This is library that will be used by end users of the crate, it is the part that will run in the CPU
+This is library that will be used by end-users of the crate, it is the part that will run in the CPU
 and will talk to the GPU, it will expose a simple API that will ask for the points that make the base
 of the MSM and then perform the initialization and provide some struct that can be used to send scalar
 and get back the MSM of them and the base sent in the initialization.
+
+```rust
+let points: Vec<Point> = todo!();
+let gpu_msm = GpuMsm::new(points);
+let scalars: Vec<Scalar> = todo!();
+let msm = gpu_msm.msm(scalars);
+```
 
 ## Test plan and functional requirements
 
@@ -56,12 +65,13 @@ amount of reviewing and additional test considering that the arithmetic crate is
 from scratch of the basic cryptographic building blocks.
 There are already some unit tests and some tests using formal verification, but the formal verification
 tests take a while to run a probably can't cover all cases.
+At the end we should have a benchmark comparing cpu and gpu implementations.
 
 ## Drawbacks
 
 - There is the possibility of something outside of our control not working, like the nvidia Vulkan drivers
   when I tried to use Vulkan instead of wgpu.
-- There could be no significative gains, the Vulkan implementations was able to run ~3 times faster than
+- There could be no significant gains, the Vulkan implementations was able to run ~3 times faster than
   multithreaded arkworks MSM and ~10 times faster than single threaded arkworks while using integrated
   graphics.
   The move to WGSL should reduce the performance of arithmetic about 4 times, but we can probably expect
