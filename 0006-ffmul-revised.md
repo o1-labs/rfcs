@@ -1844,7 +1844,8 @@ We identified range conditions sufficient to make the `ForeignFieldMul` gate sou
 
 We'll analyze two different ideas to optimize the gate by removing conditions on $q$:
 
-* Skip the check $q_2 \in [0, 2^\ell)$, so that $q_2$ is only constrained by $q_2 + (2^\ell - f_2) \in [0, 2^\ell)$
+* **First idea**: Skip the check $q_2 \in [0, 2^\ell)$, so that $q_2$ is only constrained by $q_2 + (2^\ell - f_2) \in [0, 2^\ell)$
+* **Second idea**: Do not range-check $q_0$ and $q_1$ individually, but only their combination into a compact limb: $q_0 + 2^\ell q_1 \in [0, 2^\ell)$ (where "$+$" is field addition)
 
 The second idea allows us to borrow or carry values between $q_0$ and $q_1$. For example, we could represent $q = n$ by the limbs $(q_0, q_1, q_2) = (2^\ell, n-1, 0)$, because
 
@@ -1929,5 +1930,3 @@ However, underflow caused by one negative value $(- |q|_2 - 1)f'_0$ against 5 po
 In these cases, the negative $-|q|_2f'_0$ is small and should never cause underflow for "random" input values. In other words, the prover can use an incorrect output $r$ in almost every foreign field multiplication.
 
 **Conclusion**: The full range check $q_2 \in [0,2^\ell)$ is necessary.
-
-
