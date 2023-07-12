@@ -1,12 +1,5 @@
 # Foreign field multiplication gate
 
-**Changelog**
-
-| Author(s) | Date | Details |
-|-|-|-|
-| Joseph Spadavecchia, Anaïs Querol | October 2022 | Initial Design of foreign field multiplication in Kimchi |
-| Gregor Mitscha-Baude, Anaïs Querol | July 2023 | Revised version
-
 ## Summary
 
 This document explains a foreign field multiplication (i.e. non-native field multiplication) custom gate (`ForeignFieldMul`) in the Kimchi proof system.
