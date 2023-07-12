@@ -64,7 +64,7 @@ $$
 
 or equivalently, which only uses the negated limbs of the foreign modulus:
 
-$$\tag{C5: native}
+$$\tag{C1: native}
 ab + q f' - r = 0 \mod n
 $$
 
@@ -74,7 +74,7 @@ $$
 ab = (a_0 + 2^\ell a_1 + 2^{2\ell} a_2)(b_0 + 2^\ell b_1 + 2^{2\ell} b_2).
 $$
 
-Equation $\text{(C5: native)}$ implies that there is an $\varepsilon\in\mathbb{Z}$ such that
+Equation $\text{(C1: native)}$ implies that there is an $\varepsilon\in\mathbb{Z}$ such that
 
 $$
 ab + qf' - r = \varepsilon n.
@@ -286,7 +286,7 @@ $$\tag{$5$}
 a b - q f - r = 2^{3\ell} (w + c_1)
 $$
 
-By our native constraint $\text{(C5)}$, the LHS of $(5)$ is a multiple of $n$, so we have
+By our native constraint $\text{(C1)}$, the LHS of $(5)$ is a multiple of $n$, so we have
 
 $$
 2^{3\ell} (w + v_{1}) = 0 \mod{n}
