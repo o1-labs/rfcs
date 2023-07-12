@@ -313,11 +313,11 @@ We write this succinctly as $x_2 + (2^\ell - f_2 - 1) \in [0,2^\ell)$ but we mus
 
 For a field element $x_2 \in [0, n)$ the bounds check implies that
 
-$$x_2 \in [0, f_2 + 1) \cup [n - 2^\ell + f_2 + 1, n).$$
+$$x_2 \in [0, f_2] \cup [n - 2^\ell + f_2 + 1, n).$$
 
 If, in addition, $x_2$ is range-checked to be at most $\ell$ bits, the high interval is excluded:
 
-$$x_2 \in [0, 2^\ell) \quad\text{and}\quad x_2 + (2^\ell - f_2 - 1) \in [0,2^\ell) \quad\Longrightarrow\quad x_2 \in [0, f_2 + 1)$$
+$$x_2 \in [0, 2^\ell) \quad\text{and}\quad x_2 + (2^\ell - f_2 - 1) \in [0,2^\ell) \quad\Longrightarrow\quad x_2 \in [0, f_2]$$
 
 > NB: It's important to use $x_2 + (2^\ell - f_2 - 1)$ and not $x_2 + (2^\ell - f_2)$ in the bounds check, so that $x_2$ can be at most $f_2$ and not $f_2 - 1$. Otherwise, the check would exclude valid foreign field elements for which $x_2 = f_2$.
 
@@ -385,6 +385,8 @@ $$
 $$
 
 and so $ab = qf + r$, which proves the soundness of the ffmul gate, when used together with the listed external checks.
+
+> Note: We showed that the simple conditions $n > 2^{254}, f < 2^{259}$ are sufficient for our estimates. For any specific $n > 2^{254}$, the maximum allowed value for $f$ is actually a bit larger than $2^{259}$. As the argument above shows, a more precise condition on $f$ is $2^\ell (f_2 + 1)^2 < n$. In the case of the Pasta moduli $n$, $f$ can just be a tiny bit larger than $2^{259}$. For ease of communicating the maximum, and because primes slightly larger than 256 bits don't have any practical use as far as I can tell, I propose to make $f = 2^{259}-1$ the officially documented maximum.
 
 ### Gate layout
 
