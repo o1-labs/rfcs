@@ -32,7 +32,7 @@ $$
 x = x_0 + 2^\ell x_1 + 2^{2\ell} x_2.
 $$
 
-The limb size $\ell = 88$ is chosen to enable efficient $\ell$-bit range checks, so we can prove that $x_i \in [0, 2^\ell)$. This allows us to express any integer $x \in [0, 2^{3\ell}) = [0, 2^{264})$ in limb form, covering important 256-bit finite fields like secp256r1. From now on, we work under the assumption that $f < 2^{3\ell}$.
+The limb size $\ell = 88$ is chosen to enable efficient $\ell$-bit range checks, so we can prove that $x_i \in [0, 2^\ell)$. This allows us to express any integer $x \in [0, 2^{3\ell}) = [0, 2^{264})$ in limb form, covering important 256-bit finite fields like secp256k1. From now on, we work under the assumption that $f < 2^{3\ell}$.
 
 The ffmul gate represents $a$, $b$, $q$ in 3-limb form. However, $r$ is represented in an alternative compact 2-limb form $(r_{01}, r_2)$ where the two bottom limbs are combined into a single variable,
 
@@ -72,7 +72,7 @@ $$
 
 If the foreign field was small enough, we could prove $|ab - qf - r| < n$ (after adding a few range checks), and we would be finished at this point, because we could conclude that $\varepsilon = 0$. However, for the moduli $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
 
-The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies that it holds modulo the product $2^{3\ell}n$ (this the "chinese remainder theorem"). The modulus $2^{3\ell}n$ is large enough that it can replace $n$ in the last paragraph and the argument actually works.
+The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies that it holds modulo the product $2^{3\ell}n$ (by the [chinese remainder theorem](https://en.wikipedia.org/wiki/Chinese_remainder_theorem)). The modulus $2^{3\ell}n$ is large enough that it can replace $n$ in the last paragraph and the argument actually works.
 
 #### Expanding into limbs
 
@@ -94,7 +94,7 @@ $$
 Also, we define $f' := 2^{3\ell} - f > 0$ with limbs $(f'_0, f'_1, f'_2) \in [0, 2^\ell)^3$ and write
 
 $$
-ab - qf - r = ab + qf' - r + 2^{3\ell}q
+ab - qf - r = ab + qf' - r - 2^{3\ell}q
 $$
 
 This is a trick from the original RFC to [avoid negative intermediate values](https://o1-labs.github.io/proof-systems/rfcs/foreign_field_mul.html#avoiding-borrows). Note that $ab + qf'$ and all of its limbs are positive, and that since we will work modulo $2^{3\ell}$, we can ignore the extra term $2^{3\ell}q$.
@@ -216,7 +216,7 @@ $$
 This constraint -- together with our estimate of $p_0$ and RCs on $p_{01}$ and $r_{01}$ -- allows us to prove that $\text{(C4)}$ doesn't overflow $n$ and holds over the integers:
 
 $$
-|p_0 + 2^\ell p_{01} - r_{01} - 2^{2\ell}c_0| < (2 + 1 + 1 + 4)\cdot 2^{2\ell}  < n
+|p_0 + 2^\ell p_{01} - r_{01} - 2^{2\ell}c_0| < (2 + 1 + 1 + 4)\cdot 2^{2\ell} < n
 $$
 
 Therefore, we can use $\text{(C4)}$ in $(2')$ to eliminate the bottom part:
@@ -282,13 +282,14 @@ By our first constraint $\text{(C1)}$, the LHS of $(2''')$ is a multiple of $n$,
 
 
 $$
-2^{3\ell} (w + v_{1})  = 0 \mod{n}
+2^{3\ell} (w + v_{1}) = 0 \mod{n}
 $$
 
 Because $2^{3\ell}$ and $n$ are co-prime, we can multiply with $2^{-3\ell}$ to see that
 
+
 $$
-w + v_{1}  = 0 \mod{n}
+w + v_{1} = 0 \mod{n}
 $$
 
 Therefore, we can write $w + v_{1} = \delta n$ for some $\delta \in \mathbb{Z}$. From $(2''')$ we conclude that
@@ -371,7 +372,7 @@ $$
 |ab - qf - r| < 2^{4\ell}(f_2 + 1)^2 + 2^{3\ell} = 2^{3\ell}\cdot(2^\ell (f_2 + 1)^2 + 1)
 $$
 
-In the case that $f < 2^{259}$, we have $(f_2 + 1) \le 2^{259 - 2\ell} = 2^{83}$, and our estimate works out to be 
+In the case that $f < 2^{259}$, we have $(f_2 + 1) \le 2^{259 - 2\ell} = 2^{83}$, and our estimate works out to be
 
 $$
 |ab - qf - r| < 2^{3\ell} \cdot (2^{254} + 1)
@@ -388,6 +389,7 @@ and so $ab = qf + r$, which proves the soundness of the ffmul gate, when used to
 ### Gate layout
 
 The following 14 witnesses have to be made available to other gates:
+
 * The 6 input limbs $a_0, a_1, a_2$ and $b_0, b_1, b_2$
 * The 5 output limbs $q_0, q_1, q_2$ and $r_{01}$, $r_2$
 * Intermediate values $p_{10}$ and $p_{110}$ for the RC
@@ -395,22 +397,23 @@ The following 14 witnesses have to be made available to other gates:
 
 To make them available, they have to go in permutable cells. Kimchi has 7 permutable cells per row, so we exactly fit these values in the current and next row of a single-row gate.
 
-
-| FFmul  | 0p | 1p | 2p | 3p | 4p | 5p | 6p | 7  | 8  | 9  | 10 | 11 | 12 | 13 | 14 |
-| -------| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
-| _Curr_ | $a_0$ | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$ | $p_{10}$ |  |  |  |  |  |  |  |  | 
-| _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ |  |  |  |  |  |  |  | 
+| FFmul  | 0p       | 1p    | 2p    | 3p    | 4p    | 5p     | 6p        | 7   | 8   | 9   | 10  | 11  | 12  | 13  | 14  |
+| ------ | -------- | ----- | ----- | ----- | ----- | ------ | --------- | --- | --- | --- | --- | --- | --- | --- | --- |
+| _Curr_ | $a_0$    | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$  | $p_{10}$  |     |     |     |     |     |     |     |     |
+| _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ |     |     |     |     |     |     |     |     |
 
 Another constraint on the gate layout is that we can only do 4 lookups per row, and we need 7 lookups on the carry chunks $c_{1,0},\ldots,c_{1,72}$. So these have to be divided up between the two rows.
 
 The remaining witnesses are just put into any free cells to define the final gate layout:
 
-| FFmul  | 0p | 1p | 2p | 3p | 4p | 5p | 6p | 7  | 8  | 9  | 10 | 11 | 12 | 13 | 14 |
-| -------| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
-| _Curr_ | $a_0$ | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$ | $p_{10}$ | $c_{1,0}$ | $c_{1,12}$ | $c_{1,24}$ | $c_{1,36}$ | $c_{1,84}$ | $c_{1,86}$ | $c_{1,88}$ | $c_{1,90}$ | 
-| _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ | $c_{1,48}$ | $c_{1,60}$ | $c_{1,72}$ | $c_0$ |  |  |  | 
+| FFmul  | 0p       | 1p    | 2p    | 3p    | 4p    | 5p     | 6p        | 7          | 8          | 9          | 10         | 11         | 12         | 13         | 14         |
+| ------ | -------- | ----- | ----- | ----- | ----- | ------ | --------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- |
+| _Curr_ | $a_0$    | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$  | $p_{10}$  | $c_{1,0}$  | $c_{1,12}$ | $c_{1,24}$ | $c_{1,36}$ | $c_{1,84}$ | $c_{1,86}$ | $c_{1,88}$ | $c_{1,90}$ |
+| _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ | $p_{111}$  | $c_{1,48}$ | $c_{1,60}$ | $c_{1,72}$ | $c_0$      |            |            |            |
 
-The limbs of $f' = 2^{3\ell} - f$, which feature in a few of the constraints, are embedded into the gate as coefficients.
+The limbs of $f' = 2^{3\ell} - f$, which feature in a few of the constraints, are embedded into the gate as coefficients. The $\text{(C1)}$ constraint features $f$, but the gate implementation expands it out as $f = 2^{3\ell} - f' = 2^{3\ell} - (f_0' + 2^\ell f_1' + 2^{2\ell} f_2')$ to be able to use the same coefficients.
+
+However, the $q$ bound $\text{(C11)}$ properly features $f_2$ in a way that can't be always replaced by the same expression involving $f_2'$, therefore $f_2$ is made a gate coefficient as well.
 
 ### FFmul gadget
 
@@ -420,7 +423,7 @@ As usual, we want the gadget to add all necessary checks to its outputs $q$ and 
 
 In addition, there should be an advanced flag to skip range checks on $r$, for use cases where $r$ is later asserted to equal a value which is already known to be in the range (for example, the constant 1 when constraining a foreign field inverse).
 
-By default, we will do even more checks on $r$ than required in our soundness proof: We also add a bounds check for $r$ which shows that $r < 2^{2\ell}(f_2 + 1)$. This enables us to use $r$ as input to another ffmul gate or other foreign field operations without extra checks, which is what we expect from a safe API. 
+By default, we will do even more checks on $r$ than required in our soundness proof: We also add a bounds check for $r$ which shows that $r < 2^{2\ell}(f_2 + 1)$. This enables us to use $r$ as input to another ffmul gate or other foreign field operations without extra checks, which is what we expect from a safe API.
 
 From these considerations, we propose the following logic of the ffmul gadget in pseudo-code:
 
@@ -437,7 +440,7 @@ function multiply(
   rCompact: [Field, Field];
 } {
   // compute witnesses
-  let [q, r01, r2, p10, p11, c0, c1, qBound] = exists(FFMulWitness, () => {
+  let { q, r01, r2, p10, p11, c0, c1, qBound } = exists(FFMulWitness, () => {
     /* ...*/
   });
 
@@ -505,7 +508,6 @@ In summary, we chose the gate design presented in this RFC because:
 
 - It's the most efficient design we came up with so far
 - It's close to the original design and therefore easy to adapt
-
 
 ## Prior art
 
