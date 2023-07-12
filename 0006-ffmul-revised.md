@@ -108,7 +108,7 @@ $$
 ab - qf - r = ab + qf' - r - 2^{3\ell}q
 $$
 
-This is a trick to avoid negative intermediate values (more can be found in the [Appendix](#appendix)). Note that $ab + qf'$ and all of its limbs are positive, and that since we will work modulo $2^{3\ell}$, we can ignore the extra term $2^{3\ell}q$.
+This is a trick to avoid negative intermediate values (more can be found in the [Appendix](#appendix-c-borrows)). Note that $ab + qf'$ and all of its limbs are positive, and that since we will work modulo $2^{3\ell}$, we can ignore the extra term $2^{3\ell}q$.
 
 Next, we expand our equation into limbs, but collect all terms that are multiples of $2^{3\ell}$ into a single term $2^{3\ell} w$.
 
@@ -153,7 +153,7 @@ $$
 \end{align*}
 $$
 
-Details about these upper bounds can be found in the [Appendix](@appendix).
+Details about these upper bounds can be found in the [Appendix](#appendix-d-gate-constraints).
 
 In particular, $p_1$ has at most $2\ell+2$ bits and so $2^\ell p_1$ might be larger than $2^{3\ell} > n$. This is the motivation to split $p_1$ into an $\ell$-bit bottom "half" and an $(\ell+2)$-bit top "half":
 
