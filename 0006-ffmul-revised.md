@@ -99,7 +99,7 @@ $$
 
 This is a trick from the original RFC to [avoid negative intermediate values](https://o1-labs.github.io/proof-systems/rfcs/foreign_field_mul.html#avoiding-borrows). Note that $ab + qf'$ and all of its limbs are positive, and that since we will work modulo $2^{3\ell}$, we can ignore the extra term $2^{3\ell}q$.
 
-Next, we expand our equation into limbs, but collect all terms higher than $2^{3\ell}$ into a single term $w$.
+Next, we expand our equation into limbs, but collect all terms that are multiples of $2^{3\ell}$ into a single term $2^{3\ell} w$.
 
 $$
 \begin{align}
@@ -187,13 +187,13 @@ $$
 
 Therefore, we can use $\text{(C2)}$ to expand $p_1$ in our earlier equation $(2)$:
 
-$$\tag{$2'$}
+$$\tag{3}
 a b - q f - r = (p_0 + 2^{\ell} p_{10} - r_{01}) + 2^{2\ell} (p_2 - r_2 + p_{11}) + 2^{3\ell} w
 $$
 
 #### Constraining limb-wise mod $2^{3\ell}$
 
-Now both terms in brackets of $(2')$ fit within $n$. We add a constraint that the first bracket is zero, except for a possible carry $c_0$:
+Now both terms in brackets of $(3)$ fit within $n$. We add a constraint that the first bracket is zero, except for a possible carry $c_0$:
 
 $$\tag{C4: bottom limbs}
 p_0 + 2^\ell p_{01} - r_{01} = 2^{2\ell} c_0\mod n
@@ -219,9 +219,9 @@ $$
 |p_0 + 2^\ell p_{01} - r_{01} - 2^{2\ell}c_0| < (2 + 1 + 1 + 4)\cdot 2^{2\ell} < n
 $$
 
-Therefore, we can use $\text{(C4)}$ in $(2')$ to eliminate the bottom part:
+Therefore, we can use $\text{(C4)}$ in $(3)$ to eliminate the bottom part:
 
-$$\tag{$2''$}
+$$\tag{4}
 a b - q f - r = 2^{2\ell} (p_2 - r_2 + p_{11} + c_0) + 2^{3\ell} w
 $$
 
@@ -270,15 +270,15 @@ $$
 |p_2 - r_2 + p_{11} + c_0 - 2^{\ell} c_1| < 6\cdot 2^{2\ell} + 2^{\ell} + 2^{\ell + 2} + 4 + 2^{2\ell + 3} < 2^{2\ell + 4} < n
 $$
 
-Therefore, we can plug in $\text{(C6)}$ into $(2'')$ to prove that
+Therefore, we can plug in $\text{(C6)}$ into $(4)$ to prove that
 
-$$\tag{$2'''$}
+$$\tag{5}
 a b - q f - r = 2^{3\ell} (w + c_1)
 $$
 
 
 
-By our first constraint $\text{(C1)}$, the LHS of $(2''')$ is a multiple of $n$, so we have
+By our first constraint $\text{(C1)}$, the LHS of $(5)$ is a multiple of $n$, so we have
 
 
 $$
@@ -292,9 +292,9 @@ $$
 w + v_{1} = 0 \mod{n}
 $$
 
-Therefore, we can write $w + v_{1} = \delta n$ for some $\delta \in \mathbb{Z}$. From $(2''')$ we conclude that
+Therefore, we can write $w + v_{1} = \delta n$ for some $\delta \in \mathbb{Z}$. From $(5)$ we conclude that
 
-$$\tag{$2''''$}
+$$\tag{6}
 a b - q f - r = 2^{3\ell} n \delta
 $$
 
