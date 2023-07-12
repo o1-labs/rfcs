@@ -527,6 +527,8 @@ In summary, we chose the gate design presented in this RFC because:
 
 [Ariel Gabizon's write-up on CRT technique](https://hackmd.io/@arielg/B13JoihA8)
 
+[Gregor Mitscha-Baude's soundness analysis of the old variant without sufficient range checks](https://hackmd.io/@mitschabaude/SJsLdMgFn)
+
 ## Unresolved questions
 
 Currently, there are no unresolved questions.
@@ -1836,328 +1838,13 @@ The following checks must be done with other gates to assure the soundness of th
 
 Copy constraints must connect the above witness cells to their respective input cells within the corresponding external check gates witnesses.
 
-## Appendix L: Soundness
+## Appendix L: Necessity of range checks
 
-This long section describes the soundness proof behind the proposed `ForeignFieldMul` gate.
-
-Given witnesses $a$, $b$, $q$, $r$ each represented as 3 limbs $(x_0, x_1, x_2)$ by
-
-$$x = x_0 + 2^\ell x_1 + 2^{2\ell} x_2,$$ 
-
-we want to prove that, assuming a certain list of constraints,
-
-$$\tag{L.1}
-\begin{equation}
-a b = q f + r
-\end{equation}
-$$
-
-holds as an equation over the integers.
-
-### `ForeignFieldMul` without range checks
-
-Our derivation in this section will use the constraints of the FFMul gate, except for any assumptions about the sizes of $a$, $b$, $q$ and $r$. The goal is to work out exactly what range checks we need on these values.
-
-The first constraint we use is checking $(L.1)$ modulo the native modulus $n$ (where we expand each term into its limbs). This single constraint proves that there is an $\varepsilon \in\mathbb{Z}$ such that
-
-$$\tag{L.2a}
-a b - q f - r = \varepsilon n
-$$
-
-Our strategy now is to also constrain the LHS modulo $2^{3\ell}$ and then use CRT-type arguments. So, let's expand  $a b - q f - r$ into limbs, but collect all terms higher than $2^{3\ell}$ into a single term $w$.
-
-$$
-\begin{aligned}
-& a b - q f - r = \\
-&  (a_0 b_0 + q_0 f'_0 - r_0) \\
-&+ 2^{\ell} (a_0 b_1 + a_1 b_0 + q_0 f'_1 + q_1 f'_0 - r_1) \\
-&+ 2^{2\ell} (a_0 b_2 + a_2 b_0 + q_0 f'_2 + q_2 f'_0 + a_1 b_1 + q_1 f'_1 - r_2) \\
-&+ 2^{3\ell} w
-\end{aligned}
-$$
-
-This equation holds over the integers. Like in the RFC, to abbreviate formulas we define $p_i$ such that the equation becomes
-
-$$\tag{L.2b}
-a b - q f - r = (p_0 - r_0) + 2^{\ell} (p_1 - r_1) + 2^{2\ell} (p_2 - r_2) + 2^{3\ell} w
-$$
-
-Next, we split $p_1 = p_{01} + 2^\ell p_{11}$ where we add range checks to prove that $p_{01}$ has at most $\ell$ bits and $p_{11}$ has at most $\ell + 2$ bits. The split itself is a constraint modulo $n$, showing that
-
-$$\tag{L.3}
-p_1 = p_{01} + 2^\ell p_{11} + \beta n
-$$
-
-for some $\beta \in\mathbb{Z}$.
-
-Expanding $p_1$ using the last equation in $(2')$, we get
-
-$$\tag{L.2c}
-a b - q f - r = (p_0 + 2^\ell p_{01} - r_0 - 2^\ell r_1) + 2^{2\ell} (p_2 + p_{11} - r_2) + 2^{3\ell} w + 2^\ell \beta n 
-$$
-
-Now we will start constraining this equation limb-wise. We add a constraint for the bottom 2 limbs, namely
-
-$$\tag{L.4}
-p_0 + 2^\ell p_{01} - r_0 - 2^\ell r_1 = 2^{2\ell} v_0 + \alpha n
-$$
-
-for some $\alpha \in\mathbb{Z}$, where $v_0$ is some carry value and we prove that $v_0$ has at most 2 bits. Plugging this into $(L.2c)$, we eliminate the first bracketed term and get
-
-$$\tag{L.2d}
-a b - q f - r = 2^{2\ell} (p_2 + p_{11} - r_2 + v_0) + 2^{3\ell} w + (\alpha + 2^\ell \beta) n
-$$
-
-Next, we add a constraint for the high limb. For this we introduce a carry value $v_{1}$ which is range-checked to have at most $\ell + 3$ bits. We add the following constraint:
-
-$$\tag{L.5}
-p_2 + p_{11} - r_2 + v_0 = 2^{\ell} v_{1} + \gamma n 
-$$
-
-for some $\gamma \in\mathbb{Z}$. Plugging this into $(L.2d)$, the $2^\ell$ term is eliminated and we have proved that
-
-$$\tag{L.2e}
-a b - q f - r = 2^{3\ell} (w + v_{1})  + (\alpha + 2^\ell \beta + 2^{2\ell} \gamma) n $$
-
-Now, for a brief moment let's look at this equation modulo $n$. Since the LHS is equal to $\varepsilon n$ by $(L.2a: native)$, we have
-
-$$
-2^{3\ell} (w + v_{1})  = 0 \mod{n}
-$$
-
-Because $2^{3\ell}$ and $n$ are co-prime, we can multiply with $2^{-3\ell}$ to see that
-
-$$
-w + v_{1}  = 0 \mod{n}
-$$
-
-So let's write
-
-$$
-w + v_{1}  = \delta n
-$$
-
-(This was the CRT-type argument.)
-
-In summary, by $(L.2e)$ and **without any assumptions on the sizes of $a$, $b$, $q$, $r$, our constraints prove that**
-
-$$\tag{L.6}
-a b - q f - r = (\alpha + 2^\ell \beta + 2^{2\ell} \gamma + 2^{3\ell}\delta) n
-$$
-
-It only remains to introduce range checks sufficient to imply that $\alpha = \beta = \gamma = \delta = 0$. Or, looked at it differently, it suffices to make one of those values non-zero to find a counter-example to the soundness of the `ForeignFieldMul` gate.
-
-### Conditions to make $\alpha = \beta = \gamma = \delta = 0$
-
-Let's recall where possible non-zero values on the RHS may come from:
-
-* **$\alpha$ can be non-zero if $\text{(L.4: bottom limbs)}$ overflows $n$.**
-* **$\beta$ can be non-zero if $\text{(L.3: split)}$ overflows $n$.**
-* **$\gamma$ can be non-zero if $\text{(L.5: high limb)}$ overflows $n$.**
-
-To prove $\alpha = 0$ it's enough to show  
-$$\tag{L.7a}
--n < p_0 + 2^\ell p_{01} - r_0 - 2^\ell r_1 - 2^{2\ell} v_0 < n$$
-
-To prove $\beta = 0$ it's enough to show  
-$$\tag{L.7b}
--n < p_1 - p_{01} + 2^\ell p_{11} < n
-$$
-
-To prove $\gamma = 0$ it's enough to show  
-$$\tag{L.7c}
--n < p_2 + p_{11} - r_2 + v_0 - 2^{\ell} v_{1} < n$$
-
-If $\alpha = \beta = \gamma = 0$, then by $(6)$ we know that
-
-$$\tag{L.8}
-a b - q f - r = \delta 2^{3\ell} n
-$$
-
-* **$\delta$ can be non-zero if $\text{(L.8: final)}$ overflows $2^{3\ell} n$.**
-
-To prove $\delta = 0$ it's enough to show $\alpha = \beta = \gamma = 0$ and
- 
-$$\tag{L.9}
--2^{3\ell} n < a b - q f - r < 2^{3\ell} n
-$$
-
-#### Range-checking $a$, $b$, $q$, $r$
-
-Recall the following range checks which we already had to assume so far:
-
-* $v_0$ $\in [0,2^2)$
-* $p_{01}$ $\in [0,2^\ell)$
-* $p_{11}$ $\in [0,2^{\ell + 2})$
-* $v_{1}$ $\in [0,2^{\ell + 3})$
-
-Now, let's assume in addition that all of the following limb values are ranged-checked to be at most $\ell$ bits:
-
-* $a_0$, $a_1$, $a_2$ $\in [0,2^\ell)$
-* $b_0$, $b_1$, $b_2$ $\in [0,2^\ell)$
-* $q_0$, $q_1$, $r_2$ $\in [0,2^\ell)$
-* $r_0 + 2^\ell r_1 \in [0,2^{2\ell})$
-* $r_2$ $\in [0,2^\ell)$
-
-Note that $r$ is treated a bit differently than the other values: We don't require a range-check of the individual limbs $r_0$ and $r_1$, but only of the combined "compact limb" $r_0 + 2^\ell r_1$. This works because our constraints use only the combined form.
-
-This is enough to prove $(L.7a)$, $(L.7b)$ and $(L.7c)$.
-
-> (L.7a)
-
-First, we put estimates on $p_0 = a_0 b_0 + q_0 f'_0$:
-
-$$0 \le a_0 b_0 + q_0 f'_0 < 2^{2\ell} + 2^{2\ell} = 2^{2\ell + 1} $$
-
-Using that we get $(L.7a)$, upper bound:
-
-$$
-\begin{align*}
-& p_0 + 2^\ell p_{01} - (r_0 + 2^\ell r_1) - 2^{2\ell} v_0 < \\
-& 2^{2\ell + 1} + 2^{2\ell} - 0 - 0 < \\
-& 2^{2\ell + 2} < n 
-\end{align*}
-$$
-
-$(L.7a)$, lower bound:
-
-$$
-\begin{align}
-& -p_0 - 2^\ell p_{01} + (r_0 + 2^\ell r_1) + 2^{2\ell} v_0 < \\
-& -0 - 0 + 2^{2\ell} + 3 \cdot 2^{2\ell} = \\
-& 2^{2\ell + 2} < n
-\end{align}
-$$
-
-> (L.7b)
-
-Estimate $p_1 = a_0 b_1 + a_1 b_0 + q_0 f'_1 + q_1 f'_0$:
-
-$$0 \le a_0 b_1 + a_1 b_0 + q_0 f'_1 + q_1 f'_0 < 4 \cdot 2^{2\ell} = 2^{2\ell + 2} $$
-
-$(L.7b)$, upper bound:
-
-$$
-\begin{align*}
-& p_1 - p_{01} + 2^\ell p_{11} < \\
-& 2^{2\ell + 2} - 0 + 2^{2\ell + 2} = \\
-& 2^{2\ell + 3} < n 
-\end{align*}
-$$
-
-$(L.7b)$, lower bound:
-
-$$
-\begin{align*}
-& -p_1 + p_{01} - 2^\ell p_{11} < \\
-& -0 + 2^\ell - 0 = \\
-& 2^\ell < n 
-\end{align*}
-$$
-
-> (L.7c)
-
-Estimate $p_2 = a_0 b_2 + a_1 b_1 + a_2 b_0 + q_0 f'_2 + q_1 f'_1 + q_2 f'_0$:
-
-$$0 \le p_2 < 6 \cdot 2^{2\ell} $$
-
-$(L.7c)$, upper bound:
-
-$$
-\begin{align}
-& p_2 + p_{11} - r_2 + v_0 - 2^{\ell} v_{1} < \\
-& 6 \cdot 2^{2\ell} + 2^{\ell + 2} - 0 + 2^2 - 0 < \\
-& 2^{2\ell + 3} < n 
-\end{align}
-$$
-
-$(L.7c)$, lower bound:
-
-$$
-\begin{align}
-& -p_2 - p_{11} + r_2 - v_0 + 2^{\ell} v_{1} < \\
-& -0 - 0 + 2^\ell - 0 +  2^{2\ell + 3} = \\
-& 2^{2\ell + 4} < n 
-\end{align}
-$$
-
-> Final bound
-
-We will now discuss how to prove the final bound
-
-$$\tag{L.9}
--2^{3\ell} n < a b - q f - r < 2^{3\ell} n
-$$
-
-To prove $(L.9)$, it's not enough to have $\ell$-bit range checks on all the limbs, because for example $ab = (2^{3\ell} - 1)^2 > 2^{3\ell} n$. The RFC chose $\ell$ and $3$ specifically such that
-$$f^2 < 2^{3\ell} n$$
-for all $f$ that we care about, so that the estimate $(L.9)$ works if $a$, $b$, $q$, $r$ < $f$ (i.e., if they are foreign field elements in canonical representation).
-
-However, for efficiency we want to relax the $< f$ requirement a bit, because it would require a foreign field addition plus 3 range checks per variable. We can get an almost equivalent estimate by only range-checking the highest limb of each variable and a native addition.
-
-Concretely, for a variable $x = (x_0, x_1, x_2)$ we define the _high-limb bounds check_ as the following two constraints:
-
-* $x_2 + (2^\ell - f_2) = z \mod n$
-* $z \in [0,2^\ell)$
-
-We might write this succinctly as "$x_2 + (2^\ell - f_2) \in [0,2^\ell)$" but in that case we must not forget that "$+$" is finite field addition.
-
-For a field element $x_2 \in [0, n)$ the high-limb bounds check implies that
-
-$$x_2 \in [0, f_2) \cup [n - 2^\ell + f_2, n).$$
-
-So this allows $x_2$ to be a large number close to $n$. If, in addition, $x_2$ is range-checked to be at most $\ell$ bits, the high interval is excluded:
-
-$$x_2 \in [0, 2^\ell) \quad\text{and}\quad x_2 + (2^\ell - f_2) \in [0,2^\ell) \quad\Longrightarrow\quad x_2 \in [0, f_2)$$
-
-For $x = (x_0, x_1, x_2)$, the 3-limb range check plus high-limb bounds check imply $x < f + 2^{2\ell}$, as follows:
-
-$$
-x = 2^{2\ell} x_2 + 2^\ell x_1 + x_0  < 2^{2\ell} f_2 + 2^{2\ell} \le f + 2^{2\ell}
-$$
-
-This is only slightly weaker than $x < f$ and is enough for us to prove $(L.9)$.
-
-We add the high-limb bounds check to the 3-limb range-checks for $a$, $b$ and $q$:
-
-* $a_2 + (2^\ell - f_2) \in [0,2^\ell)$
-* $b_2 + (2^\ell - f_2) \in [0,2^\ell)$
-* $q_2 + (2^\ell - f_2) \in [0,2^\ell)$
-
-This implies that $a,b,q \in[0, f + 2^\ell)$. For $r$, we already know that $r \in [0, 2^{3\ell})$ and don't need additional assumptions.
-
-We now get the following upper bound:
-
-$$
-ab - qr - f < ab < (f + 2^\ell)^2
-$$
-
-And lower bound:
-
-$$
--ab + qr + f < qr + f < (f + 2^\ell)^2 + 2^{3\ell}
-$$
-
-Thus, we can prove $(L.9)$ if the foreign field modulus satisfies
-
-$$
-(f + 2^\ell)^2 + 2^{3\ell} < 2^{3\ell} n
-$$
-
-$$
-f < \sqrt{ 2^{3\ell} (n - 1) } - 2^\ell
-$$
-
-For both Pasta moduli $n$, this still means that $f$ can be any prime up to 259 bits.
-
-#### Necessity of range checks
-
-In the last section we identified range conditions sufficient to make the FFmul gate sound. Ideally, we also want to be sure that they are _necessary_, and that we can't optimize our design further by removing some of them.
+We identified range conditions sufficient to make the `ForeignFieldMul` gate sound. Ideally, we also want to be sure that they are _necessary_, and that we can't optimize our design further by removing some of them.
 
 We'll analyze two different ideas to optimize the gate by removing conditions on $q$:
 
-* **First idea**: Skip the check $q_2 \in [0, 2^\ell)$, so that $q_2$ is only constrained by $q_2 + (2^\ell - f_2) \in [0, 2^\ell)$
-* **Second idea**: Do not range-check $q_0$ and $q_1$ individually, but only their combination into a compact limb: $q_0 + 2^\ell q_1 \in [0, 2^\ell)$ (where "$+$" is field addition)
+* Skip the check $q_2 \in [0, 2^\ell)$, so that $q_2$ is only constrained by $q_2 + (2^\ell - f_2) \in [0, 2^\ell)$
 
 The second idea allows us to borrow or carry values between $q_0$ and $q_1$. For example, we could represent $q = n$ by the limbs $(q_0, q_1, q_2) = (2^\ell, n-1, 0)$, because
 
@@ -2183,7 +1870,7 @@ The example we just gave does **not** break soundness in this interpretation, be
 
 In the remaining section, we aim for stronger counter-examples which provide an invalid $r$, and thus break soundness for $(10)$ as well.
 
-#### Counter-example 1: Skipping $q_2 \in [0, 2^\ell)$
+### Counter-example: Skipping $q_2 \in [0, 2^\ell)$
 
 If we skip the check $q_2 \in [0, 2^\ell)$ and only use the bounds check $q_2 + (2^\ell - f_2) \in [0, 2^\ell)$, we potentially allow $q_2 \in [n - 2^\ell + f_2, n)$. The idea for exploiting this is that $q_2$ can be used to represent negative values of $q$ (modulo $n$).
 
@@ -2243,7 +1930,4 @@ In these cases, the negative $-|q|_2f'_0$ is small and should never cause underf
 
 **Conclusion**: The full range check $q_2 \in [0,2^\ell)$ is necessary.
 
-> Counter-example 2: Compact range-check on $q_0 + 2^\ell q_1$
-
-TBC
 
