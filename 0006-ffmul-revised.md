@@ -516,12 +516,7 @@ This RFC builds on an existing implementation with plenty of tests. The test pla
 
 Due to the limited number of cells accessible to gates, we are not able to chain multiplications into multiplications. We can chain foreign field additions into foreign field multiplications, but currently do not support chaining multiplications into additions (though there is a way to do it, using a completely different approach towards multiplication).
 
-The valid witnesses for the remainder are any of the values 
-, where 
- is the canonical value. When the canonical 
- is required, the circuit must use an additional full bound check.
-
-Note that our proposed `ForeignFieldMul` design obtains the valid witnesses for the remainder modulo the foreign field, which could be any of the values in $r + k\cdot f$, where $r$ is the canonical value. But when the canonical $r$ is required, the circuit must use an additional [full bound check](#appendix-f-full-bound-checks) to make sure that $r < f$. 
+Note that our proposed `ForeignFieldMul` design obtains the valid witnesses for the remainder modulo the foreign field, which could be any of the values in $r + k\cdot f$, where $r$ is the canonical value. But when only the canonical $r$ is required, the circuit must use an additional [full bound check](#appendix-f-full-bound-checks) to make sure that $r < f$. 
 
 ## Rationale and alternatives
 
