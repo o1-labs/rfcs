@@ -1,12 +1,5 @@
 # Foreign field multiplication gate
 
-**Changelog**
-
-| Author(s) | Date | Details |
-|-|-|-|
-| Joseph Spadavecchia, Anaïs Querol | October 2022 | Initial Design of foreign field multiplication in Kimchi |
-| Gregor Mitscha-Baude, Anaïs Querol | July 2023 | Revised version
-
 ## Summary
 
 This document explains a foreign field multiplication (i.e. non-native field multiplication) custom gate (`ForeignFieldMul`) in the Kimchi proof system.
@@ -61,12 +54,18 @@ $$
 
 At the same time, we will prove soundness -- i.e., the constraints we add imply $(1)$. 
 
-> In the following, we will use the numbering used in the implementation, which might not correspond to the chronological order where they appear explained here in the text.
+Note that the actual order of the constraints in the code might not correspond to the order here depicted. The reason behind this, will be to being able to trigger individual constraint failures in tests.
 
 Let $n$ be the _native_ field modulus (for example, $n$ is one of the Pasta primes). Our first constraint is to check $(1)$ modulo $n$:
 
-$$\tag{C5: native}
+$$
 ab = qf + r\mod n
+$$
+
+or equivalently, which only uses the negated limbs of the foreign modulus:
+
+$$\tag{C1: native}
+ab + q f' - r = 0 \mod n
 $$
 
 Note: In the implementation, variables in this constraint are expanded into their limbs, like
@@ -75,13 +74,13 @@ $$
 ab = (a_0 + 2^\ell a_1 + 2^{2\ell} a_2)(b_0 + 2^\ell b_1 + 2^{2\ell} b_2).
 $$
 
-Equation $\text{(C5: native)}$ implies that there is an $\varepsilon\in\mathbb{Z}$ such that
+Equation $\text{(C1: native)}$ implies that there is an $\varepsilon\in\mathbb{Z}$ such that
 
 $$
-ab - qf - r =  \varepsilon n.
+ab + qf' - r = \varepsilon n.
 $$
 
-If the foreign field was small enough, we could prove $|ab - qf - r| < n$ (after adding a few range checks), and we would be finished at this point, because we could conclude that $\varepsilon = 0$. However, for the moduli $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
+If the foreign field was small enough, we could prove $|ab + qf' - r| < n$ (after adding a few range checks), and we would be finished at this point, because we could conclude that $\varepsilon = 0$. However, for the moduli $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
 
 The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies that it holds modulo the product $2^{3\ell}n$ (by the [chinese remainder theorem](https://en.wikipedia.org/wiki/Chinese_remainder_theorem)). The modulus $2^{3\ell}n$ is large enough that it can replace $n$ in the last paragraph and the argument actually works.
 
@@ -131,13 +130,13 @@ $$
 \end{align*}
 $$
 
-> We don't introduce separate witnesses to hold $p_i$. Instead, the implementation will expand out the $p_i$ into their definitions wherever they are used in constraints. 
-
-Now our limb-wise equation that holds over the integers (by definition of the terms involved) reads
+Note: We don't introduce separate witnesses to hold $p_i$. Instead, the implementation will expand out the $p_i$ into their definitions wherever they are used in constraints. Now our limb-wise equation that holds over the integers (by definition of the terms involved) reads
 
 $$\tag{2}
 a b - q f - r = (p_0 + 2^{\ell} p_1 - r_{01}) + 2^{2\ell} (p_2 - r_2) + 2^{3\ell} w
 $$
+
+This equation holds over the integers, by definition of the terms involved.
 
 #### Splitting the middle limb
 
@@ -153,7 +152,7 @@ $$
 \end{align*}
 $$
 
-Details about these upper bounds can be found in the [Appendix](#appendix-d-gate-constraints).
+Details about these upper bounds can be found in the [Appendix](#appendix-d-diagrams).
 
 In particular, $p_1$ has at most $2\ell+2$ bits and so $2^\ell p_1$ might be larger than $2^{3\ell} > n$. This is the motivation to split $p_1$ into an $\ell$-bit bottom "half" and an $(\ell+2)$-bit top "half":
 
@@ -173,7 +172,7 @@ where $p_{110}$ has $\ell$ bits and $p_{111}$ has the remaining 2 bits.
 
 In summary, the split of $p_1$ gives us our constraint:
 
-$$\tag{C3: split middle}
+$$\tag{C2: split middle}
 p_1 = p_{10} + 2^\ell p_{110} + 2^{2\ell} p_{111} \mod n
 $$
 
@@ -192,13 +191,13 @@ $$
 \end{align}
 $$
 
-Using these RCs and our earlier estimate on $p_1$, we can prove that $\text{(C3)}$ not only holds modulo $n$, but over the integers:
+Using these RCs and our earlier estimate on $p_1$, we can prove that $\text{(C2)}$ not only holds modulo $n$, but over the integers:
 
 $$
 |p_1 - p_{10} - 2^\ell p_{110} - 2^{2\ell} p_{111}| < 4\cdot2^{2\ell} + 2^{\ell} + 2^{2\ell} + 4\cdot 2^{2\ell} < n
 $$
 
-Therefore, we can use $\text{(C3)}$ to expand $p_1$ in our earlier equation $(2)$:
+Therefore, we can use $\text{(C2)}$ to expand $p_1$ in our earlier equation $(2)$:
 
 $$\tag{3}
 a b - q f - r = (p_0 + 2^{\ell} p_{10} - r_{01}) + 2^{2\ell} (p_2 - r_2 + p_{11}) + 2^{3\ell} w
@@ -222,7 +221,7 @@ $$
 
 This shows that $c_0$ will have at most 2 bits, which motivates our next constraint:
 
-$$\tag{C2: 2-bit $c_0$}
+$$\tag{C5: 2-bit $c_0$}
 c_0(c_0-1)(c_0-2)(c_0-3) = 0 \mod n
 $$
 
@@ -240,7 +239,7 @@ $$
 
 The next step is to constrain the $2^{2\ell}$ term, to be zero in its lower $\ell$ bits:
 
-$$\tag{C10: top part}
+$$\tag{C6: top part}
 p_2 - r_2 + p_{11} + c_0 = 2^{\ell} c_1\mod n
 $$
 
@@ -258,13 +257,13 @@ $$
 \begin{align}
 \tag{12-bit lookups}
 & c_{1,0}, c_{1,12}, c_{1,24}, c_{1,36}, c_{1,48}, c_{1,60}, c_{1,72} \in [0,2^{12}) \\
-\tag{C6: 2-bit}
-& c_{1,84}(c_{1,84}-1)(c_{1,84}-2)(c_{1,84}-3) = 0 \bmod n \quad \\
 \tag{C7: 2-bit}
-& c_{1,86}(c_{1,86}-1)(c_{1,86}-2)(c_{1,86}-3) = 0 \bmod n \quad \\
+& c_{1,84}(c_{1,84}-1)(c_{1,84}-2)(c_{1,84}-3) = 0 \bmod n \quad \\
 \tag{C8: 2-bit}
+& c_{1,86}(c_{1,86}-1)(c_{1,86}-2)(c_{1,86}-3) = 0 \bmod n \quad \\
+\tag{C9: 2-bit}
 & c_{1,88}(c_{1,88}-1)(c_{1,88}-2)(c_{1,88}-3) = 0 \bmod n \quad \\
-\tag{C9: 1-bit}
+\tag{C10: 1-bit}
 & c_{1,90}(c_{1,90}-1) = 0 \mod n \\
 \end{align}
 $$
@@ -281,13 +280,13 @@ $$
 |p_2 - r_2 + p_{11} + c_0 - 2^{\ell} c_1| < 6\cdot 2^{2\ell} + 2^{\ell} + 2^{\ell + 2} + 4 + 2^{2\ell + 3} < 2^{2\ell + 4} < n
 $$
 
-Therefore, we can plug in $\text{(C10)}$ into $(4)$ to prove that
+Therefore, we can plug in $\text{(C6)}$ into $(4)$ to prove that
 
 $$\tag{$5$}
 a b - q f - r = 2^{3\ell} (w + c_1)
 $$
 
-By our native constraint $\text{(C5)}$, the LHS of $(5)$ is a multiple of $n$, so we have
+By our native constraint $\text{(C1)}$, the LHS of $(5)$ is a multiple of $n$, so we have
 
 $$
 2^{3\ell} (w + v_{1}) = 0 \mod{n}
@@ -426,6 +425,25 @@ The limbs of $f' = 2^{3\ell} - f$, which feature in a few of the constraints, ar
 
 However, the $q$ bound $\text{(C11)}$ properly features $f_2$ in a way that can't be always replaced by the same expression involving $f_2'$, therefore $f_2$ is made a gate coefficient as well.
 
+### Lookup pattern
+
+Here we describe the necessary lookup pattern for the correct functioning of the gate.
+
+This lookup pattern called `ForeignFieldMul` will perform four lookups per row, and applies to both the current (`ForeignFieldMul` gate) and the next (`Zero` gate) rows. It makes the lookups to the `RangeCheck` table, which checks that the looked values are less than 12 bits. The layout is as follows:
+
+| FFmul  | 0p | 1p | 2p | 3p | 4p | 5p | 6p | 7  | 8  | 9  | 10 | 11 | 12 | 13 | 14 |
+| -------| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+| _Curr_ |   |   |   |   |   |   |   | 12-bit | 12-bit | 12-bit | 12-bit |   |   |   |   | 
+| _Next_ |   |   |   |   |   |   |   | 12-bit | 12-bit | 12-bit | 12-bit |  |  |  |  | 
+
+The actual constraints on the $c_1$ value only require 7 12-bit lookups (together with 3 2-bit constraints, and 1 1-bit constraints). This means that if we are reusing the same pattern, the value in `(Next, 7)` will also be range checked. Even if this is redundant, three options are available for this cell:
+
+- It contains a dummy 0 witness
+- It contains $p_{111}$ which is meant to be at most 2 bits
+- It contains $c_0$ which is also meant to be at most 2 bits
+
+In order not to leave empty spaces in the layout, the two last options are more appropriate. Either option is equally valid. For readability, we decided to set $p_{111}$ in `(Next, 7)` as $p_{110}$ is in `(Next, 6)`. 
+
 ### `ForeignFieldMul` gadget
 
 As the soundness proof shows, the `ForeignFieldMul` gate is not complete without a number of external checks. The job of an `ForeignFieldMul` _gadget_ (a provable method which wraps the gate) is to take care of these checks and provide an API without pitfalls.
@@ -489,10 +507,6 @@ function multiply(
 }
 ```
 
-### Spec
-
-[WIP Kimchi PR with spec change](https://github.com/o1-labs/proof-systems/blob/ffmul/rangecheck/book/src/specs/kimchi.md#foreign-field-multiplication) 
-(TODO: update)
 
 ## Test plan and functional requirements
 
@@ -502,7 +516,7 @@ This RFC builds on an existing implementation with plenty of tests. The test pla
 
 Due to the limited number of cells accessible to gates, we are not able to chain multiplications into multiplications. We can chain foreign field additions into foreign field multiplications, but currently do not support chaining multiplications into additions (though there is a way to do it, using a completely different approach towards multiplication).
 
-Note that our proposed `ForeignFieldMul` design obtains a correct result in the class of $r+k\cdot f$, meaning that it becomes the canonical $r$ when performing modulo $f$. But when this gadget is being used in situations where only the canonical element is valid, then a [full bound check](#appendix-f-full-bound-checks) needs to be carried out in order to make sure that $r < f$. This step involves performing one `ForeignFieldAdd`, one `Zero`, and one multi range check. Nonetheless, taking this tradeoff for the gate designer results in major performance improvements in a larger circuit with intense `ForeignFieldMul` presence.
+Note that our proposed `ForeignFieldMul` design obtains the valid witnesses for the remainder modulo the foreign field, which could be any of the values in $r + k\cdot f$, where $r$ is the canonical value. But when only the canonical $r$ is required, the circuit must use an additional [full bound check](#appendix-f-full-bound-checks) to make sure that $r < f$. 
 
 ## Rationale and alternatives
 
@@ -533,7 +547,9 @@ In summary, we chose the gate design presented in this RFC because:
 
 Currently, there are no unresolved questions.
 
-> The following long sections describe the mathematical background in fine detail behind the `ForeignFieldMul` gate. This is meant to motivate some choices being made throughout the design, and be a resource of information for the curious reader.
+---
+
+The following long sections describe the mathematical background in fine detail behind the `ForeignFieldMul` gate. This is meant to motivate some choices being made throughout the design, and be a resource of information for the curious reader.
 
 ## Appendix A: Limb representation
 
@@ -560,7 +576,7 @@ Thus, the maximum size of the multiplication is quadratic in the size of foreign
 
 Naïvely, this implies that we have elements of size $f^2 - 1$ that must split them up into limbs of size at most $n - 1$.  For example, if the foreign field modulus is $256$ and the native field modulus is $255$ bits, then we'd need $\log_2((2^{256})^2 - 1) \approx 512$ bits and, thus, require $512/255 \approx 3$ native limbs.  However, each limb cannot consume all $255$ bits of the native field element because we need space to perform arithmetic on the limbs themselves while constraining the foreign field multiplication.  Therefore, we need to choose a limb size that leaves space for performing these computations.
 
-Later in this document (see the section entitled "Choosing the limb configuration") we determine the optimal number of limbs that reduces the number of rows and gates required to constrain foreign field multiplication.  This results in $\ell = 88$ bits as our optimal limb size.  In the section about intermediate products we place some upperbounds on the number of bits required when constraining foreign field multiplication with limbs of size $\ell$ thereby proving that the computations can fit within the native field size.
+Later in this document (see the section [Limb configuration](#limb-configuration)) we determine the optimal number of limbs that reduces the number of rows and gates required to constrain foreign field multiplication.  This results in $\ell = 88$ bits as our optimal limb size.  In the section about intermediate products we place some upperbounds on the number of bits required when constraining foreign field multiplication with limbs of size $\ell$ thereby proving that the computations can fit within the native field size.
 
 Observe that by combining the naïve approach above with a limb size of $88$ bits, we would require $512/88 \approx 6$ limbs for representing foreign field elements.  Each limb is stored in a witness cell (a native field element).  However, since each limb is necessarily smaller than the native field element size, it must be copied to the range-check gate to constrain its value.  Since Kimchi only supports 7 copyable witness cells per row, this means that only one foreign field element can be stored per row.  This means a single foreign field multiplication would consume at least 4 rows (just for the operands, quotient and remainder).  This is not ideal because we want to limit the number of rows for improved performance.
 
@@ -710,8 +726,6 @@ The max prime foreign field modulus satisfying the above inequality for both Pal
 
 ### Limb configuration
 
-Choosing the right limb size and the right number of limbs is a careful balance between the number of constraints (i.e. the polynomial degree) and the witness length (i.e. the number of rows).  Because one limiting factor that we have in Kimchi is the 12-bit maximum for range check lookups, we could be tempted to introduce 12-bit limbs.  However, this would mean having many more limbs, which would consume more witness elements and require significantly more rows.  It would also increase the polynomial degree by increasing the number of constraints required for the *intermediate products* (more on this later).
-
 We need to find a balance between the number of limbs and the size of the limbs.  The limb configuration is dependent on the value of $t$ and our maximum foreign modulus (as described in the previous section).  The larger the maximum foreign modulus, the more witness rows we will require to constrain the computation.  In particular, each limb needs to be constrained by the range check gate and, thus, must be in a copyable (i.e. permuteable) witness cell.  We have at most 7 copyable cells per row and gates can operate on at most 2 rows, meaning that we have an upperbound of at most 14 limbs per gate (or 7 limbs per row).
 
 As stated above, we want the foreign field modulus to fit in as few rows as possible and we need to constrain operands $a, b$, the quotient $q$ and remainder $r$. Each of these will require cells for each limb.  Thus, the number of cells required for these is
@@ -720,7 +734,7 @@ $$
 cells = 4 \cdot limbs
 $$
 
-It is highly advantageous for performance to constrain foreign field multiplication with the minimal number of gates. This not only helps limit the number of rows, but also to keep the gate selector polynomial small. Because of all of this, we aim to constrain foreign field multiplication with a single gate (spanning at most $2$ rows). As mentioned above, we have a maximum of 14 permuteable cells per gate, so we can compute the maximum number of limbs that fit within a single gate like this.
+It is highly advantageous for performance to constrain foreign field multiplication with the minimal number of gates, as it limits the number of rows. Because of all of this, we aim to constrain foreign field multiplication with a single gate (spanning at most $2$ rows). We can compute the maximum number of limbs that fit in the 14 permutable columns as follows:
 
 $$
 \begin{aligned}
@@ -799,15 +813,13 @@ $$
 
 which is a contradiction with $x < y$.
 
-## Appendix D: Gate constraints
+## Appendix D: Diagrams
 
-This section explains how we expand our constraints into limbs and then eliminate a number of extra terms.
+This section shows useful diagrams that can help undersstand in further detail how the equations of the gate constraints are obtained.
 
 ### Intermediate products
 
-We must constrain $a \cdot b + q \cdot f' = r \mod 2^t$ on the limbs, rather than as a whole.  As described above, each foreign field element $x$ is split into three 88-bit limbs: $x_0, x_1, x_2$, where $x_0$ contains the least significant bits and $x_2$ contains the most significant bits and so on.
-
-Expanding the right-hand side into limbs we have
+This equation expands $a \cdot b + q \cdot f' = r \mod 2^t$ into three 88-bit limbs, rather than as a whole
 
 $$
 \begin{aligned}
@@ -829,7 +841,7 @@ $$
 \end{aligned}
 $$
 
-Since $t = 3\ell$, the terms scaled by $2^{3\ell}$ and $2^{4\ell}$ are a multiple of the binary modulus and, thus, congruent to zero $\mod 2^t$. They can be eliminated and we don't need to compute them.  So we are left with 3 *intermediate products* that we call $p_0, p_1, p_2$:
+The terms scaled by $2^{3\ell}$ and $2^{4\ell}$ are a multiple of the binary modulus and, thus, congruent to zero $\mod 2^t$. So we are left with 3 *intermediate products* that we call $p_0, p_1, p_2$:
 
 | Term  | Scale       | Product                                                  |
 | ----- | ----------- | -------------------------------------------------------- |
@@ -837,34 +849,16 @@ Since $t = 3\ell$, the terms scaled by $2^{3\ell}$ and $2^{4\ell}$ are a multipl
 | $p_1$ | $2^{\ell}$  | $a_0b_1 + a_1b_0 + q_0f'_1 + q_1f'_0$                    |
 | $p_2$ | $2^{2\ell}$ | $a_0b_2 + a_2b_0 + q_0f'_2 + q_2f'_0 + a_1b_1 + q_1f'_1$ |
 
-So far, we have introduced these checked computations to our constraints
-
-> 1. Computation of $p_0, p_1, p_2$
-
-### Constraining $\mod 2^t$
-
-Let's call $p := ab + qf' \mod 2^t$. Remember that our goal is to constrain that $p - r = 0 \mod 2^t$ (recall that any more significant bits than the 264th are ignored in $\mod 2^t$). Decomposing that claim into limbs, that means
-
-$$\tag{D.1}
-\begin{align}
-2^{2\ell}(p_2 - r_2) + 2^{\ell}(p_1 - r_1) + p_0 - r_0 = 0 \mod 2^t.
-\end{align}
-$$
-
-We face two challenges
-
-*  Since $p_0, p_1, p_2$ are at least $2^{\ell}$ bits each, the right side of the equation above does not fit in $\mathbb{F}_n$
-*  The subtraction of the remainder's limbs $r_0$ and $r_1$ could require borrowing
-
-For the moment, let's not worry about the possibility of borrows and instead focus on the first problem.
 
 ### Combining multiplications
+
+Let $p := ab + qf' \mod 2^t$, oour goal is to constrain that $p - r = 0 \mod 2^t$.
 
 The first problem is that our native field is too small to constrain $2^{2\ell}(p_2 - r_2) + 2^{\ell}(p_1 - r_1) + p_0 - r_0 = 0 \mod 2^t$. We could split this up by multiplying $a \cdot b$ and $q \cdot f'$ separately and create constraints that carefully track borrows and carries between limbs. However, a more efficient approach is combined the whole computation together and accumulate all the carries and borrows in order to reduce their number.
 
 The trick is to assume a space large enough to hold the computation, view the outcome in binary and then split it up into parts that fit in the native modulus.
 
-To this end, it helps to know how many bits these intermediate products require. On the left side of the equation, $p_0$  is at most $2\ell + 1$ bits. We can compute this by substituting the maximum possible binary values (all bits set to 1) into $p_0 = a_0 \cdot b_0 + q_0 \cdot f'_0$ like this
+To this end, it helps to know how many bits these intermediate products require. On the left side of the equation, $p_0$  is at most $2\ell + 1$ bits. We can compute the maximum possible binary values (all bits set to 1) into $p_0 = a_0 \cdot b_0 + q_0 \cdot f'_0$ like this
 
 $$
 \begin{aligned}
@@ -881,7 +875,7 @@ So $p_0$ fits in $2\ell + 1$ bits.  Similarly, $p_1$ needs at most $2\ell + 2$ b
 | -------- | ----------- | ----------- | ----------- |
 | **Bits** | $2\ell + 1$ | $2\ell + 2$ | $2\ell + 3$ |
 
-The diagram below shows the right hand side of the zero-sum equality from equation (2).  That is, the value $p - r$. Let's look at how the different bits of $p_0, p_1, p_2, r_0, r_1$ and $r_2$ impact it.
+The diagram below shows the right hand side of the zero-sum equality from equation (2).
 
 ```text
 0             L             2L            3L            4L
@@ -930,8 +924,6 @@ $$
 
 which is $2\ell + 2$ bits.
 
->This computation assumes correct sizes values for $r_0$ and $r_1$, which we assure by range checks on the limbs.
-
 Next, we compute $h_1$ as
 
 $$
@@ -961,10 +953,6 @@ which is $2\ell + 3$ bits.
 | -------- | ----------- | ----------- |
 | **Bits** | $2\ell + 2$ | $2\ell + 3$ |
 
-Thus far we have the following constraints
-> 2. Composition of $p_{10}$ and $p_{11}$ result in $p_1$
-> 3. Range check $p_{11} \in [0, 2^{\ell + 2})$
-> 4. Range check $p_{10} \in [0, 2^{\ell})$
 
 For the next step we would like to constrain $h_0$ and $h_1$ to zero.  Unfortunately, we are not able to do this!
 
@@ -974,11 +962,9 @@ For the next step we would like to constrain $h_0$ and $h_1$ to zero.  Unfortuna
 
 We can deal with this non-zero issue by computing carry witness values.
 
-### Computing carry witnesses values
+### Carry witnesses values
 
 Instead of constraining $h_0$ and $h_1$ to zero, there must be satisfying witness $v_0$ and $v_1$ such that the following constraints hold.
-> 5. There exists $v_0$ such that $h_0 = v_0 \cdot 2^{2\ell}$
-> 6. There exists $v_1$ such that $h_1 = v_1 \cdot 2^{\ell} - v_0$
 
 Here $v_0$ is the last two bits of $h_0$'s $2\ell + 2$ bits, i.e., the result of adding the highest bit of $p_0$ and any possible carry bit from the operation of $h_0$. Similarly, $v_1$ corresponds to the highest $\ell + 3$ bits of $h_1$.  It looks like this
 
@@ -998,55 +984,6 @@ Remember we only need to prove the first $3\ell$ bits of $p - r$ are zero, since
 
 By making the argument with $v_0$ and $v_1$ we are proving that $h_0$ is something where the $2\ell$ least significant bits are all zeros and that $h_1 + v_0$ is something where the $\ell$ are also zeros.  Any nonzero bits after $3\ell$ do not matter, since everything is $\mod 2^t$.
 
-All that remains is to range check $v_0$ and $v_1$
-> 7. Range check $v_0 \in [0, 2^2)$
-> 8. Range check $v_1 \in [0, 2^{\ell + 3})$
-
-### Native constraint
-
-Until now we have constrained the equation $\mod 2^t$, but remember that our application of the CRT means that we must also constrain the equation $\mod n$. We are leveraging the fact that if the identity holds for all moduli in $\mathcal{M} = \{n, 2^t\}$, then it holds for $\mathtt{lcm} (\mathcal{M}) = 2^t \cdot n = M$.
-
-Thus, we must check $a \cdot b - q \cdot f - r \equiv 0 \mod n$, which is over $\mathbb{F}_n$.
-
-This gives us equality $\mod 2^t \cdot n$ as long as the multiplicands are coprime. That is, as long as $\mathsf{gcd}(2^t, n) = 1$. Since the native modulus $n$ is prime, this is true.
-
-Thus, to perform this check is simple.  We compute
-
-$$
-\begin{aligned}
-a_n &= a \mod n \\
-b_n &= b \mod n \\
-q_n &= q \mod n \\
-r_n &= r \mod n \\
-f_n &= f \mod n
-\end{aligned}
-$$
-
-using our native field modulus with constraints like this
-
-$$
-\begin{aligned}
-a_n &= 2^{2\ell} \cdot a_2 + 2^{\ell} \cdot a_1 + a_0 \\
-b_n &= 2^{2\ell} \cdot b_2 + 2^{\ell} \cdot b_1 + b_0 \\
-q_n &= 2^{2\ell} \cdot q_2 + 2^{\ell} \cdot q_1 + q_0 \\
-r_n & = 2^{2\ell} \cdot r_2 + 2^{\ell} \cdot r_1 + r_0 \\
-f_n &= 2^{2\ell} \cdot f_2 + 2^{\ell} \cdot f_1 + f_0 \\
-\end{aligned}
-$$
-
-and then constrain
-
-$$
-a_n \cdot b_n - q_n \cdot f_n - r_n = 0 \mod n.
-$$
-
-Note that we do not use the negated foreign field modulus here.
-
-This requires a single constraint of the form
-
-> 9. $a_n \cdot b_n - q_n \cdot f_n = r_n$
-
-with all of the terms expanded into the limbs according the the above equations.  The values $a_n, b_n, q_n, f_n$ and $r_n$ do not need to be in the witness.
 
 ## Appendix E: Range Checks
 
@@ -1314,277 +1251,6 @@ Note that $r'_2$ must be range checked by a `multi-range-check` gadget. Then, th
 - Decompose it into $r_0, r_1, r_2$ in the compact range check gadget
 - Compute $r'_2$ using a `Generic` gate
 - Push the bound to a list of external checks to be multi range checked together.
-
-
-### Inlining compact full bound check inside a gate
-
-This section explains an optimization that could be carried out if in the future we wanted to inline a compact-limb full bound check inside another gate. That is, checking that $x<f$ fully, inside one gate. By doing this we can save 2 rows per element (those from the `ForeignFieldAdd` gadget).
-
-Doing this doesn't require adding a lot more witness data because the operands for the bound computations $x' = x + f'$ would already be present in the witness of the multiplication gate. We would only need to store the bounds $x'$ in permutable witness cells so that they may be copied to multi-range-check gates to check they are each less than $2^t$.
-
-To constrain $x + f' = x'$, the equation we use is
-
-$$
-x + 2^t = \mathcal{o} \cdot f + x',
-$$
-
-where $x$ is the original value, $\mathcal{o}=1$ is the field overflow bit and $x'$ is the remainder and our desired addition result (e.g. the bound).  Rearranging things we get
-
-$$
-x + 2^t - f = x',
-$$
-
-which is just
-
-$$
-x + f' = x',
-$$
-
-Recall from the [Borrows](#appendix-c-borrows) section that $f'$ is often larger than $f$. At first this seems like it could be a problem because in multiplication each operation must be less than $f$. However, this is because the maximum size of the multiplication was quadratic in the size of $f$ (we use the CRT, which requires the bound that $a \cdot b < 2^t \cdot n$). However, for addition the result is much smaller and we do not require the CRT nor the assumption that the operands are smaller than $f$. Thus, we have plenty of space in $\ell$-bit limbs to perform our addition.
-
-So, the equation we need to constrain is
-
-$$
-x + f' = x'.
-$$
-
-We can expand the left hand side into the 2 limb format in order to obtain 2 intermediate sums
-
-$$
-\begin{aligned}
-s_{01} = x_{01} + f_{01}' \\
-s_2 = x_2 + f'_2 \\
-\end{aligned}
-$$
-
-where $x_{01}$ and $f'_{01}$ are defined like this
-
-$$
-\begin{aligned}
-x_{01} = x_0 + 2^{\ell} \cdot x_1 \\
-f'_{01} = f'_0 + 2^{\ell} \cdot f'_1 \\
-\end{aligned}
-$$
-
-and $x$ and $f'$ are defined like this
-
-$$
-\begin{aligned}
-x = x_{01} + 2^{2\ell} \cdot x_2 \\
-f' = f'_{01} + 2^{2\ell} \cdot f'_2 \\
-\end{aligned}
-$$
-
-Going back to our intermediate sums, the maximum bit length of sum $s_{01}$ is computed from the maximum bit lengths of $x_{01}$ and $f'_{01}$
-
-$$
-\underbrace{(2^{\ell} - 1) + 2^{\ell} \cdot (2^{\ell} - 1)}_{x_{01}} + \underbrace{(2^{\ell} - 1) + 2^{\ell} \cdot (2^{\ell} - 1)}_{f'_{01}} = 2^{2\ell+ 1} - 2,
-$$
-
-which means $s_{01}$ is at most $2\ell + 1$ bits long.
-
-Similarly, since $x_2$ and $f'_2$ are less than $2^{\ell}$, the max value of $s_2$ is
-
-$$
-(2^{\ell} - 1) + (2^{\ell} - 1) = 2^{\ell + 1} - 2,
-$$
-
-which means $s_2$ is at most $\ell + 1$ bits long.
-
-Thus, we must constrain
-
-$$
-s_{01} + 2^{2\ell} \cdot s_2 - x'_{01} - 2^{2\ell} \cdot x'_2 = 0 \mod 2^t.
-$$
-
-The accumulation of this into parts looks like this.
-
-```text
-0             L             2L            3L=t          4L
-|-------------|-------------|-------------|-------------|-------------|
-                            :
-|------------s01------------:-| 2L + 1
-                            : ↖w01
-                            |------s2-----:-| L + 1
-                            :               ↖w2
-                            :
-|------------x'01-----------|
-                            :
-                            |------x'2----|
-                            :
-\____________________________/
-             ≈ z01           \_____________/
-                                   ≈ z2
-```
-
-The two parts are computed with
-
-$$
-\begin{aligned}
-z_{01} &= s_{01} - x'_{01} \\
-z_2 &= s_2 - x'_2.
-\end{aligned}
-$$
-
-Therefore, there are two carry bits $w_{01}$ and $w_2$ such that
-
-$$
-\begin{aligned}
-z_{01} &= 2^{2\ell} \cdot w_{01} \\
-z_2 + w_{01} &= 2^{\ell} \cdot w_2
-\end{aligned}
-$$
-
-In this scheme $x'_{01}, x'_2, w_{01}$ and $w_2$ are witness data, whereas $s_{01}$ and $s_2$ are formed from a constrained computation of witness data $x_{01}, x_2$ and constraint system public parameter $f'$.  Note that due to carrying, witness $x'_{01}$ and $x'_2$ can be different than the values $s_{01}$ and $s_2$ computed from the limbs.
-
-Thus, each bound addition $x + f'$ requires the following witness data
-
-- $x_{01}, x_2$
-- $x'_{01}, x'_2$
-- $w_{01}, w_2$
-
-where $f'$ is baked into the gate coefficients.  The following constraints are needed
-
-- $2^{2\ell} \cdot w_{01} = s_{01} - x'_{01}$
-- $2^{\ell} \cdot w_2 = s_2 + w_{01} - x'_2$
-- $x'_{01} \in [0, 2^{2\ell})$
-- $x'_2 \in [0, 2^{\ell})$
-- $w_{01} \in [0, 2)$
-- $w_2 \in [0, 2)$
-
-Suppose that due to the limited number of copyable witness cells per gate, we were currently only performing this optimization for $q$.
-
-The witness data is
-
-- $q_0, q_1, q_2$
-- $q'_{01}, q'_2$
-- $q'_{carry01}, q'_{carry2}$
-
-The checks are
-
-1. $q_0 \in [0, 2^{\ell})$
-2. $q_1 \in [0, 2^{\ell})$
-3. $q'_0 = q_0 + f'_0$
-4. $q'_1 = q_1 + f'_1$
-5. $s_{01} = q'_0 + 2^{\ell} \cdot q'_1$
-6. $q'_{01} \in [0, 2^{2\ell})$
-7. $q'_{01} = q'_0 + 2^{\ell} \cdot q'_1$
-8. $q'_{carry01} \in [0, 2)$
-9. $2^{2\ell} \cdot q'_{carry01} = s_{01} - q'_{01}$
-10. $q_2 \in [0, 2^{\ell})$
-11. $s_2 = q_2 + f'_2$
-12. $q'_{carry2} \in [0, 2)$
-13. $2^{\ell} \cdot q'_{carry2} = s_2 + w_{01} - q'_2$
-
-
-Checks (1) - (5) assure that $s_{01}$ is at most $2\ell + 1$ bits.  Whereas checks (10) - (11) assure that $s_2$ is at most $\ell + 1$ bits.  Altogether they are comprise a single `multi-range-check` of $q_0, q_1$ and $q_2$.  However, as noted above, we do not have enough copyable cells to output $q_1, q_2$ and $q_3$ to the `multi-range-check` gadget.  Therefore, we adopt a strategy where the 2 limbs $q'_{01}$ and $q'_2$ are output to the `multi-range-check` gadget where the decomposition of $q'_0$ and $q'_2$ into $q'_{01} = p_0 + 2^{\ell} \cdot p_1$ is constrained and then $q'_0, q'_1$ and $q'_2$ are range checked.
-
-Although $q_1, q_2$ and $q_3$ are not range checked directly, this is safe because, as shown in the "Bound checks" section, range-checking that $q' \in [0, 2^t)$ also constrains that $q \in [0, 2^t)$.  Therefore, the updated checks are
-
-1. $q_0 \in [0, 2^{\ell})$ `multi-range-check`
-2. $q_1 \in [0, 2^{\ell})$ `multi-range-check`
-3. $q'_0 = q_0 + f'_0$ `ForeignFieldMul`
-4. $q'_1 = q_1 + f'_1$ `ForeignFieldMul`
-5. $s_{01} = q'_0 + 2^{\ell} \cdot q'_1$ `ForeignFieldMul`
-6. $q'_{01} = q'_0 + 2^{\ell} \cdot q'_1$  `multi-range-check`
-7. $q'_{carry01} \in [0, 2)$ `ForeignFieldMul`
-8. $2^{2\ell} \cdot q'_{carry01} = s_{01} - q'_{01}$ `ForeignFieldMul`
-9.  $q_2 \in [0, 2^{\ell})$  `multi-range-check`
-10. $s_2 = q_2 + f'_2$ `ForeignFieldMul`
-11. $q'_{carry2} \in [0, 2)$ `ForeignFieldMul`
-12. $2^{\ell} \cdot q'_{carry2} = s_2 + q'_{carry01} - q'_2$ `ForeignFieldMul`
-
-Note that we don't need to range-check $q'_{01}$ is at most $2\ell + 1$ bits because it is already implicitly constrained by the `multi-range-check` gadget constraining that $q'_0, q'_1$ and $q'_2$ are each at most $\ell$ bits and that $q'_{01} = q'_0 + 2^{\ell} \cdot q'_1$.  Furthermore, since constraining the decomposition is already part of the `multi-range-check` gadget, we do not need to do it here also.
-
-To simplify things further, we can combine some of these checks.  Recall our checked computations for the intermediate sums
-
-$$
-\begin{aligned}
-s_{01} &= q_{01} + f'_{01} \\
-s_2 &= q_2 + f'_2 \\
-\end{aligned}
-$$
-
-where $q_{01} = q_0 + 2^{\ell} \cdot q_1$ and $f'_{01} = f'_0 + 2^{\ell} \cdot f'_1$.  These do not need to be separate constraints, but are instead part of existing ones.
-
-Checks (10) and (11) can be combined into a single constraint $2^{\ell} \cdot q'_{carry2} = (q_2 + f'_2) + q'_{carry01} - q'_2$.  Similarly, checks (3) - (5) and (8) can be combined into $2^{2\ell} \cdot q'_{carry01} = q_{01} + f'_{01} - q'_{01}$ with $q_{01}$ and $f'_{01}$ further expanded.  The reduced constraints are
-
-1. $q_0 \in [0, 2^{\ell})$ `multi-range-check`
-2. $q_1 \in [0, 2^{\ell})$ `multi-range-check`
-3. $q'_{01} = q'_0 + 2^{\ell} \cdot q'_1$  `multi-range-check`
-4. $q'_{carry01} \in [0, 2)$ `ForeignFieldMul`
-5. $2^{2\ell} \cdot q'_{carry01} = s_{01} - q'_{01}$ `ForeignFieldMul`
-6. $q_2 \in [0, 2^{\ell})$  `multi-range-check`
-7. $q'_{carry2} \in [0, 2)$ `ForeignFieldMul`
-8. $2^{\ell} \cdot q'_{carry2} = s_2 + w_{01} - q'_2$ `ForeignFieldMul`
-
-
-1. $q_0 \in [0, 2^{\ell})$ `multi-range-check`
-2. $q_1 \in [0, 2^{\ell})$ `multi-range-check`
-3. $q'_{01} = q'_0 + 2^{\ell} \cdot q'_1$  `multi-range-check`
-4. $q'_{carry01} \in [0, 2)$ `ForeignFieldMul`
-5. $2^{2\ell} \cdot q'_{carry01} = s_{01} - q'_{01}$ `ForeignFieldMul`
-6. $q_2 \in [0, 2^{\ell})$  `multi-range-check`
-7. $q'_2 = s_2 + w_{01}$ `ForeignFieldMul`
-
-In other words, we have eliminated constraint (7) and removed $q'_{carry2}$ from the witness.
-
-Since we already needed to range-check $q$ or $q'$, the total number of new constraints added is 4: 3 added to to `ForeignFieldMul` and 1 added to `multi-range-check` gadget for constraining the decomposition of $q'_{01}$.
-
-This saves 2 rows per multiplication.
-
-#### Second carry bit would always be zero
-
-Finally, there is one more optimization that we will exploit.  This optimization relies on the observation that for bound addition the second carry bit $q'_{carry2}$ is always zero. This this may be obscure, so we will prove it by contradiction.  To simplify our work we rename some variables by letting $x_0 = q_{01}$ and $x_1 = q_2$.  Thus, $q'_{carry2}$ being non-zero corresponds to a carry in $x_1 + f'_1$.
-
-> **Proof:** To get a carry in the highest limbs $x_1 + f'_1$ during bound addition, we need
->
-> $$
-> 2^{\ell} < x_1 + \phi_0 + f'_1 \le 2^{\ell} - 1 + \phi_0 + f'_1
-> $$
->
-> where $2^{\ell} - 1$ is the maximum possible size of $x_1$ (before it overflows) and $\phi_0$ is the overflow bit from the addition of the least significant limbs $x_0$ and $f'_0$.  This means
->
-> $$
-> 2^{\ell} - \phi_0 - f'_1 < x_1 < 2^{\ell}
-> $$
->
-> We cannot allow $x$ to overflow the foreign field, so we also have
->
-> $$
-> x_1 < (f - x_0)/2^{2\ell}
-> $$
->
-> Thus,
->
-> $$
-> 2^{\ell} - \phi_0  - f'_1 < (f - x_0)/2^{2\ell} = f/2^{2\ell} - x_0/2^{2\ell}
-> $$
->
-> Since $x_0/2^{2\ell} = \phi_0$ we have
->
-> $$
-> 2^{\ell} - \phi_0 - f'_1 < f/2^{2\ell} - \phi_0
-> $$
->
-> so
->
-> $$
-> 2^{\ell} - f'_1 < f/2^{2\ell}
-> $$
->
-> Notice that $f/2^{2\ell} = f_1$.  Now we have
->
-> $$
-> 2^{\ell} - f'_1 < f_1 \\
-> \Longleftrightarrow \\
-> f'_1 > 2^{\ell} - f_1
-> $$
->
-> However, this is a contradiction with the definition of our negated foreign field modulus limb $f'_1 = 2^{\ell} - f_1$. $\blacksquare$
-
-We have proven that $q'_{carry2}$ is always zero, so that allows use to simplify our constraints.  We now have
-
 
 ## Appendix G: Costs
 
