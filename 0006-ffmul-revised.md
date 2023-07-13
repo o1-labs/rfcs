@@ -1296,7 +1296,7 @@ Compute and constrain the native modulus values, which are used to check the con
 - $r_n = 2^{2\ell} \cdot r_2 + r_{01} \mod n$
 - $f_n = 2^{2\ell} \cdot f_2 + 2^{\ell} \cdot f_1 + f_0 \mod n$
 
-Actually, there is no need to store in the coefficients the limbs of $f$, but only $(f'_0, f'_1, f'_2)$ and $f_2$. Then the native constrain uses the negated limbs of `f` instead.
+Actually, there is no need to store in the coefficients the limbs of $f$, but only $(f'_0, f'_1, f'_2)$ and $f_2$. Then the native constrain uses the negated limbs of `f` instead and subtracts the additional $2^{3\ell}q_n$ term.
 
 ### Decompose middle intermediate product
 
@@ -1352,7 +1352,7 @@ And some more range checks. In order to save one space in permutable cells, and 
 Using the checked native modulus computations we constrain that
 
 $$
-a_n \cdot b_n + q_n \cdot f'_n - r_n = 0 \mod n.
+a_n \cdot b_n + q_n \cdot f'_n - r_n - 2^{3\ell}\cdot q_n = 0 \mod n.
 $$
 
 ### Decompose the higher quotient bound
@@ -1421,7 +1421,7 @@ In total we require the following checks
 18. $2^{2\ell} \cdot v_0 = p_0 + 2^{\ell} \cdot p_{10} - r_{01}$
 19. $v_1 = v_{1,0} + v_{1,12}*2^{12} + v_{1,24}*2^{24} + v_{1,36}*2^{36} + v_{1,48}*2^{48} + v_{1,60}*2^{60} + v_{1,72}*2^{72} + v_{1,84}*2^{84} + v_{1,86}*2^{86} + v_{1,88}*2^{88} + v_{1,90}*2^{90}$
 20. $2^{\ell} \cdot v_1 = v_0 + p_{11} + p_2 - r_2$
-21. $a_n \cdot b_n + q_n \cdot f'_n = r_n$
+21. $a_n \cdot b_n + q_n \cdot (f'_n - 2^{3\ell}) = r_n$
 22. $q'_2 = q_2 + 2^\ell - f_2 - 1$
 23. $q'_2 \in [0, 2^\ell]$ `multi-range-check`
 
@@ -1449,7 +1449,7 @@ Next we have check (18)
 
 Next, for our use of the CRT, we must constrain that $a \cdot b = q \cdot f + r \mod n$.  Thus, check (21) is
 
-**C5:** $a_n \cdot b_n + q_n \cdot f'_n = r_n$
+**C5:** $a_n \cdot b_n + q_n \cdot f'_n - r_n - 2^{3\ell} \cdot q_n = 0 $
 
 **C6:** (11) $v_{1,84}$ (2-bit check)
 
