@@ -58,14 +58,8 @@ Note that the actual order of the constraints in the code might not correspond t
 
 Let $n$ be the _native_ field modulus (for example, $n$ is one of the Pasta primes). Our first constraint is to check $(1)$ modulo $n$:
 
-$$
-ab = qf + r\mod n
-$$
-
-or equivalently, which only uses the negated limbs of the foreign modulus:
-
 $$\tag{C1: native}
-ab + q f' - r = 0 \mod n
+ab = qf + r\mod n
 $$
 
 Note: In the implementation, variables in this constraint are expanded into their limbs, like
@@ -77,7 +71,7 @@ $$
 Equation $\text{(C1: native)}$ implies that there is an $\varepsilon\in\mathbb{Z}$ such that
 
 $$
-ab + qf' - r = \varepsilon n.
+ab - qf - r = \varepsilon n.
 $$
 
 If the foreign field was small enough, we could prove $|ab + qf' - r| < n$ (after adding a few range checks), and we would be finished at this point, because we could conclude that $\varepsilon = 0$. However, for the moduli $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
