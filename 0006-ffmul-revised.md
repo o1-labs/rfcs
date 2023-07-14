@@ -49,17 +49,23 @@ Our range-check (RC) gates support a "compact mode" where a variable $r_{01}$ is
 We will now derive the constraints necessary to prove that
 
 $$\tag{1}
-a b = qf + r
+ab = qf + r
 $$
 
 At the same time, we will prove soundness -- i.e., the constraints we add imply $(1)$. 
 
 Note that the actual order of the constraints in the code might not correspond to the order here depicted. The reason behind this, will be to being able to trigger individual constraint failures in tests.
 
+First, define $f' := 2^{3\ell} - f > 0$ with limbs $(f'_0, f'_1, f'_2) \in [0, 2^\ell)^3$. We use $f'$ instead of $f$ in our gate coefficients because it helps us to avoid negative intermediate values in some of our constraints (more can be found in the [Appendix](#appendix-c-borrows)). Now $(1)$ is equivalent to
+
+$$
+ab - qf - r = ab + qf' - r - 2^{3\ell}q = 0
+$$
+
 Let $n$ be the _native_ field modulus (for example, $n$ is one of the Pasta primes). Our first constraint is to check $(1)$ modulo $n$:
 
 $$\tag{C1: native}
-ab = qf + r\mod n
+ab - q(2^{3\ell} - f') - r = 0\mod n
 $$
 
 Note: In the implementation, variables in this constraint are expanded into their limbs, like
@@ -74,7 +80,7 @@ $$
 ab - qf - r = \varepsilon n.
 $$
 
-If the foreign field was small enough, we could prove $|ab + qf' - r| < n$ (after adding a few range checks), and we would be finished at this point, because we could conclude that $\varepsilon = 0$. However, for the moduli $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
+If the foreign field was small enough, we could prove $|ab - qf - r| < n$ (after adding a few range checks), and we would be finished at this point, because we could conclude that $\varepsilon = 0$. However, for the moduli $f$ we care about, $ab \approx qf \approx f^2$ is much larger than $n$, so we need to do more work.
 
 The broad strategy is to also constrain $(1)$ modulo $2^{3\ell}$, which implies that it holds modulo the product $2^{3\ell}n$ (by the [chinese remainder theorem](https://en.wikipedia.org/wiki/Chinese_remainder_theorem)). The modulus $2^{3\ell}n$ is large enough that it can replace $n$ in the last paragraph and the argument actually works.
 
@@ -95,15 +101,7 @@ $$
 \end{align}
 $$
 
-Also, we define $f' := 2^{3\ell} - f > 0$ with limbs $(f'_0, f'_1, f'_2) \in [0, 2^\ell)^3$ and write
-
-$$
-ab - qf - r = ab + qf' - r - 2^{3\ell}q
-$$
-
-This is a trick to avoid negative intermediate values (more can be found in the [Appendix](#appendix-c-borrows)). Note that $ab + qf'$ and all of its limbs are positive, and that since we will work modulo $2^{3\ell}$, we can ignore the extra term $2^{3\ell}q$.
-
-Next, we expand our equation into limbs, but collect all terms that are multiples of $2^{3\ell}$ into a single term $2^{3\ell} w$.
+Next, we expand our equation into limbs, but collect all terms that are multiples of $2^{3\ell}$ into a single term $2^{3\ell} w$. This includes the term $2^{3\ell}q$, so we can work with the expansion of $ab + qf' - r$ in place of $ab - qf - r$.
 
 $$
 \begin{align*}
@@ -415,9 +413,7 @@ The remaining witnesses are just put into any free cells to define the final gat
 | _Curr_ | $a_0$ | $a_1$ | $a_2$ | $b_0$ | $b_1$ | $b_2$ | $p_{10}$ | $c_{1,0}$ | $c_{1,12}$ | $c_{1,24}$ | $c_{1,36}$ | $c_{1,84}$ | $c_{1,86}$ | $c_{1,88}$ | $c_{1,90}$ | 
 | _Next_ | $r_{01}$ | $r_2$ | $q_0$ | $q_1$ | $q_2$ | $q'_2$ | $p_{110}$ | $p_{111}$ | $c_{1,48}$ | $c_{1,60}$ | $c_{1,72}$ | $c_0$ |  |  |  | 
 
-The limbs of $f' = 2^{3\ell} - f$, which feature in a few of the constraints, are embedded into the gate as coefficients. The $\text{(C1)}$ constraint features $f$, but the gate implementation expands it out as $f = 2^{3\ell} - f' = 2^{3\ell} - (f_0' + 2^\ell f_1' + 2^{2\ell} f_2')$ to be able to use the same coefficients.
-
-However, the $q$ bound $\text{(C11)}$ properly features $f_2$ in a way that can't be always replaced by the same expression involving $f_2'$, therefore $f_2$ is made a gate coefficient as well.
+The limbs of $f' = 2^{3\ell} - f$, which feature in a few of the constraints, are embedded into the gate as coefficients. However, the $q$ bound $\text{(C11)}$ properly features $f_2$ in a way that can't be always replaced by the same expression involving $f_2'$, therefore $f_2$ is made a gate coefficient as well.
 
 ### Lookup pattern
 
