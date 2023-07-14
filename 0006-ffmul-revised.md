@@ -268,7 +268,7 @@ $$
 c_1 = \sum_i c_{1,i} 2^{i}
 $$
 
-By design, $c_1 \in [0, 2^{\ell + 3})$. In combination with our estimate on $p_2$ and RCs on $r_2$ and $p_{11} = p_{110} + 2^\ell p_{111}$, we can prove that $\text{(C10: top part)}$ does not overflow $n$ and holds over the integers:
+By design, $c_1 \in [0, 2^{\ell + 3})$. In combination with our estimate on $p_2$ and RCs on $r_2$ and $p_{11} = p_{110} + 2^\ell p_{111}$, we can prove that $\text{(C6: top part)}$ does not overflow $n$ and holds over the integers:
 
 $$
 |p_2 - r_2 + p_{11} + c_0 - 2^{\ell} c_1| < 6\cdot 2^{2\ell} + 2^{\ell} + 2^{\ell + 2} + 4 + 2^{2\ell + 3} < 2^{2\ell + 4} < n
