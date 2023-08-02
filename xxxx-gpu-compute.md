@@ -77,7 +77,8 @@ from scratch of the basic cryptographic building blocks.
 There are already some unit tests and some tests using formal verification, but the formal verification
 tests take a while to run a probably can't cover all cases.
 At the end we should have a benchmark comparing cpu and gpu implementations.
-
+While internally the gpu implementation may use any representation, at the public interface it should
+be compatible with arkworks in order to be able to be integrated in kimchi.
 ## Drawbacks
 
 - There is the possibility of something outside of our control not working, like the nvidia Vulkan drivers
