@@ -16,6 +16,7 @@ This library will accelerate that process doing the computation in a gpu, it wil
 point to measure the improvements that gpu computations can provide us.
 This will build on top of an already existing implementation, and thus some of the design choices will be
 based on the fact that the particular decision is cheap to implement because it is already implemented.
+The implementation will mainly target WebGPU with the goal of working on any platform.
 
 ## Detailed design
 
