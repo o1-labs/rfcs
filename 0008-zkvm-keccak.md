@@ -493,12 +493,6 @@ Rot64
 = 131 * xor + 30 * rot
 = 131 * 8 + 30 * 2 columns, 131 * 8 + 30 * 12 lookup
 = 1108 columns, 1408 lookups
-Can expand more to fit more xors
-x_1 xor ... xor x_5 takes an expansion into 2^8
-16 columns, 16 lookups
-x_1 xor ((not x_2) and x_3) is
-(expand (2^64-1) - x_2) + x_3 + 2*x_1
-12 columns, 12 lookups
 ```
 
 
@@ -521,7 +515,7 @@ x_1 xor ((not x_2) and x_3) is
 ## Drawbacks
 [drawbacks]: #drawbacks
 
-Why should we *not* do this?
+This gate uses many more columns than our usual version of Kimchi. We need to understand if this could have an unacceptable effect on the proof length in our usecase.
 
 ## Rationale and alternatives
 
