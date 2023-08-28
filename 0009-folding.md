@@ -61,6 +61,35 @@ verification will work again.
 Given that another RFC will make the degree fixed to 2, it should be possible to make a function that will map expressions
 to the their relaxed version and apply it to each expression used.
 
+### Transformation
+
+We can think that all kimchi expressions will ultimately aggregate into a multivariate polynomial, thanks to the quadricization
+RFC we can additionally assume it to be of degree 2 or less.  
+For each term we will have to do a change to the expression and add to the error, we have 3 cases for constant, degree 1 and
+degree 2 terms that will require different changes to the expression and contribute in a different way to the error.
+
+#### Expression changes
+
+- Constant: Will be multiplied by $u^2$
+- Degree 1: Will be multiplied by $u$
+- Degree 2: Unchanged.
+
+#### Error contribution
+
+In general, when taking the linear combination of a term, you will get 3 parts, each multiplied by $1$, $r$ or $r^2$. The
+part multiplied by $r$ is the error contribution.
+Here $u_1$ and $u_2$ are the scalar from each of the original instances that become the $u = u_1 * ru_2$ of the new folded
+instance, same notation is use when needed for witness columns.
+Also, $S$ will represent a selector, which can be multiplying in the term, but does not affect the degree.
+
+- Constant: For some term $P$, the contribution will be $r2u_1u_2P$, we can likely add all terms together and multiply by
+  $r2u_1u_2$ at the end.
+- Degree 1: For some term $P$, the contribution will be $r(u_1P_2 + u_2P_1)$, similar optimization as above should be possible.
+  here $P_1$ for example just means that for computing the expression we use a column from the first instance (the one with $u_1$).
+- Degree 2: For some term $P$, that contains $ab$ from the witness, the contribution will be $rS(a_1b_2 + a_2b_1)$
+
+Given that they all contain $r$, it can be omitted and multiplied to the entire $E$ at the end.
+
 ## Test plan and functional requirements
 
 1. Testing goals and objectives:
