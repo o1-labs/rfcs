@@ -293,7 +293,7 @@ shift_3\left(expand(X)\right) := \ 1_{\ell-1} \ 0 \ 0 \ 0 \ . \ . \ . \ 1_{0} \ 
 \end{align*}
 $$
 
-The effect of each $shift_i$ is to negate the $4i$-th bits of the expanded output, while leaving the rest of bits unchanged. That implies that one can rewrite the input as:
+The effect of each $shift_i$ is to negate the $(4n+i)$-th bits of the expanded output, while leaving the rest of bits unchanged. That implies that one can rewrite the input as:
 
 $$X \iff shift_0(X) + 2 \cdot shift_1(X) + 2^2 \cdot shift_2(X) + 2^3\cdot shift_3(X) ???$$
 
@@ -344,7 +344,7 @@ In the current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC
 
 $$ a + b = XOR(a, b) + 2\cdot AND(a, b)$$
 
-That means, adding two bits is equivalent to their exclusive OR, plus the carry term in case both are $1$. This equation can be generalized for arbitrary length bitstrings to constraint the AND operation for 64-bit values, using generic operations (addition, multiplication by constant) and the above representation of XORs.
+That means, adding two bits is equivalent to their exclusive OR, plus the carry term in the case both are $1$. This equation can be generalized for arbitrary length bitstrings to constraint the AND operation for 64-bit values, using generic operations (addition, multiplication by constant) and the above representation of XORs.
 
 #### Negation
 
@@ -544,6 +544,8 @@ With these constraints in mind, the Keccak PoC extensively used a chainable cust
 * Will the input be given as a bitstring or will it be packed into bytes?
 
 * Find out if the round constants should be hardcoded (takes memory space) or generated (takes computation resources).
+
+* Whether negation could accelerate the overflow of the auxiliary bits.
 
 * Find out if the rotation offsets will be directly stored modulo 64 or not.
 
