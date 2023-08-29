@@ -23,11 +23,7 @@ The optimizations in the proposed design rely on a more efficient representation
 
 The Keccak hash function (later standardized by NIST as SHA3, with small variations) is known to be a quantum-safe, and very efficient hash to compute. Nonethelss, its intensive use of boolean operations which are costly in finite field arithmetic makes it a SNARK-unfriendly function. In this section, we propose an optimized design for our proof system that should outperform our current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) to become usable in the zkVM for the OP stack.
 
-### Background
-
-This subsection covers a thorough description of the Keccak algorithm and specifies the required parameters needed for compatibility in our usecase. The reader shall skip this section to find the details of the actual proposal in this RFC. 
-
-The configuration of Keccak must be the same as that of the Ethereum EVM, meaning specifically:
+The [Appendix](#appendix) covers a thorough description of the Keccak algorithm and specifies the required parameters needed for compatibility in our usecase. The reader shall skip this section to find the details of the actual proposal in this RFC.The configuration of Keccak must be the same as that of the Ethereum EVM, meaning specifically:
 
 > * [pre-NIST variant of Keccak](https://keccak.team/files/Keccak-reference-3.0.pdf) (uses the $10^*1$ padding rule)
 > * variable input **byte** length (not any bit length)
@@ -38,6 +34,453 @@ The configuration of Keccak must be the same as that of the Ethereum EVM, meanin
 > * 512 bits capacity ($c$)
 > * 1088 length bit rate ($r := b - c$)
 > * 24 rounds of permutation
+
+
+### Bitwise-sparse representation
+
+Here, we present the bitwise-sparse representation of bitstrings that will be used to obtain more efficient computations of boolean functions within our proof system. 
+
+The goal is to represent these operations in finite field algebra more efficiently than they were in the [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356a), for which we took a naive approach where small values occupied full field elements; wasting a lot of empty space. For instance, each row could only xor 16 bits at a time, whereas the field could fit 255 bits. 
+
+Given that simple binary operations are very costly within a SNARK, the new idea consists on arithmetizing boolean operations as much as possible, becoming more efficient with finite field algebra. We introduce the _bitwise-sparse representation_ of bitstrings for this goal.
+
+#### Expansion
+
+With this notation, input bitstrings are expanded inserting three `0` bits in between "real" bits (hence the _sparsity_). The motivation for this, is to use intermediate bits to store auxiliary information such as carry bits, resulting from algebraic computations of boolean functions. That means, for each bit in the original bitstring, its expansion will contain four bits. The following expression represents such mapping:
+
+$$\forall X \in \{b_i\}^\ell, b\in\{0,1\}: expand(X) \to 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0$$
+
+Even though in each field element of ~254 bits long, one could fit up to 63 real bits with this encoding, each witness value will only store 16 such real bits. Instead, the expansion of the full 64 bit words could be represented by composition of each of the four 16-bit parts. But this will not be computed in the circuit, since the expansion would not fit entirely in the field. The way to perform this mapping is through a 16-bit lookup table (of $2^{16}$ entries, larger than that would be too costly). We call this the **sparse** lookup table. 
+
+Let $sparse(X)$ refer to a representation of $X$, where only the indices in the $4i$-th positions correspond to real bits, and the intermediate indices can contain auxiliary information. Connecting to the above, after performing a series of boolean operations to the $expand(X)$ one can obtain some $sparse(X)$, but both encode the same $X$. Concretely,
+
+$$\forall X\in\{b_i\}^\ell:\quad X \equiv \sum_{0}^{\ell-1} 2^i \cdot sparse(X)_{4i} $$
+
+Given that the new field size is 254 bits, the whole 64-bit word expansion cannot fit in one single witness element. Instead, they will be **split** into quarters of 64 bits each (corresponding to real 16 bits each), following this notation:
+
+$$\forall i \in \{0, 3\}:\quad split_i(sparse(X)) := sparse(X_{16i}^{16i+15})$$
+
+Meaning that $\forall X\in(0,2^{64})$:
+
+$$ 
+\begin{align*}
+sparse(X) \equiv &split_0(sparse(X)) + 2^{64} \cdot split_1(sparse(X)) + \\
+& 2^{128}\cdot split_2 (sparse(X)) + 2^{192} \cdot split_3(sparse(X))
+\end{align*}
+$$
+
+Note that the sparse representation of full 64-bit words will never be computed for that reason. Instead, it will be compressed back again into their relevant bits form, resetting the intermediate bits between steps.
+
+In the implementation, each split is assumed to be one entry of arrays of length 4, so the representation of $split_i(X)$ will be `x[i]`. If the input in question is a 64-bit word, then each entry will contain 16 bits. If the input is in sparse representation, then each entry will contain 64 sparse bits.
+
+#### Compression
+
+Another set of functions will be defined to be used in this new design. For $i\in\{0,3\}$, let $shift_i(X)$ be the function that performs the AND operation $(\wedge)$ of the sparse representation of the word $2^{\ell}-1$ ("all-ones" word in binary), shifted $i$ bits to the left, with the input word $X$. More formally,
+
+$$\forall X \in \{b_i\}^\ell, i\in\{0,3\}: shift_i(X) := \left(\ expand(2^\ell - 1)<<_i 0\ \right)\ \wedge \ X$$ 
+
+meaning, on input some $sparse(X)$, all four of:
+
+$$ 
+\begin{align*}
+shift_0\left(sparse(X)\right) := 0 \ 0 \ 0 \ 1_{\ell-1} \ .\ .\ .\ 0 \ 0 \ 0 \ 1_{0} \ \wedge\ sparse(X) \\
+shift_1\left(sparse(X)\right) := 0 \ 0 \ 1_{\ell-1} \ 0 \ . \ . \ . \ 0 \ 0 \ 1_{0} \ 0 \ \wedge\ sparse(X) \\
+shift_2\left(sparse(X)\right) := 0 \ 1_{\ell-1} \ 0 \ 0 \ . \ . \ . \ 0 \ 1_{0} \ 0 \ 0 \ \wedge\ sparse(X) \\
+shift_3\left(sparse(X)\right) := \ 1_{\ell-1} \ 0 \ 0 \ 0 \ . \ . \ . \ 1_{0} \ 0 \ 0 \ 0 \wedge\ sparse(X) \\
+\end{align*}
+$$
+
+The effect of each $shift_i$ is to null all but the $(4n+i)$-th bits of the expanded output. Meaning, they act as selectors of every other $(4n+i)$-th bit. That implies that one can rewrite the sparse representation of any word as:
+
+$$sparse(X) \iff shift_0(sparse(X)) + shift_1(sparse(X)) + shift_2(sparse(X)) + shift_3(sparse(X))$$
+
+In order to check the real bits behind a sparse representation, one can perform a lookup with the result of the $shift_0$. Note that this table is equivalent to the sparse table presented above. Before, on input a 16-bit word (equivalent to the row index), the table contained the expanded representation. Here instead, on input the expansion (because $shift_0$ has intermediate bits set to zero), one can check the word. 
+
+The correctness of the remaining shifts $(i\in\{1,3\})$ should also be checked. For this, the witness value $shift_i$ will be ???
+
+<details>
+<summary>TODO</summary>
+multiply by 2, 4, 8 each of them and check them in the table? use a table with shift3 instead? how can you check that the non-scaled ones have the right shape?
+</details>
+
+>Checking the correct form of the shifts should be done with a single-column lookup table with just the expanded values for the check, since the non-sparse pre-image is non-relevant here.
+
+<details>
+<summary>TODO</summary>
+how many of these? one per shift?
+</details>
+
+#### XOR
+
+In order to perform the XOR operation, we rely on the fact that the exclusive OR of two bits is equivalent to their addition, modulo 2. In particular, when adding the boolean values `1+1=10`, the bit in the left position corresponds to the carry term. For clarity:
+
+<center>
+
+| a | b | xor | add |
+| - | - | --- | --- |
+| 0 | 0 |  0  |  0  |
+| 0 | 1 |  1  |  1  |
+| 1 | 0 |  1  |  1  |
+| 1 | 1 |  0  |  2  |
+
+</center>
+
+Altogether, we will represent the XOR of 16-bit values using addition of their expansions. The 16-bit output of the XOR will be located on the $4n$ positions, whereas the intermediate positions will contain any possible carry terms.
+
+Given $a, b$ in non-sparse representation, the sparse representation of $XOR_{64}$ can be computed in quarters of 16 bits each as:
+
+```rust
+for i in [0..4) {
+
+    // Load witness
+    let a[i]          // i-th quarter of word A
+    let b[i]          // i-th quarter of word B
+    let expand_a[i]   // expand(a[i]) -> 1 lookup
+    let expand_b[i]   // expand(b[i]) -> 1 lookup
+    
+    expand_a[i] + expand_b[i]
+}
+```
+
+The reason behind the choice of three empty intermediate bits in the sparse representation follows from the concrete usecase of Keccak where no more than $2^4-1$ consecutive boolean operations are performed, and thus carries cannot overwrite the content of the bits to the leftmost bits.
+
+> NOTE: the above means that after each step of the permutation, the expanded representation needs to be contracted, discard auxiliary bits, and expand again from scratch before starting the next round to ensure completeness of the encoding. This involves $4\times5\times5=100$ lookups to compress $shift_0$ into four 16-bit quarters, and $4\times5\times5=100$ lookups to expand again all of the 64-bit words.
+
+Altogether
+
+#### AND
+
+In the current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae), AND was performed taking advantage of the following equivalence:
+
+$$ a + b = XOR(a, b) + 2\cdot AND(a, b)$$
+
+That means, adding two bits is equivalent to their exclusive OR, plus the carry term in the case both are $1$. This equation can be generalized for arbitrary length bitstrings to constraint the AND operation for 64-bit values, using generic operations (addition, multiplication by constant) and the above representation of XORs.
+
+Given $a, b$ in non-sparse representation, the $AND_{64}$ can be constrained in quarters of 16 bits using 4 lookups: 2 to expand $a,b$, another lookup to expand an inner value `computed_xor[i]`, and 1 final lookup to perform $shift_0$ to check the constraint is zero :
+
+```rust
+for i in [0..4) {
+
+    // Load witness
+    let a[i]          // i-th quarter of word A
+    let b[i]          // i-th quarter of word B
+    let expand_a[i]   // expand(a[i]) -> 1 lookup
+    let expand_b[i]   // expand(b[i]) -> 1 lookup
+    let claim_and[i]  // witness value claimed AND16(a[i], b[i])
+
+    // Compute additional terms
+    let computed_xor[i] = a[i] + b[i] - 2 * claim_and
+    let sparse_xor[i] = expand_a[i] + expand_b[i]
+
+    // Constrain that ( ADD - 2 AND ) = XOR
+    constrain( 0 == shift0( sparse_xor[i] - expand(computed_xor[i])) )
+
+    // If constraints are satisfied, the claimed value contains the non-sparse output of AND
+    return claim_and[i]
+}
+```
+
+Altogether, this requires $3\times4$ columns and $4\times4$ lookups per AND of a 64-bit word. 
+
+#### Negation
+
+The current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) gave support for two different mechanisms to prove negation of 64-bit words: one of them uses the `Generic` gate to perform a subtraction with the value $2^{64}-1$, whereas the other uses XOR with the $2^{64}-1$ word. The former was more efficient, as it could fit up to two full negations per row. The latter however, required 5 rows to perform one single NOT operation. The advantage of the latter though, was that the XOR approach implicitly checked that the input was at most 64 bits in length, due to decomposition rules. This meant, that the `Generic` approach could only be used together with other mechanisms to assert this. Altogether, using the efficient approach was safe in the Keccak usecase, because the input to the negation was wired to the output of another `xor64` gadget, which used `Xor16` inside. 
+
+In this new approach, making sure that the input word is $<2^{64}$ is also important. Here, the NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. In this case, the mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits.
+
+Given $x$ in non-sparse representation, the $NOT_{64}(x)$ can be computed in quarters of 16 bits each (`x[0], x[1], x[2], x[3]`) as:
+
+```rust
+for i in [0..4) {
+    let x[i] // 16-bit input
+    not16[i] = (2^{16} - 1) - x[i] 
+}
+```
+
+>Since negation is only used within the chi step, as an input to the AND operation, the output should be returned in non-sparse format. In this case, if any `x[i]` was larger than 16 bits, the lookup to expand the inputs inside the AND gadget would fail. This guarantees that the total length of $X$ is at most 64 bits, and they are correctly split into quarters.
+
+Altogether, it requires no lookups nor additional columns (as the computed value can be taken directly).
+
+#### Rotation
+
+Rotations can be performed directly on the full 64-bit word. The same strategy as in the [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) is taken here. 
+This time, it will make use of an auxiliary function to compose four 16-bit quarters into full 64-bit terms. The pseudocode follows:
+
+```rust
+fn compose(quarters: Array[4]) {
+    return quarters[0]
+            + 2^16 * quarters[1] 
+            + 2^32 * quarters[2] 
+            + 2^48 * quarters[3]
+}
+
+fn rot64() {
+    // Load witness
+    let inp_quarters // array with 4 quarters of the input word
+    let out_quarters // array with 4 quarters of the output word
+    let quo_quarters // array with 4 quarters of the quotient
+    let rem_quarters // array with 4 quarters of the remainder
+    let aux_quarters // array with 4 quarters of the auxiliary bound
+
+    // Load coefficients 
+    let two_to_off // 2^offset
+
+    // Compose quarters into full <=64 bit words
+    let input = compose(inp_quarters)
+    let output = compose(out_quarters)
+    let quotient = compose(quo_quarters)
+    let remainder = compose(rem_quarters)
+    let bound = compose(aux_quarters)
+
+    // Constrain rotation
+    constrain(0 == input * two_to_off - (quotient * 2^64 + remainder))
+    constrain(0 == remainder + quotient - output)
+
+    // Check quotient < 2^offset <=> quotient + 2^64 - 2^off < 2^64
+    constrain(0 == bound - ( quotient + 2^64 - two_to_off ) )
+
+    // Check remainder < 2^64
+    // Check quotient < 2^64
+    // Check bound < 2^64
+    for i in [0..4) {
+        lookup(rem_quarters[i])
+        lookup(quo_quarters[i])
+        lookup(aux_quarters[i])
+    }
+
+    return output
+}
+```
+
+> It is equivalent to do any rotation by x as a rotation by 4*x on the sparse-bit representation, so we can avoid unpacking altogether, which buys us some additional efficiency gains.
+
+Altogether, this requires 16 additional columns and 12 lookups per 64-bit rotation.
+
+### Lookup tables
+
+<center>
+
+| Sparse lookup table (in binary) |
+| ------------------------------- |
+
+| row | expansion of each 16-bit input                                    |
+| --- | ----------------------------------------------------------------- |
+| $0$ |`0000000000000000000000000000000000000000000000000000000000000000` |
+|     | ...                                                               |
+| $i$ |`000`$b_{15}$`000`$b_{14}$`000`$b_{13}$`000`$b_{12}$`000`$b_{11}$`000`$b_{10}$`000`$b_{9}$`000`$b_{8}$`000`$b_{7}$`000`$b_{6}$`000`$b_{5}$`000`$b_{4}$`000`$b_{3}$`000`$b_{2}$`000`$b_{1}$`000`$b_{0}$             |
+|     | ...                                                               |
+| $2^{16}-1$ | `0001000100010001000100010001000100010001000100010001000100010001`        |
+
+</center>
+
+
+### Witness layout
+
+
+
+### Constraints
+
+
+### Custom gate
+
+The first step is to expand all 25 words of the initial state. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through a lookup table containing all $2^{16}$ entries. This step will require $4\times25$ lookups.
+
+> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
+
+Support for the Keccak hash function will be obtained using one single custom gate of 1 row, using 1108 columns and 1408 lookups. The layout of the witness in the gate is determined by the algorithms inside the permutation function itself, as we unleash below. 
+
+#### Step theta
+
+For each row `x in [0..5)` in the state `A`, perform
+
+$$
+\begin{align*}
+C[x] := &\ A[x][0]\ \oplus\ A[x][1]\ \oplus\ A[x][2]\ \oplus\ A[x][3]\ \oplus\ A[x][4] \\
+\iff \\
+sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) \\
++\ & expand(A[x][3]) + expand(A[x][4]) \\
+\end{align*} 
+$$
+
+From the initial step, the expanded version of the 25 words in state `A` is already in the witness. Since the new field size cannot hold full 256-bit expansion, the above will be performed in 4 parts of 64-bits each (corresponding to 16 bits of the input), computing all four $split_i(sparse(C[x]))$ instead.
+
+Similarly, for each row `x in [0..5)`, perform the following operation splitting into quarters
+
+$$
+\begin{align*}
+D[x] := &\ C[x-1]\ \oplus\ ROT(C[x+1],1) \\
+\iff \\
+sparse(D[x]) := &\ sparse(C[x-1]) + ROT(sparse(C[x+1]), 1)\\
+\end{align*} 
+$$
+
+Next, for each row `x in [0..5)` and column `y in [0..5)`, compute
+
+$$
+\begin{align*}
+E[x][y] := &\ A[x][y]\ \oplus\ D[x] \\
+\iff \\
+sparse(E[x][y]) := &\ sparse(A[x][y]) + sparse(D[x])\\
+\end{align*} 
+$$
+
+#### Step pi-rho
+
+For each row `x in [0..5)` and column `y in [0..5)`, perform (into quarters):
+
+$$
+\begin{align*}
+B[y][2x+3y] := &\ ROT(E[x][y], OFF[x][y]) \\
+\iff \\
+sparse(B[y][2x+3y]) := &\ ROT(sparse(E[x][y]), OFF[x][y])
+\end{align*} 
+$$
+
+<details>
+<summary>TODO</summary>
+How to do this without transforming the format back into 64 bits
+</details>
+
+#### Step chi
+
+For each row `x in [0..5)` and column `y in [0..5)`, perform (into quarters):
+
+$$
+\begin{align*}
+F[x][y] := &\ B[x][y] \oplus (\ \neg B[x+1][y] \wedge \ B[x+2][y]) \\
+\iff \\
+sparse(F[x][y]) := &\ 
+\end{align*} 
+$$
+
+#### Step iota
+
+On round $r$, update the word in the first row, first column xoring with the round constant as
+
+$$
+G[0][0] \oplus RC[r] \iff sparse(G[0][0]) + expand(RC[r])
+$$
+
+### Performance
+
+Counting the costs of the steps presented above, the following table summarizes the performance of the proposed design, for each of the 24 rounds of the permutation function:
+
+| step | xors | rots | misc | columns | lookups | 
+| ---- | ---- | ---- | ---- | ------- | ------- |
+| setup |     |      | $expand$ | | $4\times5\times5$
+| theta C | $4\times4\times5$
+| theta D | $4\times5\times1$ | $5\times1$ | transform? 
+| theta E | $4\times5\times5\times1$ |
+| pi-rho | $0$ | $5\times5\times1$ | transform? |
+| chi |  |  
+| iota | $4 \times 1$ | | | | |
+
+```
+xor64
+=====
+8 * bit expand
+8 * bit split
+8 * bit contract
+= 24 rows, 16 lookups
+
+25 * xor
+5 * expanded bitshift
+5 * expanded xor 
+25 * rot
+
+Entire state can be expanded, saves rows
+
+Expanded xor64
+============
+8 * split
+8 * expanded lookups
+= 8 columns, 8 lookups
+
+Rot64
+============
+2 temp
+12 lookup
+
+25 * xor
+5 * rot
+5 * xor
+25 * xor
+25 * rot
+25 * (xor + and + xor)
+1 * xor
+= 131 * xor + 30 * rot
+= 131 * 8 + 30 * 2 columns, 131 * 8 + 30 * 12 lookup
+= 1108 columns, 1408 lookups
+```
+
+
+## Test plan and functional requirements
+
+1. Testing goals and objectives: 
+    * The resulting Keccak should behave just like the [implementations](https://keccak.team/software.html) suggested by the Keccak original team.
+    * The performance of the system should not be affected.
+    * It will produce the expected block hash.
+2. Testing approach: 
+    * Expected digests are obtained upon input pre-images.
+3. Testing scope: 
+    * Thorough unit tests of the gadget and its components (XOR, AND, NOT, rotation).
+4. Testing requirements: 
+    * When the project is in a more advanced state, run integration tests with other parts of the system (MIPS ISA Implementation, and sys-call for blocks via Cannon).
+5. Testing resources: 
+    * Run the official [test vectors](https://keccak.team/archives.html).
+    * Obtain actual examples of blocks to hash, with different lengths.
+
+## Drawbacks
+[drawbacks]: #drawbacks
+
+This gate uses many more columns than our usual version of Kimchi. We need to understand if this could have an unacceptable effect on the proof length in our usecase.
+
+## Rationale and alternatives
+
+The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations (among other advantages) such as XORs. 
+
+Given that this design makes use of 16-bit lookup tables (eating up $2^{16}$ rows), it could make sense to wonder if an approach using 8-bit XOR lookup tables could make sense. This would imply that each 64-bit XOR would need 8 lookups (as opposed to the 16 in the PoC). 
+
+## Prior art
+
+The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) was introduced to support Ethereum primitives in MINA zkApps. Due to this blockchain's design, the gadget needed to be compatible with Kimchi: a Plonk-like SNARK instantiated with Pasta curves for Pickles recursion and IPA commitents. This means that the design choices for that gadget were determined by some features of this proof system, such as: 15-column width witness, 7 permutable witness cells per row, access to the current and next rows, up to 4 lookups per row, access to 4-bit XOR lookup table, and less than $2^{16}$ rows.
+
+With these constraints in mind, the Keccak PoC extensively used a chainable custom gate called `Xor16`, which performs one 16-bit XOR per row. In particular, xoring 64-bit words (as used in Ethereum), required 4 such gates followed by 1 final `Zero` row. As a result, proving the Keccak hash of a message of 1 block length (up to 1080 bits) took ~15k rows.
+
+## Unresolved questions
+
+* What is the endianness of the target input format? If it is little endian, it will need to be transformed into big endian.
+
+* Will the input be given as a bitstring or will it be packed into bytes?
+
+* Find out if the round constants should be hardcoded (takes memory space) or generated (takes computation resources).
+
+* Find out if the rotation offsets will be directly stored modulo 64 or not.
+
+* Clarify the use/need of $shift$
+
+* Confirm if we really want one single row custom gate
+
+* Understand if rotation can be done without translation
+
+* During the implementation of this RFC, obtain exact measurements of the number of rows, columns, constraints, lookups, seconds, required per block hash.
+
+* Future work: support SHA3 (NIST variant of Keccak), different output lengths, and different state widths. 
+
+
+## Relevant links
+
+* [Pros/Cons of MIPS VM](https://www.notion.so/minaprotocol/MIPS-VM-68c09743b79e4e2bab9e6952c27f0ab4)
+* [RFP: OP Stack Zero Knowledge Proof](https://github.com/ethereum-optimism/ecosystem-contributions/issues/61#issuecomment-1611488039)
+* [PRD: Optimized keccak256 hashing (for MIPS VM)](https://www.notion.so/minaprotocol/PRD-Optimized-keccak256-hashing-for-MIPS-VM-33c142f38467464a9b7c21184544dd1d)
+* [O(1) Labs'  H2 2023 OKRs](https://www.notion.so/minaprotocol/8dfc798e277447ea860e747b026d9698?v=5daef538906d44db9d12e2e0fbbd4665)
+* [SnarkyML Keccak PoC](https://github.com/MinaProtocol/mina/pull/13196)
+* [Keccak gadget PoC PRD for Ethereum Primitives](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae)
+* [The Keccak reference document](https://keccak.team/files/Keccak-reference-3.0.pdf)
+
+## Appendix
+
+### Keccak algorithm
 
 The high level idea of this sponge-based algorithm iteratively is to apply a permutation function to an initial state for a number of rounds (absorb phase) and to finally crop the state, when needed, obtaining the digest (squeeze) as follows:
 
@@ -259,307 +702,3 @@ $$RC[r] = (x^r \mod{x^8 + x^6 + x^5 + x^4 + 1} )\mod{x} $$
 | 23  | `0x8000000080008008` |
 
 </center>
-
-### Bitwise-sparse representation
-
-Here, we present the bitwise-sparse representation of bitstrings that will be used to obtain more efficient computations of boolean functions within our proof system. 
-
-The goal is to represent these operations in finite field algebra more efficiently than they were in the [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356a), for which we took a naive approach where small values occupied full field elements; wasting a lot of empty space. For instance, each row could only xor 16 bits at a time, whereas the field could fit 255 bits. 
-
-Given that simple binary operations are very costly within a SNARK, the new idea consists on arithmetizing boolean operations as much as possible, becoming more efficient with finite field algebra. We introduce the _bitwise-sparse representation_ of bitstrings for this goal.
-
-With this notation, input bitstrings are expanded inserting three `0` bits in between "real" bits (hence the _sparsity_). The motivation for this, is to use intermediate bits to store auxiliary information such as carry bits, resulting from algebraic computations of boolean functions. That means, for each bit in the original bitstring, its expansion will contain four bits. The following expression represents such mapping:
-
-$$\forall X \in \{b_i\}^\ell, b\in\{0,1\}: expand(X) \to 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0$$
-
-Even though in each field element of ~254 bits long, one could fit up to 63 real bits with this encoding, each witness value will only store 16 such real bits. This is because the way to perform this mapping is through a 16-bit lookup table (of $2^{16}$ entries, larger than that would be too costly). Then, the expansion of the full 64 bit words could be represented by composition of each of the four 16-bit parts. But this will not be computed in the circuit, since the expansion would not fit in the field.
-
-Let $sparse(X)$ refer to a representation of $X$, where only the indices in the $4i$-th positions correspond to real bits, and the intermediate indices can contain auxiliary information. Concretely,
-
-$$\forall X\in\{b_i\}^\ell:\quad X \equiv \sum_{0}^{\ell-1} 2^i \cdot sparse(X)_{4i} $$
-
-Another set of functions will be defined to be used in this new design. For $i\in\{0,3\}$, let $shift_i(X)$ be the function that performs the XOR operation of the sparse representation of the word $2^{\ell}-1$ ("all-ones" word in binary), shifted $i$ bits to the left, with the input word $X$. More formally,
-
-$$\forall X \in \{b_i\}^\ell, i\in\{0,3\}: shift_i(X) := \left(\ expand(2^\ell - 1)<<_i 0\ \right)\ \oplus \ X$$ 
-
-meaning, on input $expand(X)$, all four of:
-
-$$ 
-\begin{align*}
-shift_0\left(expand(X)\right) := 0 \ 0 \ 0 \ 1_{\ell-1} \ .\ .\ .\ 0 \ 0 \ 0 \ 1_{0} \ \oplus\ 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0 \\
-shift_1\left(expand(X)\right) := 0 \ 0 \ 1_{\ell-1} \ 0 \ . \ . \ . \ 0 \ 0 \ 1_{0} \ 0 \ \oplus\ 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0 \\
-shift_2\left(expand(X)\right) := 0 \ 1_{\ell-1} \ 0 \ 0 \ . \ . \ . \ 0 \ 1_{0} \ 0 \ 0 \ \oplus\ 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0 \\
-shift_3\left(expand(X)\right) := \ 1_{\ell-1} \ 0 \ 0 \ 0 \ . \ . \ . \ 1_{0} \ 0 \ 0 \ 0 \oplus\ 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0 \\
-\end{align*}
-$$
-
-The effect of each $shift_i$ is to negate the $(4n+i)$-th bits of the expanded output, while leaving the rest of bits unchanged. That implies that one can rewrite the input as:
-
-$$X \iff shift_0(X) + 2 \cdot shift_1(X) + 2^2 \cdot shift_2(X) + 2^3\cdot shift_3(X) ???$$
-
-<details>
-<summary>TODO</summary>
-The above is wrong. Ask Matthew to explain it differently. Why are shifts needed in the first place and we don't just use XOR as explained below?
-</details>
-
-> Checking the correct form of the shifts should be done with a single-column lookup table with just the expanded values for the check, since the non-sparse pre-image is non-relevant here.
-
-Given that the new field size is 254 bits, the whole 64-bit word expansion cannot fit in one single witness element. Instead, they will be split into quarters of 64 bits each (corresponding to real 16 bits each), following this notation:
-
-$$\forall i \in \{0, 3\}:\quad split_i(sparse(X)) := sparse(X_{16i}^{16i+15})$$
-
-Meaning that $\forall X\in(0,2^{64})$:
-
-$$ 
-\begin{align*}
-sparse(X) \equiv &split_0(sparse(X)) + 2^{64} \cdot split_1(sparse(X)) + \\
-& 2^{128}\cdot split_2 (sparse(X)) + 2^{192} \cdot split_3(sparse(X))
-\end{align*}
-$$
-
-#### XOR
-
-In order to perform the XOR operation, we rely on the fact that the exclusive OR of two bits is equivalent to their addition, modulo 2. In particular, when adding the boolean values `1+1=10`, the bit in the left position corresponds to the carry term. For clarity:
-
-<center>
-
-| a | b | xor | add |
-| - | - | --- | --- |
-| 0 | 0 |  0  |  0  |
-| 0 | 1 |  1  |  1  |
-| 1 | 0 |  1  |  1  |
-| 1 | 1 |  0  |  2  |
-
-</center>
-
-Altogether, we will represent the XOR of 16-bit values using addition of their expansions. The 16-bit output of the XOR will be located on the $4n$ positions, whereas the intermediate positions will contain any possible carry terms.
-
-The reason behind the choice of three empty intermediate bits in the sparse representation follows from the concrete usecase of Keccak where no more than $2^4-1$ consecutive boolean operations are performed, and thus carries cannot overwrite the content of the bits to the leftmost bits. In particular, each round of the permutation function concatenates no more than 12 consecutive boolean operations. 
-
-> NOTE: the above means that after each round of the permutation, the expanded representation needs to be contracted, discard auxiliary bits, and expand again from scratch before starting the next round to ensure completeness of the encoding.
-
-#### AND
-
-In the current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae), AND was performed taking advantage of the following equivalence (that was implicitly used above as well):
-
-$$ a + b = XOR(a, b) + 2\cdot AND(a, b)$$
-
-That means, adding two bits is equivalent to their exclusive OR, plus the carry term in the case both are $1$. This equation can be generalized for arbitrary length bitstrings to constraint the AND operation for 64-bit values, using generic operations (addition, multiplication by constant) and the above representation of XORs.
-
-#### Negation
-
-The current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) gave support for two different mechanisms to prove negation of 64-bit words: one of them uses the `Generic` gate to perform a subtraction with the value $2^{64}-1$, whereas the other uses XOR with the $2^{64}-1$ word. The former was more efficient, as it could fit up to two full negations per row. The latter however, required 5 rows to perform one single NOT operation. The advantage of the latter though, was that the XOR approach implicitly checked that the input was at most 64 bits in length, due to decomposition rules. This meant, that the `Generic` approach could only be used together with other mechanisms to assert this. Altogether, using the efficient approach was safe in the Keccak usecase, because the input to the negation was wired to the output of another `xor64` gadget, which used `Xor16` inside. 
-
-In this new approach, making sure that the input word is $<2^{64}$ is also important. Here, the NOT operation will be performed with a subtraction operation using the sparse representation of the constant term $2^{64}$. In this case, the mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits.
-
-$$sparse(NOT_{64}(X)) := expand(2^{64}-1) - expand(X)$$
-
-<details>
-<summary>TODO</summary>
-Check carefully the mechanism to check it is 64-bits. When will they take place? How many of them are needed? Detail better what lookups happen.
-</details>
-
-#### Rotation
-
-<details>
-<summary>TODO</summary>
-Need to convert before?
-</details>
-
-> It is equivalent to do any rotation by x as a rotation by 4*x on the sparse-bit representation, so we can avoid unpacking altogether, which buys us some additional efficiency gains.
-
-### Custom gate
-
-The first step is to expand all 25 words of the initial state. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through a lookup table containing all $2^{16}$ entries. This step will require $4\times25$ lookups.
-
-> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
-
-Support for the Keccak hash function will be obtained using one single custom gate of 1 row, using 1108 columns and 1408 lookups. The layout of the witness in the gate is determined by the algorithms inside the permutation function itself, as we unleash below. 
-
-#### Step theta
-
-For each row `x in [0..5)` in the state `A`, perform
-
-$$
-\begin{align*}
-C[x] := &\ A[x][0]\ \oplus\ A[x][1]\ \oplus\ A[x][2]\ \oplus\ A[x][3]\ \oplus\ A[x][4] \\
-\iff \\
-sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) \\
-+\ & expand(A[x][3]) + expand(A[x][4]) \\
-\end{align*} 
-$$
-
-From the initial step, the expanded version of the 25 words in state `A` is already in the witness. Since the new field size cannot hold full 256-bit expansion, the above will be performed in 4 parts of 64-bits each (corresponding to 16 bits of the input), computing all four $split_i(sparse(C[x]))$ instead.
-
-Similarly, for each row `x in [0..5)`, perform the following operation splitting into quarters
-
-$$
-\begin{align*}
-D[x] := &\ C[x-1]\ \oplus\ ROT(C[x+1],1) \\
-\iff \\
-sparse(D[x]) := &\ sparse(C[x-1]) + ROT(sparse(C[x+1]), 1)\\
-\end{align*} 
-$$
-
-Next, for each row `x in [0..5)` and column `y in [0..5)`, compute
-
-$$
-\begin{align*}
-E[x][y] := &\ A[x][y]\ \oplus\ D[x] \\
-\iff \\
-sparse(E[x][y]) := &\ sparse(A[x][y]) + sparse(D[x])\\
-\end{align*} 
-$$
-
-#### Step pi-rho
-
-For each row `x in [0..5)` and column `y in [0..5)`, perform (into quarters):
-
-$$
-\begin{align*}
-B[y][2x+3y] := &\ ROT(E[x][y], OFF[x][y]) \\
-\iff \\
-sparse(B[y][2x+3y]) := &\ ROT(sparse(E[x][y]), OFF[x][y])
-\end{align*} 
-$$
-
-<details>
-<summary>TODO</summary>
-How to do this without transforming the format back into 64 bits
-</details>
-
-#### Step chi
-
-For each row `x in [0..5)` and column `y in [0..5)`, perform (into quarters):
-
-$$
-\begin{align*}
-F[x][y] := &\ B[x][y] \oplus (\ \neg B[x+1][y] \wedge \ B[x+2][y]) \\
-\iff \\
-sparse(F[x][y]) := &\ 
-\end{align*} 
-$$
-
-#### Step iota
-
-On round $r$, update the word in the first row, first column xoring with the round constant as
-
-$$
-G[0][0] \oplus RC[r] \iff sparse(G[0][0]) + expand(RC[r])
-$$
-
-### Performance
-
-Counting the costs of the steps presented above, the following table summarizes the performance of the proposed design, for each of the 24 rounds of the permutation function:
-
-| step | xors | rots | misc | columns | lookups | 
-| ---- | ---- | ---- | ---- | ------- | ------- |
-| setup |     |      | $expand$ | | $4\times5\times5$
-| theta C | $4\times4\times5$
-| theta D | $4\times5\times1$ | $5\times1$ | transform? 
-| theta E | $4\times5\times5\times1$ |
-| pi-rho | $0$ | $5\times5\times1$ | transform? |
-| chi |  |  
-| iota | $4 \times 1$ | | | | |
-
-```
-xor64
-=====
-8 * bit expand
-8 * bit split
-8 * bit contract
-= 24 rows, 16 lookups
-25 * xor
-5 * expanded bitshift
-5 * expanded xor (
-25 * rot
-Entire state can be expanded, saves rows
-Expanded xor64
-============
-8 * split
-8 * expanded lookups
-= 8 columns, 8 lookups
-Rot64
-============
-2 temp
-12 lookup
-25 * xor
-5 * rot
-5 * xor
-25 * xor
-25 * rot
-25 * (xor + and + xor)
-1 * xor
-= 131 * xor + 30 * rot
-= 131 * 8 + 30 * 2 columns, 131 * 8 + 30 * 12 lookup
-= 1108 columns, 1408 lookups
-```
-
-
-## Test plan and functional requirements
-
-1. Testing goals and objectives: 
-    * The resulting Keccak should behave just like the [implementations](https://keccak.team/software.html) suggested by the Keccak original team.
-    * The performance of the system should not be affected.
-    * It will produce the expected block hash.
-2. Testing approach: 
-    * Expected digests are obtained upon input pre-images.
-3. Testing scope: 
-    * Thorough unit tests of the gadget and its components (XOR, AND, NOT, rotation).
-4. Testing requirements: 
-    * When the project is in a more advanced state, run integration tests with other parts of the system (MIPS ISA Implementation, and sys-call for blocks via Cannon).
-5. Testing resources: 
-    * Run the official [test vectors](https://keccak.team/archives.html).
-    * Obtain actual examples of blocks to hash, with different lengths.
-
-## Drawbacks
-[drawbacks]: #drawbacks
-
-This gate uses many more columns than our usual version of Kimchi. We need to understand if this could have an unacceptable effect on the proof length in our usecase.
-
-## Rationale and alternatives
-
-The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations (among other advantages) such as XORs. 
-
-* Why is this design the best in the space of possible designs?
-* What other designs have been considered and what is the rationale for not choosing them?
-* What is the impact of not doing this?
-
-## Prior art
-
-The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) was introduced to support Ethereum primitives in MINA zkApps. Due to this blockchain's design, the gadget needed to be compatible with Kimchi: a Plonk-like SNARK instantiated with Pasta curves for Pickles recursion and IPA commitents. This means that the design choices for that gadget were determined by some features of this proof system, such as: 15-column width witness, 7 permutable witness cells per row, access to the current and next rows, up to 4 lookups per row, access to 4-bit XOR lookup table, and less than $2^{16}$ rows.
-
-With these constraints in mind, the Keccak PoC extensively used a chainable custom gate called `Xor16`, which performs one 16-bit XOR per row. In particular, xoring 64-bit words (as used in Ethereum), required 4 such gates followed by 1 final `Zero` row. As a result, proving the Keccak hash of a message of 1 block length (up to 1080 bits) took ~15k rows.
-
-## Unresolved questions
-
-* What is the endianness of the target input format? If it is little endian, it will need to be transformed into big endian.
-
-* Will the input be given as a bitstring or will it be packed into bytes?
-
-* Find out if the round constants should be hardcoded (takes memory space) or generated (takes computation resources).
-
-* Whether negation could accelerate the overflow of the auxiliary bits.
-
-* Find out if the rotation offsets will be directly stored modulo 64 or not.
-
-* Clarify the use/need of $shift$
-
-* Confirm if we really want one single row custom gate
-
-* Understand if rotation can be done without translation
-
-* During the implementation of this RFC, obtain exact measurements of the number of rows, columns, constraints, lookups, seconds, required per block hash.
-
-* Future work: support SHA3 (NIST variant of Keccak), different output lengths, and different state widths. 
-
-
-## Relevant links
-
-* [Pros/Cons of MIPS VM](https://www.notion.so/minaprotocol/MIPS-VM-68c09743b79e4e2bab9e6952c27f0ab4)
-* [RFP: OP Stack Zero Knowledge Proof](https://github.com/ethereum-optimism/ecosystem-contributions/issues/61#issuecomment-1611488039)
-* [PRD: Optimized keccak256 hashing (for MIPS VM)](https://www.notion.so/minaprotocol/PRD-Optimized-keccak256-hashing-for-MIPS-VM-33c142f38467464a9b7c21184544dd1d)
-* [O(1) Labs'  H2 2023 OKRs](https://www.notion.so/minaprotocol/8dfc798e277447ea860e747b026d9698?v=5daef538906d44db9d12e2e0fbbd4665)
-* [SnarkyML Keccak PoC](https://github.com/MinaProtocol/mina/pull/13196)
-* [Keccak gadget PoC PRD for Ethereum Primitives](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae)
-* [The Keccak reference document](https://keccak.team/files/Keccak-reference-3.0.pdf)
