@@ -50,6 +50,10 @@ With this notation, input bitstrings are expanded inserting three `0` bits in be
 
 $$\forall X \in \{b_i\}^\ell, b\in\{0,1\}: expand(X) \to 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0$$
 
+The reason behind the choice of three empty intermediate bits in the sparse representation follows from the concrete usecase of Keccak where no more than $2^4-1$ consecutive boolean operations are performed, and thus carries cannot overwrite the content of the bits to the leftmost bits.
+
+> NOTE: the above means that after each step of the permutation, the expanded representation needs to be contracted, discard auxiliary bits, and expand again from scratch before starting the next step to ensure completeness of the encoding.
+
 Even though in each field element of ~254 bits long, one could fit up to 63 real bits with this encoding, each witness value will only store 16 such real bits. Instead, the expansion of the full 64 bit words could be represented by composition of each of the four 16-bit parts. But this will not be computed in the circuit, since the expansion would not fit entirely in the field. The way to perform this mapping is through a 16-bit lookup table (of $2^{16}$ entries, larger than that would be too costly). We call this the **sparse** lookup table. 
 
 Let $sparse(X)$ refer to a representation of $X$, where only the indices in the $4i$-th positions correspond to real bits, and the intermediate indices can contain auxiliary information. Connecting to the above, after performing a series of boolean operations to the $expand(X)$ one can obtain some $sparse(X)$, but both encode the same $X$. Concretely,
@@ -147,24 +151,45 @@ In order to perform the XOR operation, we rely on the fact that the exclusive OR
 
 Altogether, we will represent the XOR of 16-bit values using addition of their expansions. The 16-bit output of the XOR will be located on the $4n$ positions, whereas the intermediate positions will contain any possible carry terms.
 
-Given $a, b$ in non-sparse representation, the sparse representation of $XOR_{64}$ can be computed in quarters of 16 bits each as:
+Given expanded `left` and `right` inputs, the sparse representation of $XOR_{64}$ can be constrained in quarters of 16 bits, as:
 
 ```rust
-for i in [0..4) {
+// Preconditions
+let left   // array containing 4 quarters of left word
+let right  // array containing 4 quarters of right word
 
-    // Load witness
-    let a[i]          // i-th quarter of word A
-    let b[i]          // i-th quarter of word B
-    let expand_a[i]   // expand(a[i]) -> 1 lookup
-    let expand_b[i]   // expand(b[i]) -> 1 lookup
+for i in [0..4) {
+    let expand_left[i]   // expand(a[i]) -> 1 lookup
+    let expand_right[i]  // expand(b[i]) -> 1 lookup
+    let sparse_xor[i]    // sparse of xor(left, right)
     
-    expand_a[i] + expand_b[i]
+    constrain(0 == sparse_xor[i] 
+               - (expand_left[i] + expand_right[i]) )
 }
 ```
 
-The reason behind the choice of three empty intermediate bits in the sparse representation follows from the concrete usecase of Keccak where no more than $2^4-1$ consecutive boolean operations are performed, and thus carries cannot overwrite the content of the bits to the leftmost bits.
+The following table presents a candidate layout for a `Xor64` gate using 12 columns, where all of them are permutable (marked as `*`), assuming each input (`left`, `right`) and output (`xor`) is given in sparse representation.
 
-> NOTE: the above means that after each step of the permutation, the expanded representation needs to be contracted, discard auxiliary bits, and expand again from scratch before starting the next round to ensure completeness of the encoding. This involves $4\times5\times5=100$ lookups to compress $shift_0$ into four 16-bit quarters, and $4\times5\times5=100$ lookups to expand again all of the 64-bit words.
+<center>
+
+| `Xor64` | `0*`  | `1*`  | `2*`  | `3*`  | `4*`   | `5*`   | `6*`   | `7*`   | `8*` | `9*` | `10*` | `11*` |
+| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | ---- | ----- | ----- |
+| `Curr`  | left0 | left1 | left2 | left3 | right0 | right1 | right2 | right3 | xor0 | xor1 | xor2  | xor3  | 
+
+</center>
+
+An alternative using just 6 permutable columns would instead use 2 rows instead.
+
+<center>
+
+| `Xor64` | `0*`  | `1*`  | `2*`   | `3*`   | `4*` | `5*` |
+| ------- | ----- | ----- | ------ | ------ | ---- | ---- |
+| `Curr`  | left0 | left1 | right0 | right1 | xor0 | xor1 | 
+| `Next`  | left2 | left3 | right2 | right3 | xor2 | xor3 |
+
+</center>
+
+> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
 
 #### AND
 
@@ -177,27 +202,49 @@ That means, adding two bits is equivalent to their exclusive OR, plus the carry 
 Given $a, b$ in non-sparse representation, the $AND_{64}$ can be constrained in quarters of 16 bits using 4 lookups: 2 to expand $a,b$, another lookup to expand an inner value `computed_xor[i]`, and 1 final lookup to perform $shift_0$ to check the constraint is zero :
 
 ```rust
-    and16(a,b) {
+for i in [0..4) {
 
-        // Load witness
-        let a[i]          // i-th quarter of word A
-        let b[i]          // i-th quarter of word B
-        let claim_and[i]  // witness value claimed AND16(a[i], b[i])
+    // Load witness
+    let a[i]          // i-th quarter of word A
+    let b[i]          // i-th quarter of word B
+    let claim_and[i]  // witness value claimed AND16(a[i], b[i])
 
-        // Compute additional terms
-        let computed_xor[i] = a[i] + b[i] - 2 * claim_and
-        let sparse_xor[i] = xor16(a[i], b[i]) // 2 lookups
+    // Compute additional terms
+    let computed_xor[i] = a[i] + b[i] - 2 * claim_and
+    let sparse_xor[i] = xor16(a[i], b[i]) // 2 lookups
 
-        // Constrain that ( ADD - 2 AND ) = XOR
-        constrain( 0 == shift0( sparse_xor[i] - expand(computed_xor[i])) )
+    // Constrain that ( ADD - 2 AND ) = XOR
+    constrain( 0 == shift0( sparse_xor[i] - expand(computed_xor[i])) )
 
-        // If constraints are satisfied, the claimed value contains the non-sparse output of AND
-        return claim_and[i]
-    }
+    // If constraints are satisfied, the claimed value contains the non-sparse output of AND
+    return claim_and[i]
 }
 ```
 
 Altogether, this requires $3\times4$ columns and $4\times4$ lookups per AND of a 64-bit word. 
+
+The following tables present candidate layouts for the `And64` functionality, depending on the chosen version of `Xor64`:
+
+<center>
+
+| `Gates` | `0*`  | `1*`  | `2*`  | `3*`  | `4*`   | `5*`   | `6*`   | `7*`   | `8*` | `9*` | `10*` | `11*` |
+| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | ---- | ----- | ----- |
+| `Xor64`  | left0 | left1 | left2 | left3 | right0 | right1 | right2 | right3 | xor0 | xor1 | xor2  | xor3  | 
+| `Generic` | 
+
+</center>
+
+An alternative using just 6 permutable columns would instead use 2 rows instead.
+
+<center>
+
+| `Gates` | `0*`  | `1*`  | `2*`   | `3*`   | `4*` | `5*` | `6*` |
+| ------- | ----- | ----- | ------ | ------ | ---- | ---- | ---- |
+| `Xor64`  | left0 | left1 | right0 | right1 | xor0 | xor1 |  
+|          | left2 | left3 | right2 | right3 | xor2 | xor3 |
+| 
+
+</center>
 
 #### Negation
 
@@ -205,18 +252,43 @@ The current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PR
 
 In this new approach, making sure that the input word is $<2^{64}$ is also important. Here, the NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. In this case, the mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits.
 
-Given $x$ in non-sparse representation, the $NOT_{64}(x)$ can be computed in quarters of 16 bits each (`x[0], x[1], x[2], x[3]`) as:
+Given $x$ in expanded form (meaning, not any sparse representation of $x$ but the initial one with zero intermediate bits) the $NOT_{64}(x)$ can be computed in quarters of 16 bits each (`x[0], x[1], x[2], x[3]`) as:
 
 ```rust
 for i in [0..4) {
-    let x[i] // 16-bit input
-    not16[i] = (2^{16} - 1) - x[i] 
+    let x[i]     // expanded representation of 16-bit input
+    let not16[i] // expanded representation of negated
+    
+    // expand(2^16-1) = 0001...0001 = 
+    constrain(0 == not16[i] - (0x1111111111111111 - x[i]) ) 
 }
 ```
 
->Since negation is only used within the chi step, as an input to the AND operation, the output should be returned in non-sparse format. In this case, if any `x[i]` was larger than 16 bits, the lookup to expand the inputs inside the AND gadget would fail. This guarantees that the total length of $X$ is at most 64 bits, and they are correctly split into quarters.
+> Because the inputs are wired to cells which are known to be 16-bits at most, it is guaranteed that the total length of $X$ is at most 64 bits, and is correctly split into quarters `x[i]`.
 
-Altogether, it requires no lookups nor additional columns (as the computed value can be taken directly).
+The following tables present candidate layouts to perform `Not64`. The first one is a specialized gate with 8 permutable cells, whereas the second one reuses doble generic gates with 6 permutable cells with 2 rows in total.
+
+<center>
+
+| `Not64` | `0*` | `1*` | `2*` | `3*` | `4*` | `5*` | `6*` | `7*` |
+| ------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| `Curr`  | x0   | x1   | x2   | x3   | not0 | not1 | not2 | not3 | 
+
+VS
+
+| Gates     | `0*` | `1*` | `2*` | `3*` | `4*`   | `5*` |
+| --------- | ---- | ---- | ---- | ---- | ------ | ---- | 
+| `Generic` | x0 | `null` | not0 | x1   | `null` | not1 |  
+| `Generic` | x2 | `null` | not2 | x3   | `null` | not3 |
+
+with coefficients list
+
+left0 | right0 | output0 | mul0 | const0 | left1 | right1 | output1 | mul1 | const1 |  
+| --------- | ---- | ---- | ---- | ---- | ---- | ---- | -- | -- | - |
+| -1 | 0 | -1 | 0 | `0x1111111111111111` | -1 | 0 | -1 | 0 | `0x1111111111111111` |
+
+</center>
+
 
 #### Rotation
 
@@ -277,7 +349,7 @@ Altogether, this requires 16 additional columns and 12 lookups per 64-bit rotati
 
 The first step is to expand all 25 words of the initial state. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through the lookup table containing all $2^{16}$ entries. This step will require $4\times25=100$ lookups.
 
-> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
+>  This involves $4\times5\times5=100$ lookups to compress $shift_0$ into four 16-bit quarters, and $4\times5\times5=100$ lookups to expand again all of the 64-bit words.
 
 The layout of the witness in the gate is determined by the algorithms inside the permutation function itself, as we unleash below. 
 
