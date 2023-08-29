@@ -110,6 +110,26 @@ multiply by 2, 4, 8 each of them and check them in the table? use a table with s
 how many of these? one per shift?
 </details>
 
+### Lookup tables
+
+<center>
+
+| Sparse lookup table (in binary) |
+| ------------------------------- |
+
+| row | expansion of each 16-bit input                                    |
+| --- | ----------------------------------------------------------------- |
+| $0$ |`0000000000000000000000000000000000000000000000000000000000000000` |
+|     | ...                                                               |
+| $i$ |`000`$b_{15}$`000`$b_{14}$`000`$b_{13}$`000`$b_{12}$`000`$b_{11}$`000`$b_{10}$`000`$b_{9}$`000`$b_{8}$`000`$b_{7}$`000`$b_{6}$`000`$b_{5}$`000`$b_{4}$`000`$b_{3}$`000`$b_{2}$`000`$b_{1}$`000`$b_{0}$             |
+|     | ...                                                               |
+| $2^{16}-1$ | `0001000100010001000100010001000100010001000100010001000100010001`        |
+
+</center>
+
+
+### Boolean gadgets
+
 #### XOR
 
 In order to perform the XOR operation, we rely on the fact that the exclusive OR of two bits is equivalent to their addition, modulo 2. In particular, when adding the boolean values `1+1=10`, the bit in the left position corresponds to the carry term. For clarity:
@@ -146,8 +166,6 @@ The reason behind the choice of three empty intermediate bits in the sparse repr
 
 > NOTE: the above means that after each step of the permutation, the expanded representation needs to be contracted, discard auxiliary bits, and expand again from scratch before starting the next round to ensure completeness of the encoding. This involves $4\times5\times5=100$ lookups to compress $shift_0$ into four 16-bit quarters, and $4\times5\times5=100$ lookups to expand again all of the 64-bit words.
 
-Altogether
-
 #### AND
 
 In the current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae), AND was performed taking advantage of the following equivalence:
@@ -159,24 +177,23 @@ That means, adding two bits is equivalent to their exclusive OR, plus the carry 
 Given $a, b$ in non-sparse representation, the $AND_{64}$ can be constrained in quarters of 16 bits using 4 lookups: 2 to expand $a,b$, another lookup to expand an inner value `computed_xor[i]`, and 1 final lookup to perform $shift_0$ to check the constraint is zero :
 
 ```rust
-for i in [0..4) {
+    and16(a,b) {
 
-    // Load witness
-    let a[i]          // i-th quarter of word A
-    let b[i]          // i-th quarter of word B
-    let expand_a[i]   // expand(a[i]) -> 1 lookup
-    let expand_b[i]   // expand(b[i]) -> 1 lookup
-    let claim_and[i]  // witness value claimed AND16(a[i], b[i])
+        // Load witness
+        let a[i]          // i-th quarter of word A
+        let b[i]          // i-th quarter of word B
+        let claim_and[i]  // witness value claimed AND16(a[i], b[i])
 
-    // Compute additional terms
-    let computed_xor[i] = a[i] + b[i] - 2 * claim_and
-    let sparse_xor[i] = expand_a[i] + expand_b[i]
+        // Compute additional terms
+        let computed_xor[i] = a[i] + b[i] - 2 * claim_and
+        let sparse_xor[i] = xor16(a[i], b[i]) // 2 lookups
 
-    // Constrain that ( ADD - 2 AND ) = XOR
-    constrain( 0 == shift0( sparse_xor[i] - expand(computed_xor[i])) )
+        // Constrain that ( ADD - 2 AND ) = XOR
+        constrain( 0 == shift0( sparse_xor[i] - expand(computed_xor[i])) )
 
-    // If constraints are satisfied, the claimed value contains the non-sparse output of AND
-    return claim_and[i]
+        // If constraints are satisfied, the claimed value contains the non-sparse output of AND
+        return claim_and[i]
+    }
 }
 ```
 
@@ -256,38 +273,13 @@ fn rot64() {
 
 Altogether, this requires 16 additional columns and 12 lookups per 64-bit rotation.
 
-### Lookup tables
+### Keccak gadget
 
-<center>
-
-| Sparse lookup table (in binary) |
-| ------------------------------- |
-
-| row | expansion of each 16-bit input                                    |
-| --- | ----------------------------------------------------------------- |
-| $0$ |`0000000000000000000000000000000000000000000000000000000000000000` |
-|     | ...                                                               |
-| $i$ |`000`$b_{15}$`000`$b_{14}$`000`$b_{13}$`000`$b_{12}$`000`$b_{11}$`000`$b_{10}$`000`$b_{9}$`000`$b_{8}$`000`$b_{7}$`000`$b_{6}$`000`$b_{5}$`000`$b_{4}$`000`$b_{3}$`000`$b_{2}$`000`$b_{1}$`000`$b_{0}$             |
-|     | ...                                                               |
-| $2^{16}-1$ | `0001000100010001000100010001000100010001000100010001000100010001`        |
-
-</center>
-
-
-### Witness layout
-
-
-
-### Constraints
-
-
-### Custom gate
-
-The first step is to expand all 25 words of the initial state. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through a lookup table containing all $2^{16}$ entries. This step will require $4\times25$ lookups.
+The first step is to expand all 25 words of the initial state. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through the lookup table containing all $2^{16}$ entries. This step will require $4\times25=100$ lookups.
 
 > For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
 
-Support for the Keccak hash function will be obtained using one single custom gate of 1 row, using 1108 columns and 1408 lookups. The layout of the witness in the gate is determined by the algorithms inside the permutation function itself, as we unleash below. 
+The layout of the witness in the gate is determined by the algorithms inside the permutation function itself, as we unleash below. 
 
 #### Step theta
 
