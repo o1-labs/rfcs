@@ -198,6 +198,8 @@ $$ a + b = XOR(a, b) + 2\cdot AND(a, b)$$
 
 That means, adding two bits is equivalent to their exclusive OR, plus the carry term in the case both are $1$. This equation can be generalized for arbitrary length bitstrings to constraint the AND operation for 64-bit values, using generic operations (addition, multiplication by constant) and the above representation of XORs.
 
+The challenge here is to deal with the addition, which takes place on the non-sparse representation, while we have access to the sparse representation. 
+
 Given $a, b$ in non-sparse representation, the $AND_{64}$ can be constrained in quarters of 16 bits using 4 lookups: 2 to expand $a,b$, another lookup to expand an inner value `computed_xor[i]`, and 1 final lookup to perform $shift_0$ to check the constraint is zero :
 
 ```rust
@@ -291,31 +293,26 @@ left0 | right0 | output0 | mul0 | const0 | left1 | right1 | output1 | mul1 | con
 
 #### Rotation
 
-Rotations can be performed directly on the full 64-bit word. The same strategy as in the [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) is taken here. 
-This time, it will make use of an auxiliary function to compose four 16-bit quarters into full 64-bit terms. The pseudocode follows:
+> If we could fit the whole 256 expanded bits of the 64-bit word, we could simulate rotations by $x$ bits as a rotation by $4*x$ on the sparse-bit representation, so we could avoid unpacking altogether, which would buy us some additional efficiency gains.
+
+Rotations can be performed directly on the full 64-bit word. A similar algebraic approach as in the [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) is taken here. 
+This time, it will make use of an auxiliary function to compose four 16-bit quarters into full 64-bit terms as 
+
+$$compose \to quarter_0 + 2^{16}quarter_1 + 2^{32}quarter_2 + 2^{48}quarter_3$$
 
 ```rust
-fn compose(quarters: Array[4]) {
-    return quarters[0]
-            + 2^16 * quarters[1] 
-            + 2^32 * quarters[2] 
-            + 2^48 * quarters[3]
-}
-
 fn rot64() {
     // Load witness
-    let inp_quarters // array with 4 quarters of the input word
-    let out_quarters // array with 4 quarters of the output word
-    let quo_quarters // array with 4 quarters of the quotient
-    let rem_quarters // array with 4 quarters of the remainder
-    let aux_quarters // array with 4 quarters of the auxiliary bound
+    let input        // 64-bit input word
+    let output       // 64-bit output word
+    let quo_quarters // 4-array with up to 16-bit parts of quotient
+    let rem_quarters //  4-array with up to 16-bit parts of remainder
+    let aux_quarters //  4-array with up to 16-bit parts of auxiliary bound
 
     // Load coefficients 
     let two_to_off // 2^offset
 
     // Compose quarters into full <=64 bit words
-    let input = compose(inp_quarters)
-    let output = compose(out_quarters)
     let quotient = compose(quo_quarters)
     let remainder = compose(rem_quarters)
     let bound = compose(aux_quarters)
@@ -327,44 +324,55 @@ fn rot64() {
     // Check quotient < 2^offset <=> quotient + 2^64 - 2^off < 2^64
     constrain(0 == bound - ( quotient + 2^64 - two_to_off ) )
 
-    // Check remainder < 2^64
-    // Check quotient < 2^64
-    // Check bound < 2^64
     for i in [0..4) {
-        lookup(rem_quarters[i])
-        lookup(quo_quarters[i])
-        lookup(aux_quarters[i])
+        lookup(rem_quarters[i]) // Check remainder < 2^64
+        lookup(quo_quarters[i]) // Check quotient < 2^64
+        lookup(aux_quarters[i]) // Check bound < 2^64
     }
-
-    return output
 }
 ```
 
-> It is equivalent to do any rotation by x as a rotation by 4*x on the sparse-bit representation, so we can avoid unpacking altogether, which buys us some additional efficiency gains.
+<center>
 
-Altogether, this requires 16 additional columns and 12 lookups per 64-bit rotation.
+| `Rot64` | `0*`   | `1!` | `2!` | `3!` | `4!` | `5!` | `6!` | 
+| ------- | ------ | ---- | ---- | ---- | ---- | ---- | ---- | 
+| `Curr`  | input  | quo0 | quo1 | quo2 | quo3 | aux0 | aux1 | 
+| `Next`  | output | rem0 | rem1 | rem2 | rem3 | aux2 | aux3 |
+
+with one coefficient set to `2^{offset}`.
+
+</center>
+
+This gate requires 6 lookups per row. Following the two rows of rotation, we need 2 more rows to decompose the output into its 4 expanded quarters.
 
 #### Reset
 
-After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For this, the `Reset32` gate requires $4$ permutable cells and $6$ more columns to reset two quarter words, using 8 lookups. Two consecutive `Reset32` gates can be used to fully reset a 64 bit word. Cells involved in a lookup are marked as `!`.
+After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For this, each row of the `Reset64` gate $13$ columns, of which the first $5$ can be permutable, using 8 lookups. It also includes Cells involved in a lookup are marked as `!`.
 
 ```rust
-for i in [0..1] {
+let word          // 64-bit non-sparse word
+constrain(0 == word - (dense[0] + 2^16 * dense[1] 
+                      + 2^32 * dense[2] + 2^48 * dense[3])
+for i in [0..4) {
     let sparse[i] // sparse representation of quarter i
-    let reset[i]  // reset (expand) of sparse[i] -> 1 lookup
-    let aux1[i]   // shift1(sparse) / 2          -> 1 lookup
-    let aux2[i]   // shift2(sparse) / 4          -> 1 lookup
-    let aux3[i]   // shift3(sparse) / 8          -> 1 lookup
+    let dense[i]  // non-sparse ith 16 bits  -> lookup 1   
+    let reset0[i] // shift0(sparse) = expand -> lookup 1
+    let reset1[i] // shift1(sparse) / 2      -> lookup 2
+    let reset2[i] // shift2(sparse) / 4      -> lookup 3
+    let reset3[i] // shift3(sparse) / 8      -> lookup 4
 
-    constrain(0 == sparse[i] - ( reset[i] + 2 * aux1[i] + 4 * aux2[i] + 8 * aux3[i]))
+    constrain(0 == sparse[i] - ( reset0[i] + 2 * reset1[i] 
+                             + 4 * reset2[i] + 8 * reset3[i]) )
 }
 ```
 
-| `Reset32` | `0*`  | `1*`  | `2*!`  | `3*!`  | `4!`   | `5!`   | `6!`   | `7!`   | `8!` | `9!` |
-| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | ---- | 
-| `Curr`  | sparse0 | sparse1 | reset0 | reset1 | aux1_0 | aux1_1 | aux2_0 | aux2_1 |aux3_0 | aux3_1 | 
+| Gate | `0*`  | `1*`  | `2*`  | `3*!`  | `4*!`   | `5!`   | `6!`   | `7!`   | `8!` | `9!` | `10!` | `11!` | `12!` |
+| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | - | - | - | - |
+| `Reset64`  | word | sparse0 | sparse1 | reset0_0 | reset0_1 | reset1_0 | reset1_1 | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1| 
+| `Zero`  |  | sparse2 | sparse3 | reset0_2 | reset0_3 | reset1_2 | reset1_3 | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3| 
 
-Alternatively, we could one single longer gate for the whole 64-bit word. In this case, 16 lookups are required per row, 8 permutable cells, and 12 more columns.
+
+The `word` witness will be wired to the rotation gate. Each `sparse[i]` will be the output of previous boolean gates, so they must be permutable. The `reset0[i]` corresponds to the expand, and will be the input of upcoming boolean gates.
 
 ### Keccak gadget
 
@@ -542,11 +550,7 @@ With these constraints in mind, the Keccak PoC extensively used a chainable cust
 
 * Find out if the rotation offsets will be directly stored modulo 64 or not.
 
-* Clarify the use/need of $shift$
-
-* Confirm if we really want one single row custom gate
-
-* Understand if rotation can be done without translation
+* Optimize chaining between gates
 
 * During the implementation of this RFC, obtain exact measurements of the number of rows, columns, constraints, lookups, seconds, required per block hash.
 
