@@ -87,32 +87,35 @@ meaning, on input some $sparse(X)$, all four of:
 
 $$ 
 \begin{align*}
-shift_0\left(sparse(X)\right) := 0 \ 0 \ 0 \ 1_{\ell-1} \ .\ .\ .\ 0 \ 0 \ 0 \ 1_{0} \ \wedge\ sparse(X) \\
-shift_1\left(sparse(X)\right) := 0 \ 0 \ 1_{\ell-1} \ 0 \ . \ . \ . \ 0 \ 0 \ 1_{0} \ 0 \ \wedge\ sparse(X) \\
-shift_2\left(sparse(X)\right) := 0 \ 1_{\ell-1} \ 0 \ 0 \ . \ . \ . \ 0 \ 1_{0} \ 0 \ 0 \ \wedge\ sparse(X) \\
-shift_3\left(sparse(X)\right) := \ 1_{\ell-1} \ 0 \ 0 \ 0 \ . \ . \ . \ 1_{0} \ 0 \ 0 \ 0 \wedge\ sparse(X) \\
+shift_0\left(sparse(X)\right) &:= 0 \ 0 \ 0 \ 1_{\ell-1} \ .\ .\ .\ 0 \ 0 \ 0 \ 1_{0} \ \wedge\ sparse(X) \equiv expand(X)\\
+shift_1\left(sparse(X)\right) &:= 0 \ 0 \ 1_{\ell-1} \ 0 \ . \ . \ . \ 0 \ 0 \ 1_{0} \ 0 \ \wedge\ sparse(X) \\
+shift_2\left(sparse(X)\right) &:= 0 \ 1_{\ell-1} \ 0 \ 0 \ . \ . \ . \ 0 \ 1_{0} \ 0 \ 0 \ \wedge\ sparse(X) \\
+shift_3\left(sparse(X)\right) &:= \ 1_{\ell-1} \ 0 \ 0 \ 0 \ . \ . \ . \ 1_{0} \ 0 \ 0 \ 0 \wedge\ sparse(X) \\
 \end{align*}
 $$
 
 The effect of each $shift_i$ is to null all but the $(4n+i)$-th bits of the expanded output. Meaning, they act as selectors of every other $(4n+i)$-th bit. That implies that one can rewrite the sparse representation of any word as:
 
-$$sparse(X) \iff shift_0(sparse(X)) + shift_1(sparse(X)) + shift_2(sparse(X)) + shift_3(sparse(X))$$
+
+$$
+\begin{align*}
+sparse(X) \iff & shift_0(sparse(X)) + shift_1(sparse(X)) \\
++ & shift_2(sparse(X)) + shift_3(sparse(X))
+\end{align*}
+$$
 
 In order to check the real bits behind a sparse representation, one can perform a lookup with the result of the $shift_0$. Note that this table is equivalent to the sparse table presented above. Before, on input a 16-bit word (equivalent to the row index), the table contained the expanded representation. Here instead, on input the expansion (because $shift_0$ has intermediate bits set to zero), one can check the word. 
 
-The correctness of the remaining shifts $(i\in\{1,3\})$ should also be checked. For this, the witness value $shift_i$ will be ???
+The correctness of the remaining shifts $(i\in\{1,3\})$ should also be checked. For this, the witness value $aux_i := shift_i/2^i$ will be stored in the witness in such a way that each $aux_i$ can be looked up reusing the table for $shift_0$, and then the following constraint should hold:
 
-<details>
-<summary>TODO</summary>
-multiply by 2, 4, 8 each of them and check them in the table? use a table with shift3 instead? how can you check that the non-scaled ones have the right shape?
-</details>
+$$
+\begin{align*}
+0 = sparse(X) - (\ & shift_0(sparse(X)) + 2 \cdot aux_1(sparse(X)) \\
+& + 4 \cdot aux_2(sparse(X)) + 8 \cdot aux_3(sparse(X))\ )
+\end{align*}
+$$
 
 >Checking the correct form of the shifts should be done with a single-column lookup table with just the expanded values for the check, since the non-sparse pre-image is non-relevant here.
-
-<details>
-<summary>TODO</summary>
-how many of these? one per shift?
-</details>
 
 ### Lookup tables
 
@@ -132,7 +135,9 @@ how many of these? one per shift?
 </center>
 
 
-### Boolean gadgets
+### Basic gadgets
+
+> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
 
 #### XOR
 
@@ -154,17 +159,13 @@ Altogether, we will represent the XOR of 16-bit values using addition of their e
 Given expanded `left` and `right` inputs, the sparse representation of $XOR_{64}$ can be constrained in quarters of 16 bits, as:
 
 ```rust
-// Preconditions
-let left   // array containing 4 quarters of left word
-let right  // array containing 4 quarters of right word
-
 for i in [0..4) {
-    let expand_left[i]   // expand(a[i]) -> 1 lookup
-    let expand_right[i]  // expand(b[i]) -> 1 lookup
-    let sparse_xor[i]    // sparse of xor(left, right)
-    
-    constrain(0 == sparse_xor[i] 
-               - (expand_left[i] + expand_right[i]) )
+    // Load witness
+    let left[i]   // each quarter of expanded left input 
+    let right[i]  // each quarter of expanded left input 
+    let xor[i]    // sparse(xor(left,right))
+
+    constrain(0 == xor[i] - (expand_left[i] + expand_right[i]))
 }
 ```
 
@@ -188,8 +189,6 @@ An alternative using just 6 permutable columns would instead use 2 rows instead.
 | `Next`  | left2 | left3 | right2 | right3 | xor2 | xor3 |
 
 </center>
-
-> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
 
 #### AND
 
@@ -344,6 +343,28 @@ fn rot64() {
 > It is equivalent to do any rotation by x as a rotation by 4*x on the sparse-bit representation, so we can avoid unpacking altogether, which buys us some additional efficiency gains.
 
 Altogether, this requires 16 additional columns and 12 lookups per 64-bit rotation.
+
+#### Reset
+
+After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For this, the `Reset32` gate requires $4$ permutable cells and $6$ more columns to reset two quarter words, using 8 lookups. Two consecutive `Reset32` gates can be used to fully reset a 64 bit word. Cells involved in a lookup are marked as `!`.
+
+```rust
+for i in [0..1] {
+    let sparse[i] // sparse representation of quarter i
+    let reset[i]  // reset (expand) of sparse[i] -> 1 lookup
+    let aux1[i]   // shift1(sparse) / 2          -> 1 lookup
+    let aux2[i]   // shift2(sparse) / 4          -> 1 lookup
+    let aux3[i]   // shift3(sparse) / 8          -> 1 lookup
+
+    constrain(0 == sparse[i] - ( reset[i] + 2 * aux1[i] + 4 * aux2[i] + 8 * aux3[i]))
+}
+```
+
+| `Reset32` | `0*`  | `1*`  | `2*!`  | `3*!`  | `4!`   | `5!`   | `6!`   | `7!`   | `8!` | `9!` |
+| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | ---- | 
+| `Curr`  | sparse0 | sparse1 | reset0 | reset1 | aux1_0 | aux1_1 | aux2_0 | aux2_1 |aux3_0 | aux3_1 | 
+
+Alternatively, we could one single longer gate for the whole 64-bit word. In this case, 16 lookups are required per row, 8 permutable cells, and 12 more columns.
 
 ### Keccak gadget
 
