@@ -190,57 +190,54 @@ An alternative using just 6 permutable columns would instead use 2 rows instead.
 
 </center>
 
-#### AND
+#### Reset
+
+After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For this, each row of the `Reset64` gate $13$ columns, of which the first $7$ will be permutable, using 8 lookups. It also includes Cells involved in a lookup are marked as `!`.
+
+```rust
+let word          // 64-bit non-sparse word
+constrain(0 == word - (dense[0] + 2^16 * dense[1] 
+                      + 2^32 * dense[2] + 2^48 * dense[3])
+for i in [0..4) {
+    let sparse[i] // sparse representation of quarter i
+    let dense[i]  // non-sparse ith 16 bits  -> lookup 1   
+    let reset0[i] // shift0(sparse) = expand -> lookup 1
+    let reset1[i] // shift1(sparse) / 2      -> lookup 2
+    let reset2[i] // shift2(sparse) / 4      -> lookup 3
+    let reset3[i] // shift3(sparse) / 8      -> lookup 4
+
+    constrain(0 == sparse[i] - ( reset0[i] + 2 * reset1[i] 
+                             + 4 * reset2[i] + 8 * reset3[i]) )
+}
+```
+
+| Gate | `0*`  | `1*`  | `2*`  | `3*!`  | `4*!`   | `5*!`   | `6*!`   | `7!`   | `8!` | `9!` | `10!` | `11!` | `12!` |
+| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | - | - | - | - |
+| `Reset64`  | word | sparse0 | sparse1 | reset0_0 | reset0_1 | reset1_0 | reset1_1 | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1 |
+| `Zero`  |  | sparse2 | sparse3 | reset0_2 | reset0_3 | reset1_2 | reset1_3 | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3 |
+
+
+The `word` witness will be wired to the rotation gate. Each `sparse[i]` will be the output of previous boolean gates, so they must be permutable. The `reset0[i]` corresponds to the expand of the word, and will be the input of upcoming boolean gates (beginning of steps). The `reset1[i]` will be used by the AND.
+
+##### AND
 
 In the current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae), AND was performed taking advantage of the following equivalence:
 
 $$ a + b = XOR(a, b) + 2\cdot AND(a, b)$$
 
 That means, adding two bits is equivalent to their exclusive OR, plus the carry term in the case both are $1$. This equation can be generalized for arbitrary length bitstrings to constraint the AND operation for 64-bit values, using generic operations (addition, multiplication by constant) and the above representation of XORs.
+With this definition, one can check that the AND of two expanded inputs corresponds to the terms in the $4n+1$-th positions. Meaning that $shift_1/2$ gives the expand value of the conjugation operation.
 
-The challenge here is to deal with the addition, which takes place on the non-sparse representation, while we have access to the sparse representation. For this, the gate will receive as input the non-sparse 16-bit quarters, as well as its expansion (`Reset64` will be used). 
-
-Given $a, b$ in non-sparse representation, the $AND_{64}$ can be constrained in quarters of 16 bits using 4 lookups: 2 to expand $a,b$, another lookup to expand an inner value `computed_xor[i]`, and 1 final lookup to perform $shift_0$ to check the constraint is zero :
-
-```rust
-for i in [0..4) {
-
-    // Load witness
-    let dense_left[i] // i-th quarter of word A
-    let b[i]          // i-th quarter of word B
-    let claim_and[i]  // witness value claimed AND16(a[i], b[i])
-
-    // Compute additional terms
-    let computed_xor[i] = a[i] + b[i] - 2 * claim_and
-    let sparse_xor[i] = xor16(a[i], b[i]) // 2 lookups
-
-    // Constrain that ( ADD - 2 AND ) = XOR
-    constrain( 0 == shift0( sparse_xor[i] - expand(computed_xor[i])) )
-
-    // If constraints are satisfied, the claimed value contains the non-sparse output of AND
-    return claim_and[i]
-}
-```
-
-Altogether, this requires $3\times4$ columns and $4\times4$ lookups per AND of a 64-bit word. 
-
-The following table presents a candidate layout for the `And64` functionality, with the 2-row `Xor64`:
+The AND operation can be constrained making use of `Xor64` and `Reset64` explained above, with no further constraints. `Xor64` is used to obtain `left+right`, and then `Reset64` provides the expanded result of AND in the witnesses `reset1`.
 
 <center>
 
-| `Gates` | `0*`  | `1*`  | `2*`   | `3*`   | `4*` | `5*` | `6*` |
-| ------- | ----- | ----- | ------ | ------ | ---- | ---- | ---- |
-| `And64` | left0
-| 
-
-followed by
-
-| `Gates` | `0*`  | `1*`  | `2*`   | `3*`   | `4*` | `5*` | `6*` |
-| ------- | ----- | ----- | ------ | ------ | ---- | ---- | ---- |
-| `Xor64`  | left0 | left1 | right0 | right1 | xor0 | xor1 |  
-|          | left2 | left3 | right2 | right3 | xor2 | xor3 |
-| 
-
+| AND64 | `0*`  | `1*`  | `2*`  | `3*!`  | `4*!`   | `5*!`   | `6*!`   | `7!`   | `8!` | `9!` | `10!` | `11!` | `12!` |
+| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | - | - | - | - |
+| `Xor64` | left0 | left1 | right0 | right1 | sparse_sum0 | sparse_sum1 |  
+| `Zero`  | left2 | left3 | right2 | right3 | sparse_sum2 | sparse_sum3 |
+| `Reset64`  | word | sparse_sum0 | sparse_sum1 | xor0_0 | xor0_1 | and1_0 | and1_1 | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1 |
+| `Zero`  |  | sparse_sum2 | sparse_sum3 | xor0_2 | xor0_3 | and1_2 | and1_3 | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3 |
 </center>
 
 #### Negation
@@ -341,34 +338,6 @@ with one coefficient set to `2^{offset}`.
 
 This gate requires 6 lookups per row. Following the two rows of rotation, we need 2 more rows to decompose the output into its 4 expanded quarters.
 
-#### Reset
-
-After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For this, each row of the `Reset64` gate $13$ columns, of which the first $5$ can be permutable, using 8 lookups. It also includes Cells involved in a lookup are marked as `!`.
-
-```rust
-let word          // 64-bit non-sparse word
-constrain(0 == word - (dense[0] + 2^16 * dense[1] 
-                      + 2^32 * dense[2] + 2^48 * dense[3])
-for i in [0..4) {
-    let sparse[i] // sparse representation of quarter i
-    let dense[i]  // non-sparse ith 16 bits  -> lookup 1   
-    let reset0[i] // shift0(sparse) = expand -> lookup 1
-    let reset1[i] // shift1(sparse) / 2      -> lookup 2
-    let reset2[i] // shift2(sparse) / 4      -> lookup 3
-    let reset3[i] // shift3(sparse) / 8      -> lookup 4
-
-    constrain(0 == sparse[i] - ( reset0[i] + 2 * reset1[i] 
-                             + 4 * reset2[i] + 8 * reset3[i]) )
-}
-```
-
-| Gate | `0*`  | `1*`  | `2*`  | `3*!`  | `4*!`   | `5*!`   | `6*!`   | `7!`   | `8!` | `9!` | `10!` | `11!` | `12!` |
-| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | - | - | - | - |
-| `Reset64`  | word | sparse0 | sparse1 | dense0 | dense1 | reset0_0 | reset0_1 | reset1_0 | reset1_1 | reset2_0 | reset2_1 | reset3_0 | reset3_1 |
-| `Zero`  |  | sparse2 | sparse3 | dense2 | dense3 reset0_2 | reset0_3 | reset1_2 | reset1_3 | reset2_2 | reset2_3 | reset3_2 | reset3_3 |
-
-
-The `word` witness will be wired to the rotation gate. Each `sparse[i]` will be the output of previous boolean gates, so they must be permutable. Each `dense[i]` will be used as inputs of the AND gate. The `reset0[i]` corresponds to the expand, and will be the input of upcoming boolean gates (beginning of steps).
 
 ### Keccak gadget
 
@@ -426,11 +395,11 @@ $$
 \begin{align*}
 D[x] := &\ C[x-1]\ \oplus\ ROT(C[x+1],1) \\
 \iff \\
-sparse(D[x]) := &\ sparse(C[x-1]) + ROT(expand(C[x+1]), 1)\\
+sparse(D[x]) := &\ expand(C[x-1]) + ROT(expand(C[x+1]), 1)\\
 \end{align*} 
 $$
 
-For this, the 5 possible inputs of the rotation need to be reset. The input of the xor can however be the sparse or the reset version of `C[x-1]`.
+For this, the 5 possible inputs of the rotation need to be reset. The input of the XOR will use the reset version as well, to reset any previous round auxiliary bits.
 
 <center>
 
@@ -506,15 +475,21 @@ $$
 \begin{align*}
 F[x][y] := &\ B[x][y] \oplus (\ \neg B[x+1][y] \wedge \ B[x+2][y]) \\
 \iff \\
-sparse(F[x][y]) := &\ 
+2 \cdot sparse(F[x][y]) := &\ 2 \cdot expand(B[x][y]) + shift_1((expand(2^{64}-1) - expand(B[x+1][y]) + expand(B[x+2][y]) ) )
 \end{align*} 
 $$
 
 <center> 
 
-| Version  | Rows/round | Lookups/round | 
-|----------|------------|---------------|
-| This RFC | $5\times5\times?$        | $5\times5\times?$           |                
+| Gates / x=[0..5) y=[0..5)                    | Inputs      | Output  | Lookups | 
+|----------------------------------------------|-------------|---------|---------|
+| NOT64: `Generic` + `Generic`                 | in_not      | neg     | $0$     |
+| AND64: `Xor64` + `Zero` + `Reset64` + `Zero` | neg, in_and | and     | $16$    |
+| XOR64: `Xor64` + `Zero`                      | in_xor, and | xor     | $0$     |
+
+| Version  | Rows/round                      | Lookups/round          | 
+|----------|---------------------------------|------------------------|
+| This RFC | $5\times5\times8=200$           | $5\times5\times16=400$ |                
 | Old PoC  | $5\times5\times(1.5+5+5)=287.5$ | $5\times5\times32=800$ |      
 
 </center>
@@ -550,7 +525,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Rows / block | Lookups / block | 
 |----------|--------------|-----------------|
-| This RFC | $24\times(50+40+30+50+100+_+2)=$        | $24\times(0+0+140+0+700+_+0)=$           |                
+| This RFC | $24\times(50+40+30+50+100+200+2)=11,328$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
 | Old PoC  | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |      
 
 </center>
