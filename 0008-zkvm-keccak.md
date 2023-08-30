@@ -211,7 +211,7 @@ for i in [0..4) {
 }
 ```
 
-| Gate | `0*`  | `1*`  | `2*`  | `3*!`  | `4*!`   | `5*!`   | `6*!`   | `7!`   | `8!` | `9!` | `10!` | `11!` | `12!` |
+| Gate | `0*`  | `1*`  | `2*`  | `3*!`  | `4*!`   | `5*!`   | `6*!`   | `7!`   | `8!` | `9!` | `10!` | `11` | `12` |
 | ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | - | - | - | - |
 | `Reset64`  | word | sparse0 | sparse1 | reset0_0 | reset0_1 | reset1_0 | reset1_1 | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1 |
 | `Zero`  |  | sparse2 | sparse3 | reset0_2 | reset0_3 | reset1_2 | reset1_3 | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3 |
@@ -576,6 +576,7 @@ With these constraints in mind, the Keccak PoC extensively used a chainable cust
 * Future work: 
     * support SHA3 (NIST variant of Keccak), different output lengths, and different state widths;
     * improve chaining between gates
+    * depending on our maximum number of lookups per row, consider gates with more complex functionality (full permutation steps, with more columns)
 
 
 ## Relevant links
