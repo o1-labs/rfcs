@@ -180,7 +180,7 @@ The following table presents a candidate layout for a `Xor64` gate using 2 rows 
 
 #### Reset
 
-After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For this, each row of the `Reset64` gate $13$ columns, of which the first $7$ will be permutable, using 8 lookups. It also includes Cells involved in a lookup are marked as `!`.
+After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For this, each row of the `Reset64` gate $13$ columns, of which the first $7$ will be permutable, using $10$ lookups in the `Curr` row and $6$ in the `Next` row. Cells involved in a lookup are marked as `!`, and cells which are involved in a lookup in both rows are marked as `!!`.
 
 ```rust
 let word          // 64-bit non-sparse word
@@ -199,13 +199,13 @@ for i in [0..4) {
 }
 ```
 
-| Gate | `0*`  | `1*`  | `2*`  | `3*!`  | `4*!`   | `5*!`   | `6*!`   | `7!`   | `8!` | `9!` | `10!` | `11` | `12` |
-| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | - | - | - | - |
-| `Reset64`  | word | sparse0 | sparse1 | reset0_0 | reset0_1 | reset1_0 | reset1_1 | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1 |
-| `Zero`  |  | sparse2 | sparse3 | reset0_2 | reset0_3 | reset1_2 | reset1_3 | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3 |
+| Gate      | `0*!`    | `1*!`    | `2*!`    | `3*! `   | `4*!!`    | `5*!!`  | `6*` | `7!!`    | `8!!`    | `9!!`    | `10!!`   | `11`   | `12`   |
+| --------- | -------- | -------- | -------- | -------- | -------- | -------- | ---- | -------- | -------- | -------- | -------- | ------ | ------ | 
+| `Reset64` | sparse0  | sparse1  | sparse2  | sparse3  | reset1_0 | reset1_1 | word | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1 | 
+| `Zero`    | reset0_0 | reset0_1 | reset0_2 | reset0_3 | reset1_2 | reset1_3 |      | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3 |
+ 
 
-
-The `word` witness will be wired to the rotation gate. Each `sparse[i]` will be the output of previous boolean gates, so they must be permutable. The `reset0[i]` corresponds to the expand of the word, and will be the input of upcoming boolean gates (beginning of steps). The `reset1[i]` will be used by the AND.
+The `word` witness will be wired to the rotation gate. Each `sparse[i]` will be the output of previous boolean gates (e.g. chained XOR), so they must be permutable. The `reset0[i]` corresponds to the expand of the word, and will be the input of upcoming boolean gates (beginning of steps). The `reset1[i]` will be used by the AND.
 
 ##### AND
 
@@ -214,12 +214,11 @@ The AND operation can be constrained making use of `Xor64` and `Reset64` explain
 
 <center>
 
-| AND64 | `0*`  | `1*`  | `2*`  | `3*!`  | `4*!`   | `5*!`   | `6*!`   | `7!`   | `8!` | `9!` | `10!` | `11!` | `12!` |
-| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | - | - | - | - |
-| `Xor64` | left0 | left1 | right0 | right1 | sparse_sum0 | sparse_sum1 |  
-| `Zero`  | left2 | left3 | right2 | right3 | sparse_sum2 | sparse_sum3 |
-| `Reset64`  | word | sparse_sum0 | sparse_sum1 | xor0_0 | xor0_1 | and1_0 | and1_1 | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1 |
-| `Zero`  |  | sparse_sum2 | sparse_sum3 | xor0_2 | xor0_3 | and1_2 | and1_3 | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3 |
+| AND64     | `0*`         | `1*`        | `2*`        | `3*!`       | `4*!`  | `5*!`  | `6*!`  | `7!`     | `8!`     | `9!`     | `10!`    | `11!`  | `12!`  |
+| --------- | ------------ | ----------- | ----------- | ----------- | ------ | ------ | ------ | -------- | -------- | -------- | -------- | ------ | ------ |
+| `Xor64`   | left0        | left1       | left2       | left3       | right0 | right1 | right2 | right3   | 
+| `Reset64` | sparse_sum0  | sparse_sum1 | sparse_sum2 | sparse_sum3 | and0   | and1   | word   | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1 |
+| `Zero`    | expand_xor0  | expand_xor1 | expand_xor2 | expand_xor3 | and2   | and3   |        | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3 |
 </center>
 
 #### Negation
@@ -389,11 +388,11 @@ For this, the 5 possible inputs of the rotation need to be reset. The input of t
 |--------------------|-------------|---------|---------|
 | `Reset64` + `Zero` | sparse      | reset   | $16$    |
 | `Rot64`            | reset       | rot     | $12$    |              
-| `Xor64` + `Zero`   | c[x-1], rot | d       | $0$     |                   
+| `Xor64` + chain    | c[x-1], rot | d       | $0$     |                   
 
 | Rows/round        | Lookups/round                    | 
 |-------------------|----------------------------------|
-| $5\times5=25$     | $5\times28=140$                  |                
+| $5\times4=20$     | $5\times28=140$                  |                
 
 </center>
 
@@ -411,11 +410,13 @@ $$
 
 | Gates / x=[0..5) y=[0..5) | Inputs | Output  | Lookups | 
 |---------------------------|--------|---------|---------|             
-| `Xor64` + `Zero`          | a, d   | e       | $0$     |    
+| `Xor64` + chain           | a, d   | e       | $0$     |    
 
 | Rows/round            | Lookups/round          | 
 |-----------------------|------------------------|
-| $5\times5\times2=50$  | $0$                    |                
+| $5\times5\times1=25$  | $0$                    |                
+
+Note that each `E[x][y]` will be chained to the `Reset64` of the next step.
 
 </center>
 
@@ -460,15 +461,15 @@ $$
 
 <center> 
 
-| Gates / x=[0..5) y=[0..5)                    | Inputs      | Output  | Lookups | 
-|----------------------------------------------|-------------|---------|---------|
-| NOT64: `Generic` + `Generic`                 | in_not      | neg     | $0$     |
-| AND64: `Xor64` + `Zero` + `Reset64` + `Zero` | neg, in_and | and     | $16$    |
-| XOR64: `Xor64` + `Zero`                      | in_xor, and | xor     | $0$     |
+| Gates / x=[0..5) y=[0..5)           | Inputs      | Output  | Lookups | 
+|-------------------------------------|-------------|---------|---------|
+| NOT64: `Not64`                      | in_not      | neg     | $0$     |
+| AND64: `Xor64` + `Reset64` + `Zero` | neg, in_and | and     | $16$    |
+| XOR64: `Xor64` + `Zero`             | in_xor, and | xor     | $0$     |
 
 | Rows/round                      | Lookups/round          | 
 |---------------------------------|------------------------|
-| $5\times5\times8=200$           | $5\times5\times16=400$ |                
+| $5\times5\times(1+3+2)=150$           | $5\times5\times16=400$ |                
 
 </center>
 
@@ -490,9 +491,12 @@ The round constants should be stored in expanded form, taking $24\times4$ witnes
 
 | Rows/round | Lookups/round | 
 |------------|---------------|
-| $2$        | $0$           |                
+| $1^*$      | $0$           |                
 
 </center>
+
+* This operation could be chained to the previous iteration of `x=0,y=0`, requiring one less `Zero` gate.
+
 
 ### Performance
 
@@ -502,7 +506,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Rows / block | Lookups / block | 
 |----------|--------------|-----------------|
-| This RFC | $24\times(50+25+25+50+75+200+2)=10,248$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
+| This RFC | $24\times(50+25+20+25+75+150+1)=8,304$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
 | Old PoC  | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |      
 
 </center>
@@ -530,7 +534,7 @@ This gate uses much longer lookup tables. Understand if the gains in the number 
 
 ## Rationale and alternatives
 
-The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations (among other advantages) such as XORs. The design presented above assumes a maximum column width of $14$, up to $7$ permutable cells, up to $12$ lookups per row, with $3$ custom gate types (`Xor64`, `Reset64`, `Rot64`), apart from `Generic` and a lookup table of $2^{16}$ entries. Nonetheless, we could envision other strategies using more complex gates, targetting steps of the permutation function in Keccak, but using considerably more permutable cells.
+The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations (among other advantages) such as XORs. The design presented above assumes a maximum column width of $14$, up to $8$ permutable cells, up to $12$ lookups per row, with $4$ custom gate types (`Xor64`, `Reset64`, `Rot64`, `Not64`), and a lookup table of $2^{16}$ entries. Nonetheless, we could envision other strategies using more complex gates, targetting steps of the permutation function in Keccak, but using considerably more permutable cells.
 
 ## Prior art
 
@@ -548,7 +552,6 @@ The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-g
 
 * Future work: 
     * support SHA3 (NIST variant of Keccak), different output lengths, and different state widths;
-    * improve chaining between gates
     * depending on our maximum number of lookups per row, consider gates with more complex functionality (full permutation steps, with more columns)
 
 
