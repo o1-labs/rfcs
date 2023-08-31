@@ -40,8 +40,6 @@ The [Appendix](#appendix) covers a thorough description of the Keccak algorithm 
 
 Here, we present the bitwise-sparse representation of bitstrings that will be used to obtain more efficient computations of boolean functions within our proof system. 
 
-The goal is to represent these operations in finite field algebra more efficiently than they were in the [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356a), for which we took a naive approach where small values occupied full field elements; wasting a lot of empty space. For instance, each row could only xor 16 bits at a time, whereas the field could fit 255 bits. 
-
 Given that simple binary operations are very costly within a SNARK, the new idea consists on arithmetizing boolean operations as much as possible, becoming more efficient with finite field algebra. We introduce the _bitwise-sparse representation_ of bitstrings for this goal.
 
 #### Expansion
@@ -221,13 +219,7 @@ The `word` witness will be wired to the rotation gate. Each `sparse[i]` will be 
 
 ##### AND
 
-In the current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae), AND was performed taking advantage of the following equivalence:
-
-$$ a + b = XOR(a, b) + 2\cdot AND(a, b)$$
-
-That means, adding two bits is equivalent to their exclusive OR, plus the carry term in the case both are $1$. This equation can be generalized for arbitrary length bitstrings to constraint the AND operation for 64-bit values, using generic operations (addition, multiplication by constant) and the above representation of XORs.
-With this definition, one can check that the AND of two expanded inputs corresponds to the terms in the $4n+1$-th positions. Meaning that $shift_1/2$ gives the expand value of the conjugation operation.
-
+Note that the AND of two expanded inputs corresponds to the terms in the $4n+1$-th positions. Meaning that $shift_1/2$ gives the expand value of the conjugation operation.
 The AND operation can be constrained making use of `Xor64` and `Reset64` explained above, with no further constraints. `Xor64` is used to obtain `left+right`, and then `Reset64` provides the expanded result of AND in the witnesses `reset1`.
 
 <center>
@@ -242,9 +234,9 @@ The AND operation can be constrained making use of `Xor64` and `Reset64` explain
 
 #### Negation
 
-The current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) gave support for two different mechanisms to prove negation of 64-bit words: one of them uses the `Generic` gate to perform a subtraction with the value $2^{64}-1$, whereas the other uses XOR with the $2^{64}-1$ word. The former was more efficient, as it could fit up to two full negations per row. The latter however, required 5 rows to perform one single NOT operation. The advantage of the latter though, was that the XOR approach implicitly checked that the input was at most 64 bits in length, due to decomposition rules. This meant, that the `Generic` approach could only be used together with other mechanisms to assert this. Altogether, using the efficient approach was safe in the Keccak usecase, because the input to the negation was wired to the output of another `xor64` gadget, which used `Xor16` inside. 
+The NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. The mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits.
 
-In this new approach, making sure that the input word is $<2^{64}$ is also important. Here, the NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. In this case, the mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits.
+> Because the inputs are wired to cells which are known to be 16-bits at most, it is guaranteed that the total length of $X$ is at most 64 bits, and is correctly split into quarters `x[i]`.
 
 Given $x$ in expanded form (meaning, not any sparse representation of $x$ but the initial one with zero intermediate bits) the $NOT_{64}(x)$ can be computed in quarters of 16 bits each (`x[0], x[1], x[2], x[3]`) as:
 
@@ -257,8 +249,6 @@ for i in [0..4) {
     constrain(0 == not16[i] - (0x1111111111111111 - x[i]) ) 
 }
 ```
-
-> Because the inputs are wired to cells which are known to be 16-bits at most, it is guaranteed that the total length of $X$ is at most 64 bits, and is correctly split into quarters `x[i]`.
 
 The following tables present candidate layouts to perform `Not64`. The first one is a specialized gate with 8 permutable cells, whereas the second one reuses doble generic gates with 6 permutable cells with 2 rows in total.
 
@@ -288,8 +278,11 @@ left0 | right0 | output0 | mul0 | const0 | left1 | right1 | output1 | mul1 | con
 
 > If we could fit the whole 256 expanded bits of the 64-bit word, we could simulate rotations by $x$ bits as a rotation by $4*x$ on the sparse-bit representation, so we could avoid unpacking altogether, which would buy us some additional efficiency gains.
 
-Rotations can be performed directly on the full 64-bit word. A similar algebraic approach as in the [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) is taken here. 
-This time, it will make use of an auxiliary function to compose four 16-bit quarters into full 64-bit terms as 
+Rotations of $b$ bits to the left will be performed directly on the full 64-bit word $X$ to obtain $Y$, using the algebraic observation that:
+
+$$X \cdot 2^b = Q \cdot 2^{64} + R \quad , \quad Y = Q + R$$ 
+
+Making use of an auxiliary function to compose four 16-bit quarters into full 64-bit terms as:
 
 $$compose \to quarter_0 + 2^{16}quarter_1 + 2^{32}quarter_2 + 2^{48}quarter_3$$
 
@@ -325,18 +318,18 @@ fn rot64() {
 }
 ```
 
+This gate would require 12 lookups per row, with 14 columns of which the first 2 are permutable. 
 <center>
 
-| `Rot64` | `0*`   | `1!` | `2!` | `3!` | `4!` | `5!` | `6!` | 
-| ------- | ------ | ---- | ---- | ---- | ---- | ---- | ---- | 
-| `Curr`  | input  | quo0 | quo1 | quo2 | quo3 | aux0 | aux1 | 
-| `Next`  | output | rem0 | rem1 | rem2 | rem3 | aux2 | aux3 |
+| `Rot64` | `0*`   | `1*`   | `2!` | `3!` | `4!` | `5!` | `6!` | `7!` | `8!` | `9!` | `10!` | `11!` | `12!` | `13!` | 
+| ------- | ------ | ------ | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ----- | ----- | ----- | ----- |
+| `Curr`  | input  | output | quo0 | quo1 | quo2 | quo3 | rem0 | rem1 | rem2 | rem3 | aux0  | aux1  | aux2  | aux3  |
 
 with one coefficient set to `2^{offset}`.
 
 </center>
 
-This gate requires 6 lookups per row. Following the two rows of rotation, we need 2 more rows to decompose the output into its 4 expanded quarters.
+Following the rows for rotation, we need 2 more rows to decompose the output into its 4 expanded quarters.
 
 
 ### Keccak gadget
@@ -353,10 +346,9 @@ After each round, the new state is xored with the previous state. That requires 
 
 <center>
 
-| Version  | Rows / round          | Lookups / round        |
-|----------|-----------------------|------------------------|
-| This RFC | $5\times5\times2=50$  | $0$                    |                
-| Old PoC  | $5\times5\times5=125$ | $5\times5\times16=400$ |                   
+| Rows / round          | Lookups / round        |
+|-----------------------|------------------------|
+| $5\times5\times2=50$  | $0$                    |                
 
 </center>
 
@@ -367,9 +359,8 @@ For each row `x in [0..5)` in the state `A`, compute the `C` state using 4 calls
 $$
 \begin{align*}
 C[x] := &\ A[x][0]\ \oplus\ A[x][1]\ \oplus\ A[x][2]\ \oplus\ A[x][3]\ \oplus\ A[x][4] \\
-\iff \\
-sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) \\
-+\ & expand(A[x][3]) + expand(A[x][4]) \\
+\iff
+sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) +\ & expand(A[x][3]) + expand(A[x][4]) \\
 \end{align*} 
 $$
 
@@ -382,10 +373,9 @@ $$
 | `Xor64` + `Zero` | a012, a3  | a0123  | 0       |
 | `Xor64` + `Zero` | a0123, a4 | c      | 0       |
 
-| Version  | Rows / round          | Lookups / round         | 
-|----------|-----------------------|-------------------------|
-| This RFC | $5\times4\times2=40$  | $0$                     |                
-| Old PoC  | $5\times4\times5=100$ | $5\times4\times16=320$  |                   
+| Rows / round          | Lookups / round         | 
+|-----------------------|-------------------------|
+| $5\times4\times2=40$  | $0$                     |                
 
 </center>
 
@@ -406,13 +396,12 @@ For this, the 5 possible inputs of the rotation need to be reset. The input of t
 | Gates / x=[0..5)   | Inputs      | Output  | Lookups | 
 |--------------------|-------------|---------|---------|
 | `Reset64` + `Zero` | sparse      | reset   | $16$    |
-| `Rot64` + `Zero`   | reset       | rot     | $12$    |              
+| `Rot64`            | reset       | rot     | $12$    |              
 | `Xor64` + `Zero`   | c[x-1], rot | d       | $0$     |                   
 
-| Version  | Rows/round        | Lookups/round                    | 
-|----------|-------------------|----------------------------------|
-| This RFC | $5\times6=30$     | $5\times28=140$                  |                
-| Old PoC  | $5\times(5+3)=40$ | $5\times(4\times4+4\times3)=140$ |                   
+| Rows/round        | Lookups/round                    | 
+|-------------------|----------------------------------|
+| $5\times5=25$     | $5\times28=140$                  |                
 
 </center>
 
@@ -432,10 +421,9 @@ $$
 |---------------------------|--------|---------|---------|             
 | `Xor64` + `Zero`          | a, d   | e       | $0$     |    
 
-| Version  | Rows/round            | Lookups/round          | 
-|----------|-----------------------|------------------------|
-| This RFC | $5\times5\times2=50$  | $0$                    |                
-| Old PoC  | $5\times5\times5=125$ | $5\times5\times16=400$ |      
+| Rows/round            | Lookups/round          | 
+|-----------------------|------------------------|
+| $5\times5\times2=50$  | $0$                    |                
 
 </center>
 
@@ -458,12 +446,11 @@ Recall that in order to perform the rotation operation, the state needs to be re
 | Gates / x=[0..5) y=[0..5) | Inputs | Output  | Lookups | 
 |---------------------------|--------|---------|---------|             
 | `Reset64` + `Zero`        |  e     | reset   | $16$    |    
-| `Rot64` + `Zero`          | reset  | b       | $12$     |    
+| `Rot64`                   | reset  | b       | $12$    |    
 
-| Version  | Rows/round            | Lookups/round          | 
-|----------|-----------------------|------------------------|
-| This RFC | $5\times5\times4=100$ | $5\times5\times28=700$ |                
-| Old PoC  | $5\times5\times3=75$  | $5\times5\times12=300$ |      
+| Rows/round           | Lookups/round          | 
+|----------------------|------------------------|
+| $5\times5\times3=75$ | $5\times5\times28=700$ |                
 
 </center>
 
@@ -487,10 +474,9 @@ $$
 | AND64: `Xor64` + `Zero` + `Reset64` + `Zero` | neg, in_and | and     | $16$    |
 | XOR64: `Xor64` + `Zero`                      | in_xor, and | xor     | $0$     |
 
-| Version  | Rows/round                      | Lookups/round          | 
-|----------|---------------------------------|------------------------|
-| This RFC | $5\times5\times8=200$           | $5\times5\times16=400$ |                
-| Old PoC  | $5\times5\times(1.5+5+5)=287.5$ | $5\times5\times32=800$ |      
+| Rows/round                      | Lookups/round          | 
+|---------------------------------|------------------------|
+| $5\times5\times8=200$           | $5\times5\times16=400$ |                
 
 </center>
 
@@ -510,10 +496,9 @@ The round constants should be stored in expanded form, taking $24\times4$ witnes
 |------------------|--------|--------|---------|             
 | `Xor64` + `Zero` | f, rc  | g      | $0$     |    
 
-| Version  | Rows/round | Lookups/round | 
-|----------|------------|---------------|
-| This RFC | $2$        | $0$           |                
-| Old PoC  | $5$        | $16$          |      
+| Rows/round | Lookups/round | 
+|------------|---------------|
+| $2$        | $0$           |                
 
 </center>
 
@@ -525,7 +510,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Rows / block | Lookups / block | 
 |----------|--------------|-----------------|
-| This RFC | $24\times(50+40+30+50+100+200+2)=11,328$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
+| This RFC | $24\times(50+40+25+50+75+200+2)=10,608$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
 | Old PoC  | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |      
 
 </center>
@@ -549,13 +534,11 @@ Counting the costs of the steps presented above, the following table summarizes 
 ## Drawbacks
 [drawbacks]: #drawbacks
 
-This gate uses many more columns than our usual version of Kimchi. We need to understand if this could have an unacceptable effect on the proof length in our usecase.
+This gate uses much longer lookup tables. Understand if the gains in the number of rows of Keccak compensate for the necessity of a $2^{16}$ lookup table.
 
 ## Rationale and alternatives
 
-The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations (among other advantages) such as XORs. 
-
-Given that this design makes use of 16-bit lookup tables (eating up $2^{16}$ rows), it could make sense to wonder if an approach using 8-bit XOR lookup tables could make sense. This would imply that each 64-bit XOR would need 8 lookups (as opposed to the 16 in the PoC). 
+The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations (among other advantages) such as XORs. The design presented above assumes a maximum column width of $13$, with $3$ custom gate types (`Xor64`, `Reset64`, `Rot64`), apart from `Generic` and a lookup table of $2^{16}$ entries. Nonetheless, we could envision other strategies using more complex gates, targetting steps of the permutation function in Keccak, but using considerably more permutable cells.
 
 ## Prior art
 
