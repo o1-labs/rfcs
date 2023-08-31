@@ -167,24 +167,14 @@ for i in [0..4) {
 }
 ```
 
-The following table presents a candidate layout for a `Xor64` gate using 12 columns, where all of them are permutable (marked as `*`), assuming each input (`left`, `right`) and output (`xor`) is given in sparse representation.
+The following table presents a candidate layout for a `Xor64` gate using 2 rows and 8 columns, where all of them are permutable (marked as `*`). It assumes that each input (`left`, `right`) and output (`xor`) is given in sparse representation. Its layout provides chainability of multiple `Xor64`, but also `Reset64`.
 
 <center>
 
-| `Xor64` | `0*`  | `1*`  | `2*`  | `3*`  | `4*`   | `5*`   | `6*`   | `7*`   | `8*` | `9*` | `10*` | `11*` |
-| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ---- | ---- | ----- | ----- |
-| `Curr`  | left0 | left1 | left2 | left3 | right0 | right1 | right2 | right3 | xor0 | xor1 | xor2  | xor3  | 
-
-</center>
-
-An alternative using just 6 permutable columns would instead use 2 rows instead.
-
-<center>
-
-| Gate    | `0*`  | `1*`  | `2*`   | `3*`   | `4*` | `5*` |
-| ------- | ----- | ----- | ------ | ------ | ---- | ---- |
-| `Xor64` | left0 | left1 | right0 | right1 | xor0 | xor1 | 
-| `Zero`  | left2 | left3 | right2 | right3 | xor2 | xor3 |
+| Gate    | `0*`  | `1*`  | `2*`  | `3*`  | `4*`   | `5*`   | `6*`   | `7*`   |
+| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ |
+| `Xor64` | left0 | left1 | left2 | left3 | right0 | right1 | right2 | right3 | 
+| `Zero`  | xor0  | xor1  | xor2  | xor3  |
 
 </center>
 
@@ -352,6 +342,8 @@ After each round, the new state is xored with the previous state. That requires 
 
 </center>
 
+Since the output of each xored cell ($A$) is later used in the last part of theta (computing $E$), we cannot chain these initial XORs with those in the first part of theta (computing $C$).
+
 #### Step theta
 
 For each row `x in [0..5)` in the state `A`, compute the `C` state using 4 calls to the `Xor64` gate:
@@ -368,14 +360,14 @@ $$
 
 | Gates / x=[0..5) | Inputs    | Output | Lookups | 
 |------------------|-----------|--------|---------|
-| `Xor64` + `Zero` | a0, a1    | a01    | 0       |              
-| `Xor64` + `Zero` | a01, a2   | a012   | 0       |                   
-| `Xor64` + `Zero` | a012, a3  | a0123  | 0       |
+| `Xor64`          | a0, a1    | a01    | 0       |              
+| `Xor64`          | a01, a2   | a012   | 0       |                   
+| `Xor64`          | a012, a3  | a0123  | 0       |
 | `Xor64` + `Zero` | a0123, a4 | c      | 0       |
 
-| Rows / round          | Lookups / round         | 
-|-----------------------|-------------------------|
-| $5\times4\times2=40$  | $0$                     |                
+| Rows / round   | Lookups / round | 
+|----------------|-----------------|
+| $5\times5=25$  | $0$             |                
 
 </center>
 
@@ -510,7 +502,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Rows / block | Lookups / block | 
 |----------|--------------|-----------------|
-| This RFC | $24\times(50+40+25+50+75+200+2)=10,608$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
+| This RFC | $24\times(50+25+25+50+75+200+2)=10,248$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
 | Old PoC  | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |      
 
 </center>
@@ -538,13 +530,11 @@ This gate uses much longer lookup tables. Understand if the gains in the number 
 
 ## Rationale and alternatives
 
-The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations (among other advantages) such as XORs. The design presented above assumes a maximum column width of $13$, with $3$ custom gate types (`Xor64`, `Reset64`, `Rot64`), apart from `Generic` and a lookup table of $2^{16}$ entries. Nonetheless, we could envision other strategies using more complex gates, targetting steps of the permutation function in Keccak, but using considerably more permutable cells.
+The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations (among other advantages) such as XORs. The design presented above assumes a maximum column width of $14$, up to $7$ permutable cells, up to $12$ lookups per row, with $3$ custom gate types (`Xor64`, `Reset64`, `Rot64`), apart from `Generic` and a lookup table of $2^{16}$ entries. Nonetheless, we could envision other strategies using more complex gates, targetting steps of the permutation function in Keccak, but using considerably more permutable cells.
 
 ## Prior art
 
-The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) was introduced to support Ethereum primitives in MINA zkApps. Due to this blockchain's design, the gadget needed to be compatible with Kimchi: a Plonk-like SNARK instantiated with Pasta curves for Pickles recursion and IPA commitents. This means that the design choices for that gadget were determined by some features of this proof system, such as: 15-column width witness, 7 permutable witness cells per row, access to the current and next rows, up to 4 lookups per row, access to 4-bit XOR lookup table, and less than $2^{16}$ rows.
-
-With these constraints in mind, the Keccak PoC extensively used a chainable custom gate called `Xor16`, which performs one 16-bit XOR per row. In particular, xoring 64-bit words (as used in Ethereum), required 4 such gates followed by 1 final `Zero` row. As a result, proving the Keccak hash of a message of 1 block length (up to 1080 bits) took ~15k rows.
+The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) was introduced to support Ethereum primitives in MINA zkApps. Due to this blockchain's design, the gadget needed to be compatible with Kimchi: a Plonk-like SNARK instantiated with Pasta curves for Pickles recursion and IPA commitents. This means that the design choices for that gadget were determined by some features of this proof system, such as: 15-column width witness, 7 permutable witness cells per row, access to the current and next rows, up to 4 lookups per row, access to 4-bit XOR lookup table, and less than $2^{16}$ rows. As a result, proving the Keccak hash of a message of 1 block length (up to 1080 bits) took ~15k rows.
 
 ## Unresolved questions
 
