@@ -195,6 +195,10 @@ Then, the rotation of `offset` bits to the left can be constrained as:
 
 ### Keccak chip
 
+Support for padding shall be provided. In the Keccak PoC, this step takes place at the Snarky layer. It checks that the correct amount of bits in the $10*1$ rule are added until reaching a multiple of 1088 bits, and then adds 512 more zero bits to each block to form a full state.
+
+If the input is not previously expanded, the next step is to expand all 25 words. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through the lookup table containing all $2^{16}$ entries. This step would require $4\times25=100$ lookups.
+
 The support for the Keccak hash function will require the following gate types:
 
 - `StateXOR`: performs XOR of two $5\times5$ states
@@ -206,14 +210,9 @@ The high-level layout of the gates follows:
 | ---------- | --------- | ----------- | ----------- |
 | `StateXOR` | old_state |  new_state  |  xor_state  |
 
-
-| Columns:      |  |  | | | 
-| ------------- | --------- | ----------- | ----------- | - |
-| `KeccakRound` | theta_step |  pirho_step  |  chi_step | iota_step |
-|               |
-|               | state_a |  state_c  |  chi_step | iota_step |
-
-
+| Columns:      |            |              |             |           | 
+| ------------- | ---------- | ------------ | ----------- | --------- |
+| `KeccakRound` | theta_step |  pirho_step  |  chi_step   | iota_step |
 
 #### Step theta
 
@@ -305,126 +304,6 @@ for i in [0..4)
 
 #### Step pi-rho
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
----------------
-
-### Keccak gadget
-
-Support for padding shall be provided. In the Keccak PoC, this step takes place at the Snarky layer. It checks that the correct amount of bits in the $10*1$ rule are added until reaching a multiple of 1088 bits, and then adds 512 more zero bits to each block to form a full state.
-
-If the input is not previously expanded, the next step is to expand all 25 words. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through the lookup table containing all $2^{16}$ entries. This step would require $4\times25=100$ lookups.
-
-> The following subsections provide indications to implement each step of the permutation round. Recall that this will be executed 24 times in our configuration of Keccak.
-
-> Note that wiring cells which contain the same variable is key for soundness of the constructions.
-
-After each round, the new state is xored with the previous state. That requires 25 64-bit XORs. 
-
-<center>
-
-| Rows / round          | Lookups / round        |
-|-----------------------|------------------------|
-| $5\times5\times2=50$  | $0$                    |                
-
-</center>
-
-Since the output of each xored cell ($A$) is later used in the last part of theta (computing $E$), we cannot chain these initial XORs with those in the first part of theta (computing $C$).
-
-#### Step theta
-
-For each row `x in [0..5)` in the state `A`, compute the `C` state using 4 calls to the `Xor64` gate:
-
-$$
-\begin{align*}
-C[x] := &\ A[x][0]\ \oplus\ A[x][1]\ \oplus\ A[x][2]\ \oplus\ A[x][3]\ \oplus\ A[x][4] \\
-\iff
-sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) +\ & expand(A[x][3]) + expand(A[x][4]) \\
-\end{align*} 
-$$
-
-<center>
-
-| Gates / x=[0..5) | Inputs    | Output | Lookups | 
-|------------------|-----------|--------|---------|
-| `Xor64`          | a0, a1    | a01    | 0       |              
-| `Xor64`          | a01, a2   | a012   | 0       |                   
-| `Xor64`          | a012, a3  | a0123  | 0       |
-| `Xor64` + `Zero` | a0123, a4 | c      | 0       |
-
-| Rows / round   | Lookups / round | 
-|----------------|-----------------|
-| $5\times5=25$  | $0$             |                
-
-</center>
-
-Similarly, for each row `x in [0..5)`, perform the following operation splitting into quarters
-
-$$
-\begin{align*}
-D[x] := &\ C[x-1]\ \oplus\ ROT(C[x+1],1) \\
-\iff \\
-sparse(D[x]) := &\ expand(C[x-1]) + ROT(expand(C[x+1]), 1)\\
-\end{align*} 
-$$
-
-For this, the 5 possible inputs of the rotation need to be reset. The input of the XOR will use the reset version as well, to reset any previous round auxiliary bits.
-
-<center>
-
-| Gates / x=[0..5)   | Inputs      | Output  | Lookups | 
-|--------------------|-------------|---------|---------|
-| `Reset64` + `Zero` | sparse      | reset   | $16$    |
-| `Rot64`            | reset       | rot     | $12$    |              
-| `Xor64` + chain    | c[x-1], rot | d       | $0$     |                   
-
-| Rows/round        | Lookups/round                    | 
-|-------------------|----------------------------------|
-| $5\times4=20$     | $5\times28=140$                  |                
-
-</center>
-
-Next, for each row `x in [0..5)` and column `y in [0..5)`, compute (with no need of resetting `D`):
-
-$$
-\begin{align*}
-E[x][y] := &\ A[x][y]\ \oplus\ D[x] \\
-\iff \\
-sparse(E[x][y]) := &\ sparse(A[x][y]) + sparse(D[x])\\
-\end{align*} 
-$$
-
-<center>
-
-| Gates / x=[0..5) y=[0..5) | Inputs | Output  | Lookups | 
-|---------------------------|--------|---------|---------|             
-| `Xor64` + chain           | a, d   | e       | $0$     |    
-
-| Rows/round            | Lookups/round          | 
-|-----------------------|------------------------|
-| $5\times5\times1=25$  | $0$                    |                
-
-Note that each `E[x][y]` will be chained to the `Reset64` of the next step.
-
-</center>
-
-#### Step pi-rho
-
 For each row `x in [0..5)` and column `y in [0..5)`, perform (into quarters):
 
 $$
@@ -435,20 +314,29 @@ expand(B[y][2x+3y]) := &\ ROT(expand(E[x][y]), OFF[x][y])
 \end{align*} 
 $$
 
-Recall that in order to perform the rotation operation, the state needs to be reset.
+| Columns: | [440...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) | [1440...1540) | 
+| -------- | ----------- | ----------- | ------------ | ------------- | ------------- | ------------- | ----- | ---- |
+| PiRho    | reset_e     | dense_e     | quotient_e   | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e | state_b |
 
-<center>
+Recall that in order to perform the rotation operation, the state needs to be reset. This step can be carried out with the following $125$ constraints and $800 (=400+100+100+100+100)$ lookups:
 
-| Gates / x=[0..5) y=[0..5) | Inputs | Output  | Lookups | 
-|---------------------------|--------|---------|---------|             
-| `Reset64` + `Zero`        |  e     | reset   | $16$    |    
-| `Rot64`                   | reset  | b       | $12$    |    
+```rust
+for x in [0...5)
+    for y in [0...5)
+        constrain( state_e[i] - (reset0_e(x,y)[i] + 2*reset1_e(x,y)[i] + 4*reset2_e(x,y)[i] + 8*reset3_e(x,y)[i] ) )
+        let word(x,y)      = dense_e(x,y)[0]     + 2^16*dense_e(x,y)[1]     + 2^32*dense_e(x,y)[2]     + 2^48*dense_e(x,y)[3]
+        let quotient(x,y)  = quotient_e(x,y)[0]  + 2^16*quotient_e(x,y)[1]  + 2^32*quotient_e(x,y)[2]  + 2^48*quotient_e(x,y)[3]
+        let remainder(x,y) = remainder_e(x,y)[0] + 2^16*remainder_e(x,y)[1] + 2^32*remainder_e(x,y)[2] + 2^48*remainder_e(x,y)[3]
+        let bound(x,y)     = bound_e(x,y)[0]     + 2^16*bound_e(x,y)[1]     + 2^32*bound_e(x,y)[2]     + 2^48*bound_e(x,y)[3]
+        let rotated(x,y)   = dense_rot_e(x,y)[0] + 2^16*dense_rot_e(x)[1] + 2^32*dense_rot_e(x,y)[2] + 2^48*dense_rot_e(x,y)[3]
+        constrain( word(x,y) * 2^(OFF(x,y)) - ( quotient(x) * 2^64 + remainder(x)) )
+        constrain( rotated(x,y) - (quotient(x,y) + remainder(x)) )
+        constrain( bound(x,y) - (quotient(x,y) + 2^64 - 2^(OFF(x,y)) )
+        constrain( state_b(y,2x+3y) - expand_rot_e(x,y) )
+```
 
-| Rows/round           | Lookups/round          | 
-|----------------------|------------------------|
-| $5\times5\times3=75$ | $5\times5\times28=700$ |                
+Note that the value `OFF(x,y)` will be a different constant for each index, according to the rotation table of Keccak.
 
-</center>
 
 #### Step chi
 
@@ -462,19 +350,24 @@ F[x][y] := &\ B[x][y] \oplus (\ \neg B[x+1][y] \wedge \ B[x+2][y]) \\
 \end{align*} 
 $$
 
-<center> 
 
-| Gates / x=[0..5) y=[0..5)           | Inputs      | Output  | Lookups | 
-|-------------------------------------|-------------|---------|---------|
-| NOT64: `Not64`                      | in_not      | neg     | $0$     |
-| AND64: `Xor64` + `Reset64` + `Zero` | neg, in_and | and     | $16$    |
-| XOR64: `Xor64` + `Zero`             | in_xor, and | xor     | $0$     |
+| Columns: | [1540...1940) | [1940...2340) | [2340...2440) |
+| -------- | ------------- | ------------- | ------------- | 
+| PiRho    | reset_b       | reset_sum     | state_f       |
 
-| Rows/round                      | Lookups/round          | 
-|---------------------------------|------------------------|
-| $5\times5\times(1+3+2)=150$           | $5\times5\times16=400$ |                
 
-</center>
+This is constrained with the following $200$ constraints and $800$ lookups
+
+```rust
+for i in [0..4)
+    for x in [0..5)
+        for y in [0..5)
+            let not(x,y)[i] = 0x1111111111111111 - reset0_b(x+1,y)[i]
+            let sum(x,y)[i] = not(x+1,y)[i] + reset1_b(x+2,y)[i]
+            constrain( sum[i] - (reset0_sum(x,y)[i] + 2*reset1_sum(x,y)[i] + 4*reset2_sum(x,y)[i] + 8*reset3_sum(x,y)[i] ) )
+            let and(x,y)[i] = reset1_sum(x,y)[i] 
+            constrain( state_f(x,y)[i] - (reset0_b(x,y)[i] + and(x,y)[i]) )
+```
 
 #### Step iota
 
@@ -484,22 +377,18 @@ $$
 G[0][0] \oplus RC[r] \iff sparse(G[0][0]) + expand(RC[r])
 $$
 
-The round constants should be stored in expanded form, taking $24\times4$ witness cells as public inputs. 
+The round constants should be stored in expanded form, taking $24\times4$ witness cells as public inputs. This only requires $4$ constraints and no lookups.
 
-<center>
+```rust
+for i in [0..4)
+    constrain( state_g(0,0)[i] - (state_f(0,0)[i] + expand(RC[r]))[i] )
+```
 
-| Gates            | Inputs | Output | Lookups | 
-|------------------|--------|--------|---------|             
-| `Xor64` + `Zero` | f, rc  | g      | $0$     |    
+| Columns: | [2440...2441) |
+| -------- | ------------- | 
+| Iota     | g_0_0         | 
 
-| Rows/round | Lookups/round | 
-|------------|---------------|
-| $1^*$      | $0$           |                
-
-</center>
-
-* This operation could be chained to the previous iteration of `x=0,y=0`, requiring one less `Zero` gate.
-
+After this last step of the permutation function, `KeccakRound` will store state `G` in the first $100$ cells of the next row, to be chained with the upcoming `StateXOR`. This requires $100$ copy constraints. Recall that except for `g_0_0`, the rest of `G` is `state_f`.
 
 ### Performance
 
@@ -507,12 +396,15 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 <center>
 
-| Version  | Rows / block | Lookups / block | 
-|----------|--------------|-----------------|
-| This RFC | $24\times(50+25+20+25+75+150+1)=8,304$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
-| Old PoC  | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |      
+| Version  | Columns | Rows / block | Lookups / block | 
+|----------|---------|--------------|-----------------|
+| This RFC | 2441   | $24\times2=48$ | $24\times(112+800+800)=41,088$ |                
+| Old RFC | 14       | $24\times(50+25+20+25+75+150+1)=8,304$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
+| Old PoC  | 15      | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |      
 
 </center>
+
+> Possible miscount in the lookups
 
 ## Test plan and functional requirements
 
@@ -537,8 +429,6 @@ This gate uses much longer lookup tables. Understand if the gains in the number 
 
 ## Rationale and alternatives
 
-The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations (among other advantages) such as XORs. The design presented above assumes a maximum column width of $14$, up to $8$ permutable cells, up to $12$ lookups per row, with $4$ custom gate types (`Xor64`, `Reset64`, `Rot64`, `Not64`), and a lookup table of $2^{16}$ entries. Nonetheless, we could envision other strategies using more complex gates, targetting steps of the permutation function in Keccak, but using considerably more permutable cells.
-
 ## Prior art
 
 The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) was introduced to support Ethereum primitives in MINA zkApps. Due to this blockchain's design, the gadget needed to be compatible with Kimchi: a Plonk-like SNARK instantiated with Pasta curves for Pickles recursion and IPA commitents. This means that the design choices for that gadget were determined by some features of this proof system, such as: 15-column width witness, 7 permutable witness cells per row, access to the current and next rows, up to 4 lookups per row, access to 4-bit XOR lookup table, and less than $2^{16}$ rows. As a result, proving the Keccak hash of a message of 1 block length (up to 1080 bits) took ~15k rows.
@@ -546,7 +436,6 @@ The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-g
 ## Unresolved questions
 
 * During the implementation of this RFC:
-    * try to use 12 permutable columns, to have `Xor64` always work in one single row.
     * obtain exact measurements of the number of rows, columns, constraints, lookups, seconds, required per block hash;
     * find out if the round constants should be hardcoded (takes memory space) or generated (takes computation resources);
     * decide if the rotation offsets will be directly stored modulo 64 or not;
@@ -555,7 +444,6 @@ The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-g
 
 * Future work: 
     * support SHA3 (NIST variant of Keccak), different output lengths, and different state widths;
-    * depending on our maximum number of lookups per row, consider gates with more complex functionality (full permutation steps, with more columns)
 
 
 ## Relevant links
