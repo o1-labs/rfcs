@@ -543,7 +543,7 @@ The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-g
 ## Unresolved questions
 
 * During the implementation of this RFC:
-    * make sure if 3 bits for expansion are required (16 boolean operations) or 2 is enough (8 ops) which would lead to 12-bit lookups instead;
+    * try to use 12 permutable columns, to have `Xor64` always work in one single row.
     * obtain exact measurements of the number of rows, columns, constraints, lookups, seconds, required per block hash;
     * find out if the round constants should be hardcoded (takes memory space) or generated (takes computation resources);
     * decide if the rotation offsets will be directly stored modulo 64 or not;
