@@ -52,28 +52,13 @@ The reason behind the choice of three empty intermediate bits in the sparse repr
 
 > NOTE: the above means that after each step of the permutation, the expanded representation needs to be contracted, discard auxiliary bits, and expand again from scratch before starting the next step to ensure completeness of the encoding.
 
-Even though in each field element of ~254 bits long, one could fit up to 63 real bits with this encoding, each witness value will only store 16 such real bits. Instead, the expansion of the full 64 bit words could be represented by composition of each of the four 16-bit parts. But this will not be computed in the circuit, since the expansion would not fit entirely in the field. The way to perform this mapping is through a 16-bit lookup table (of $2^{16}$ entries, larger than that would be too costly). We call this the **sparse** lookup table. 
+Even though in each field element of ~254 bits long, one could fit up to 63 real bits with this encoding, each witness value will only store 16 such real bits. Instead, the expansion of the full 64 bit words could be represented by composition of each of the four 16-bit parts. But this will not be computed in the circuit, since the expansion would not fit entirely in the field. The way to perform this mapping is through a 16-bit lookup table (of $2^{16}$ entries, larger than that would be too costly).
 
 Let $sparse(X)$ refer to a representation of $X$, where only the indices in the $4i$-th positions correspond to real bits, and the intermediate indices can contain auxiliary information. Connecting to the above, after performing a series of boolean operations to the $expand(X)$ one can obtain some $sparse(X)$, but both encode the same $X$. Concretely,
 
 $$\forall X\in\{b_i\}^\ell:\quad X \equiv \sum_{0}^{\ell-1} 2^i \cdot sparse(X)_{4i} $$
 
-Given that the new field size is 254 bits, the whole 64-bit word expansion cannot fit in one single witness element. Instead, they will be **split** into quarters of 64 bits each (corresponding to real 16 bits each), following this notation:
 
-$$\forall i \in \{0, 3\}:\quad split_i(sparse(X)) := sparse(X_{16i}^{16i+15})$$
-
-Meaning that $\forall X\in(0,2^{64})$:
-
-$$ 
-\begin{align*}
-sparse(X) \equiv &split_0(sparse(X)) + 2^{64} \cdot split_1(sparse(X)) + \\
-& 2^{128}\cdot split_2 (sparse(X)) + 2^{192} \cdot split_3(sparse(X))
-\end{align*}
-$$
-
-Note that the sparse representation of full 64-bit words will never be computed for that reason. Instead, it will be compressed back again into their relevant bits form, resetting the intermediate bits between steps.
-
-In the implementation, each split is assumed to be one entry of arrays of length 4, so the representation of $split_i(X)$ will be `x[i]`. If the input in question is a 64-bit word, then each entry will contain 16 bits. If the input is in sparse representation, then each entry will contain 64 sparse bits.
 
 #### Compression
 
@@ -103,7 +88,7 @@ $$
 
 In order to check the real bits behind a sparse representation, one can perform a lookup with the result of the $shift_0$. Note that this table is equivalent to the sparse table presented above. Before, on input a 16-bit word (equivalent to the row index), the table contained the expanded representation. Here instead, on input the expansion (because $shift_0$ has intermediate bits set to zero), one can check the word. 
 
-The correctness of the remaining shifts $(i\in\{1,3\})$ should also be checked. For this, the witness value $aux_i := shift_i/2^i$ will be stored in the witness in such a way that each $aux_i$ can be looked up reusing the table for $shift_0$, and then the following constraint should hold:
+The correctness of the remaining shifts $(i\in\{1,3\})$ should also be checked. For this, the witness value $reset_i := shift_i/2^i$ will be stored in the witness in such a way that each $reset_i$ can be looked up reusing the table for $shift_0$, and then the following constraint should hold:
 
 $$
 \begin{align*}
@@ -111,25 +96,6 @@ $$
 & + 4 \cdot aux_2(sparse(X)) + 8 \cdot aux_3(sparse(X))\ )
 \end{align*}
 $$
-
->Checking the correct form of the shifts should be done with a single-column lookup table with just the expanded values for the check, since the non-sparse pre-image is non-relevant here.
-
-### Lookups
-
-<center>
-
-| Expansion of 16-bits (in binary) |
-| ------------------------------- |
-
-| row | expansion of each 16-bit input                                    |
-| --- | ----------------------------------------------------------------- |
-| $0$ |`0000000000000000000000000000000000000000000000000000000000000000` |
-|     | ...                                                               |
-| $i$ |`000` $b_{15}$ `000` $b_{14}$ `000` $b_{13}$ `000` $b_{12}$ `000` $b_{11}$ `000` $b_{10}$ `000` $b_{9}$ `000` $b_{8}$ `000` $b_{7}$ `000` $b_{6}$ `000` $b_{5}$ `000` $b_{4}$ `000` $b_{3}$ `000` $b_{2}$ `000` $b_{1}$ `000` $b_{0}$ |
-|     | ...                                                               |
-| $2^{16}-1$ | `0001000100010001000100010001000100010001000100010001000100010001` |
-
-</center>
 
 ### Basic toolbox
 
@@ -211,9 +177,9 @@ The high-level layout of the gates follows:
 | ---------- | --------- | ----------- | ----------- |
 | `StateXOR` | old_state |  new_state  |  xor_state  |
 
-| Columns:      |            |              |             |           | 
-| ------------- | ---------- | ------------ | ----------- | --------- |
-| `KeccakRound` | theta_step |  pirho_step  |  chi_step   | iota_step |
+| Columns:      | [0...440)  | [440...1540) | [1540...2440) | 2440      | 
+| ------------- | ---------- | ------------ | ------------- | --------- |
+| `KeccakRound` | theta_step | pirho_step   |  chi_step     | iota_step |
 
 #### Step theta
 
@@ -277,7 +243,7 @@ for x in [0..5)
         constrain( state_d(x)[i] - (reset0_c(x-1)[i] + expand_rot_c(x+1)[1]) )
 ```
 
-and $112(=80+20+12)$ lookups.
+and $180$ lookups.
 
 
 Next, for each row `x in [0..5)` and column `y in [0..5)`, compute (with no need of resetting `D`):
@@ -391,6 +357,50 @@ for i in [0..4)
 
 After this last step of the permutation function, `KeccakRound` will store state `G` in the first $100$ cells of the next row, to be chained with the upcoming `StateXOR`. This requires $100$ copy constraints. Recall that except for `g_0_0`, the rest of `G` is `state_f`.
 
+
+### Lookups
+
+The design uses a 2-column lookup table containing the elements from $0$ to $2^{16}-1$, and their expansion. As such, it can be used to check that the right expansion was used for a given chunk of 16 bits. But it also can be used to check the correct form of the shifts, looking only at the second column (since the non-sparse pre-image is non-relevant for $reset_i$). 
+
+Doing the latter can be achieved in three ways:
+
+- Having two tables, where the second one only contains the expanded column. This implies having twice as many rows.
+- Having the non-sparse value in the witness to check the shifts fully in the table.
+- Checking the value is in the table, modulo $2^{64}$. Requires some extra logic in the lookups interface. 
+
+In order to check the first column of the table, it can be done shifting the content right by $64$ positions.
+
+<center>
+
+| row | expansion of each 16-bit input                                    |
+| --- | ----------------------------------------------------------------- |
+| $0$ |`0000000000000000000000000000000000000000000000000000000000000000` |
+|     | ...                                                               |
+| $i$ |`000` $b_{15}$ `000` $b_{14}$ `000` $b_{13}$ `000` $b_{12}$ `000` $b_{11}$ `000` $b_{10}$ `000` $b_{9}$ `000` $b_{8}$ `000` $b_{7}$ `000` $b_{6}$ `000` $b_{5}$ `000` $b_{4}$ `000` $b_{3}$ `000` $b_{2}$ `000` $b_{1}$ `000` $b_{0}$ |
+|     | ...                                                               |
+| $2^{16}-1$ | `0001000100010001000100010001000100010001000100010001000100010001` |
+
+</center>
+
+The `KeccakRound` gate performs $1,780$ lookups to the table. They follow this new pattern, where $X_j$ means that the $j$-th chunk of lookups is performed, consisting of $X$ lookups to the table. When $(X_i^j)$ is used, then those are not extra lookups, but they are paired to other lookups to the other column with same indicator $j$. 
+
+
+| Columns | [120...140) | [140...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320)
+| ------- | --------- | ----------- | - | - | - | - | - | - |
+| `Curr`  | $20_2^1$   |  $60_2^2$    | $(20_1^1)$ | $20_1^3$ | $20_1^4$ | $20_1^5$ | $(20_1^6)$ | $20_2^6$ |
+| Theta  | reset0_c | reseti_c | dense_c | quotient_c | remainder_c | bound_c | dense_rot_c | expand_rot_c | 
+
+| Columns | [440...540) | [540...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) |
+| -------- | ----------- | ----------- | ------------ | ------------- | ------------- | ------------- | ----- | ---- | 
+| `Curr` | $100_2^7$ | $300_8$ | $(100_1^7)$ | $100_1^9$ | $100_1^{10}$ | $100_1^{11}$ | $(20_1^{12})$ | $20_2^{12}$ |
+| PiRho    | reset0_e | reseti_e   | dense_e     | quotient_e   | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e |
+
+| Columns: | [1540...1940) | [1940...2340) | 
+| -------- | ------------- | ------------- |
+| `Curr`   | $400^{13}$    | $400^{14}$    |
+| PiRho    | reset_b       | reset_sum     |
+
+
 ### Performance
 
 Counting the costs of the steps presented above, the following table summarizes the performance of the proposed design, for each of the 24 rounds of the permutation function, in each design of the Keccak gadget.
@@ -399,7 +409,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| This RFC | 2441   | $24\times2=48$ | $24\times(112+800+800)=41,088$ |    
+| This RFC | 2441   | $24\times2=48$ | $24\times(180+800+800)=42,720$ |    
 
 </center>
 
@@ -432,7 +442,7 @@ Other configurations have been considered for the new Keccak gadgets, using the 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| Alternative | 14   | $24\times(50+25+20+25+75+150+1)=8,304$ | $24\times(112+800+800)=41,088$ |      
+| Alternative | 14   | $24\times(50+25+20+25+75+150+1)=8,304$ | $24\times(180+800+800)=42,720$ |      
 
 These gates would provide some level of chainability between outputs of current row and inputs for next row. In particular, the layout of the alternative gates would be the following:
 
