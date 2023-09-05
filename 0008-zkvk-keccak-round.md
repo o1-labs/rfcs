@@ -1,6 +1,6 @@
 # zkVM-Optimized Keccak
 
-This RFC presents a design of a Kimchi chip for the Keccak hash function. It is optimized for the zkVM project, making use of our [generalized expression framework](./0007-generalized-expression-framework.md), and assuming a variant of Kimchi using a Nova-styled folding over BN128 and KZG commitments.
+This RFC presents a design of a Kimchi chip for the Keccak hash function. It is optimized for the zkVM project, making use of our [generalized expression framework](./0007-generalized-expression-framework.md), and assuming a variant of Kimchi using a Nova-styled folding over BN128 and KZG commitments. The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations.
 
 ## Summary
 
@@ -12,18 +12,17 @@ One component of the Optimism stack system is the pre-image data oracle which is
 
 Having a dedicated chip inside Kimchi to prove correct computation of Keccak hashes from pre-image data (blocks) will result in a more efficient design of the MIPS zkVM as a whole, meeting the performance goals of the [OP RFP](https://github.com/ethereum-optimism/ecosystem-contributions/issues/61#issuecomment-1611488039).
 
-As indicated in the [Keccak PRD](https://www.notion.so/minaprotocol/PRD-Optimized-keccak256-hashing-for-MIPS-VM-33c142f38467464a9b7c21184544dd1d) any member of the OP ecosystem who wanted to prove the state transition between two blocks of an OP stack chain executing the Cannon program in the O(1) MIPS zkVM should complete within 2 days (before optimizations) to meet the latency estimates from the RFP. 
+As indicated in the PRD, any member of the OP ecosystem who wanted to prove the state transition between two blocks of an OP stack chain executing the Cannon program in the O(1) MIPS zkVM should complete within 2 days (before optimizations) to meet the latency estimates from the RFP. 
 
-The ultimate objective is to improve the performance of our current Keccak gadget introduced during the Ethereum primitives epic, to get over one hash per second. This is one of the [OKRs of H2 2023](https://www.notion.so/minaprotocol/8dfc798e277447ea860e747b026d9698?v=5daef538906d44db9d12e2e0fbbd4665). 
-The new design would be a success if the number of hashes per second is faster than that of the current [SnarkyML Keccak PoC](https://github.com/MinaProtocol/mina/pull/13196). 
+The ultimate objective is to improve the performance of our current Keccak gadget, to get over one hash per second. The new design would be a success if the number of hashes per second is faster than that of the current [SnarkyML Keccak PoC](https://github.com/MinaProtocol/mina/pull/13196). 
 
 The optimizations in the proposed design rely on a more efficient representation of the `Xor64` operation (i.e. a gadget for 64-bit XOR). Targetting this boolean operation makes sense, as this is the most used component inside the permutation function of Keccak. In particular, the main source of overhead in the current design corresponds to this operation.
 
 ## Detailed design
 
-The Keccak hash function (later standardized by NIST as SHA3, with small variations) is known to be a quantum-safe, and very efficient hash to compute. Nonethelss, its intensive use of boolean operations which are costly in finite field arithmetic makes it a SNARK-unfriendly function. In this section, we propose an optimized design for our proof system that should outperform our current [Keccak PoC](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) to become usable in the zkVM for the OP stack.
+The Keccak hash function (later standardized by NIST as SHA3, with small variations) is known to be a quantum-safe, and very efficient hash to compute. Nonethelss, its intensive use of boolean operations which are costly in finite field arithmetic makes it a SNARK-unfriendly function. In this section, we propose an optimized design for our proof system that should outperform our current Keccak to become usable in the zkVM for the OP stack.
 
-The [Appendix](#appendix) covers a thorough description of the Keccak algorithm and specifies the required parameters needed for compatibility in our usecase. The reader shall skip this section to find the details of the actual proposal in this RFC.The configuration of Keccak must be the same as that of the Ethereum EVM, meaning specifically:
+The [Appendix](#appendix) covers a thorough description of the Keccak algorithm and specifies the required parameters needed for compatibility in our use case. The reader shall skip this section to find the details of the actual proposal in this RFC.The configuration of Keccak must be the same as that of the Ethereum EVM, meaning specifically:
 
 > * [pre-NIST variant of Keccak](https://keccak.team/files/Keccak-reference-3.0.pdf) (uses the $10^*1$ padding rule)
 > * variable input **byte** length (not any bit length)
@@ -47,7 +46,7 @@ With this notation, input bitstrings are expanded inserting three `0` bits in be
 
 $$\forall X \in \{b_i\}^\ell, b\in\{0,1\}: expand(X) \to 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0$$
 
-The reason behind the choice of three empty intermediate bits in the sparse representation follows from the concrete usecase of Keccak where no more than $2^4-1$ consecutive boolean operations are performed, and thus carries cannot overwrite the content of the bits to the leftmost bits.
+The reason behind the choice of three empty intermediate bits in the sparse representation follows from the concrete use case of Keccak where no more than $2^4-1$ consecutive boolean operations are performed, and thus carries cannot overwrite the content of the bits to the leftmost bits.
 
 > NOTE: the above means that after each step of the permutation, the expanded representation needs to be contracted, discard auxiliary bits, and expand again from scratch before starting the next step to ensure completeness of the encoding.
 
@@ -124,9 +123,9 @@ $$
 | --- | ----------------------------------------------------------------- |
 | $0$ |`0000000000000000000000000000000000000000000000000000000000000000` |
 |     | ...                                                               |
-| $i$ |`000`$b_{15}$`000`$b_{14}$`000`$b_{13}$`000`$b_{12}$`000`$b_{11}$`000`$b_{10}$`000`$b_{9}$`000`$b_{8}$`000`$b_{7}$`000`$b_{6}$`000`$b_{5}$`000`$b_{4}$`000`$b_{3}$`000`$b_{2}$`000`$b_{1}$`000`$b_{0}$             |
+| $i$ |`000` $b_{15}$ `000` $b_{14}$ `000` $b_{13}$ `000` $b_{12}$ `000` $b_{11}$ `000` $b_{10}$ `000` $b_{9}$ `000` $b_{8}$ `000` $b_{7}$ `000` $b_{6}$ `000` $b_{5}$ `000` $b_{4}$ `000` $b_{3}$ `000` $b_{2}$ `000` $b_{1}$ `000` $b_{0}$ |
 |     | ...                                                               |
-| $2^{16}-1$ | `0001000100010001000100010001000100010001000100010001000100010001`        |
+| $2^{16}-1$ | `0001000100010001000100010001000100010001000100010001000100010001` |
 
 </center>
 
@@ -429,9 +428,37 @@ This gate uses much longer lookup tables. Understand if the gains in the number 
 
 ## Rationale and alternatives
 
+Other configurations have been considered for the new Keccak gadgets, using the same theory underneath. Nonetheless, these approaches did not take that much advantage of the generalized expression framework. Instead of one single gate per round, one could take an alternative layout with a maximum column width of $14$, up to $8$ permutable cells, up to $12$ lookups per row, with $4$ custom gate types (`Xor64`, `Reset64`, `Rot64`, `Not64`), and a lookup table of $2^{16}$ entries. Here, the number of total lookups would not change, but the number of rows and copy constraints would be much higher. 
+
+| Version  | Rows / block |
+|----------|--------------|
+| Alternative | $24\times(50+25+20+25+75+150+1)=8,304$ | 
+
+These gates would provide some level of chainability between outputs of current row and inputs for next row. In particular, the layout of the alternative gates would be the following:
+
+| Gate    | `0*`  | `1*`  | `2*`  | `3*`  | `4*`   | `5*`   | `6*`   | `7*`   |
+| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ |
+| `Xor64` | left0 | left1 | left2 | left3 | right0 | right1 | right2 | right3 | 
+| `Zero`  | xor0  | xor1  | xor2  | xor3  |
+
+| Gate      | `0*!`    | `1*!`    | `2*!`    | `3*! `   | `4*!!`    | `5*!!`  | `6*` | `7!!`    | `8!!`    | `9!!`    | `10!!`   | `11`   | `12`   |
+| --------- | -------- | -------- | -------- | -------- | -------- | -------- | ---- | -------- | -------- | -------- | -------- | ------ | ------ | 
+| `Reset64` | sparse0  | sparse1  | sparse2  | sparse3  | reset1_0 | reset1_1 | word | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1 | 
+| `Zero`    | reset0_0 | reset0_1 | reset0_2 | reset0_3 | reset1_2 | reset1_3 |      | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3 |
+
+| `Not64` | `0*` | `1*` | `2*` | `3*` | `4*` | `5*` | `6*` | `7*` |
+| ------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| `Curr`  | x0   | x1   | x2   | x3   | not0 | not1 | not2 | not3 | 
+
+| `Rot64` | `0*`   | `1*`   | `2!` | `3!` | `4!` | `5!` | `6!` | `7!` | `8!` | `9!` | `10!` | `11!` | `12!` | `13!` | 
+| ------- | ------ | ------ | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ----- | ----- | ----- | ----- |
+| `Curr`  | input  | output | quo0 | quo1 | quo2 | quo3 | rem0 | rem1 | rem2 | rem3 | aux0  | aux1  | aux2  | aux3  |
+
+with one coefficient set to `2^{offset}`.
+
 ## Prior art
 
-The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae) was introduced to support Ethereum primitives in MINA zkApps. Due to this blockchain's design, the gadget needed to be compatible with Kimchi: a Plonk-like SNARK instantiated with Pasta curves for Pickles recursion and IPA commitents. This means that the design choices for that gadget were determined by some features of this proof system, such as: 15-column width witness, 7 permutable witness cells per row, access to the current and next rows, up to 4 lookups per row, access to 4-bit XOR lookup table, and less than $2^{16}$ rows. As a result, proving the Keccak hash of a message of 1 block length (up to 1080 bits) took ~15k rows.
+The current Keccak PoC in SnarkyML was introduced to support Ethereum primitives in MINA zkApps. Due to this blockchain's design, the gadget needed to be compatible with Kimchi: a Plonk-like SNARK instantiated with Pasta curves for Pickles recursion and IPA commitents. This means that the design choices for that gadget were determined by some features of this proof system, such as: 15-column width witness, 7 permutable witness cells per row, access to the current and next rows, up to 4 lookups per row, access to 4-bit XOR lookup table, and less than $2^{16}$ rows. As a result, proving the Keccak hash of a message of 1 block length (up to 1080 bits) took ~15k rows.
 
 ## Unresolved questions
 
@@ -445,17 +472,6 @@ The current [Keccak PoC in SnarkyML](https://www.notion.so/minaprotocol/Keccak-g
 * Future work: 
     * support SHA3 (NIST variant of Keccak), different output lengths, and different state widths;
 
-
-## Relevant links
-
-* [Pros/Cons of MIPS VM](https://www.notion.so/minaprotocol/MIPS-VM-68c09743b79e4e2bab9e6952c27f0ab4)
-* [RFP: OP Stack Zero Knowledge Proof](https://github.com/ethereum-optimism/ecosystem-contributions/issues/61#issuecomment-1611488039)
-* [PRD: Optimized keccak256 hashing (for MIPS VM)](https://www.notion.so/minaprotocol/PRD-Optimized-keccak256-hashing-for-MIPS-VM-33c142f38467464a9b7c21184544dd1d)
-* [O(1) Labs'  H2 2023 OKRs](https://www.notion.so/minaprotocol/8dfc798e277447ea860e747b026d9698?v=5daef538906d44db9d12e2e0fbbd4665)
-* [SnarkyML Keccak PoC](https://github.com/MinaProtocol/mina/pull/13196)
-* [Keccak gadget PoC PRD for Ethereum Primitives](https://www.notion.so/minaprotocol/Keccak-gadget-PoC-PRD-59b024bce9d5441c8a00a0fcc9b356ae)
-* [The Keccak reference document](https://keccak.team/files/Keccak-reference-3.0.pdf)
-
 ## Appendix
 
 ### Keccak algorithm
@@ -468,7 +484,7 @@ The high level idea of this sponge-based algorithm iteratively is to apply a per
 
 </center>
 
-The following represents the description of the Keccak algorithm tailored to our usecase configuration presented above.
+The following represents the description of the Keccak algorithm tailored to our use case configuration presented above.
 
 1. **Input:** message
 2. **Requirement:** message is a byte string in big endian
@@ -578,56 +594,7 @@ fn round(state_in, r) -> state_out {
 }
 ```
 
-In the following, we will show the pseudocode of each of these algorithms. Note that positions in X and Y coordinates must be computed modulo 5.
-> Make sure that your language performs the remainder operation instead of modulo. Otherwise, make sure to add `+5` in subtractions to avoid negative indices.
-
-```rust
-fn theta(state_a) -> state_e {
-    A <- state_a
-    for x in [0..5) {
-        C[x] <- A[x][0] xor A[x][1] xor A[x][2] xor A[x][3] xor A[x][4]  
-    } 
-    for x in [0..5) {
-        D[x] <- C[x-1] xor rot(C[x+1], 1) // Left rotation by 1 bit (towards more significant positions)
-        for y in [0..5) {
-            E[x][y] <- A[x][y] xor D[x]
-        }
-    }
-    return E
-}
-```
-
-```rust
-fn pi_rho(state_e) -> state_b {
-    E <- state_e
-    for x in [0..5) {
-        for y in [0..5) {
-            B[y][2x+3y] <- rot(E[x][y], OFF[x][y])
-        }
-    }
-    return B
-}
-```
-
-```rust
-fn chi(state_b) -> state_f {
-    B <- state_b
-    for x in [0..5) {
-        for y in [0..5) {
-            F[x][y] <- B[x][y] xor (not B[x+1][y] and B[x+2][y])
-        }
-    }
-    return F
-}
-```
-
-```rust
-fn chi(state_f, r) -> state_g {
-    G <- state_f
-    G[0][0] <- F[0][0] xor RC[r]
-    return G
-}
-```
+>  Note that positions in X and Y coordinates must be computed modulo 5. Make sure that the language performs the remainder operation instead of modulo. Otherwise, make sure to add `+5` in subtractions to avoid negative indices.
 
 #### Constants
 
@@ -652,31 +619,33 @@ $$RC[r] = (x^r \mod{x^8 + x^6 + x^5 + x^4 + 1} )\mod{x} $$
 
 <center>
 
-| `r` |                 `RC` |
-| --- | -------------------- |
-|  0  | `0x0000000000000001` |
-|  1  | `0x0000000000008082` |
-|  2  | `0x800000000000808A` |
-|  3  | `0x8000000080008000` |
-|  4  | `0x000000000000808B` |
-|  5  | `0x0000000080000001` |
-|  6  | `0x8000000080008081` |
-|  7  | `0x8000000000008009` |
-|  8  | `0x000000000000008A` |
-|  9  | `0x0000000000000088` |
-| 10  | `0x0000000080008009` |
-| 11  | `0x000000008000000A` |
-| 12  | `0x000000008000808B` |
-| 13  | `0x800000000000008B` |
-| 14  | `0x8000000000008089` |
-| 15  | `0x8000000000008003` |
-| 16  | `0x8000000000008002` |
-| 17  | `0x8000000000000080` |
-| 18  | `0x000000000000800A` |
-| 19  | `0x800000008000000A` |
-| 20  | `0x8000000080008081` |
-| 21  | `0x8000000000008080` |
-| 22  | `0x0000000080000001` |
-| 23  | `0x8000000080008008` |
+| `r` |                 `RC` |        `expand3(RC)` |        `expand2(RC)` |        `expand1(RC)` |        `expand0(RC)` |
+| --- | -------------------- | -------------------- | -------------------- | -------------------- | -------------------- |
+|  0  | `0x0000000000000001` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000000000001` |
+|  1  | `0x0000000000008082` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000010000010` |
+|  2  | `0x800000000000808A` | `0x1000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000010001010` |
+|  3  | `0x8000000080008000` | `0x1000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x1000000000000000` |
+|  4  | `0x000000000000808B` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000010001011` |
+|  5  | `0x0000000080000001` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x0000000000000001` |
+|  6  | `0x8000000080008081` | `0x1000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x1000000010000001` |
+|  7  | `0x8000000000008009` | `0x1000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000000001001` |
+|  8  | `0x000000000000008A` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000010001010` |
+|  9  | `0x0000000000000088` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000010001000` |
+| 10  | `0x0000000080008009` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x1000000000001001` |
+| 11  | `0x000000008000000A` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x0000000000001010` |
+| 12  | `0x000000008000808B` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x1000000010001011` |
+| 13  | `0x800000000000008B` | `0x1000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000010001011` |
+| 14  | `0x8000000000008089` | `0x1000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000010001001` |
+| 15  | `0x8000000000008003` | `0x1000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000000000011` |
+| 16  | `0x8000000000008002` | `0x1000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000000000010` |
+| 17  | `0x8000000000000080` | `0x1000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000010000000` |
+| 18  | `0x000000000000800A` | `0x0000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000000001010` |
+| 19  | `0x800000008000000A` | `0x1000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x0000000000001010` |
+| 20  | `0x8000000080008081` | `0x1000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x1000000010000001` |
+| 21  | `0x8000000000008080` | `0x1000000000000000` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000010000000` |
+| 22  | `0x0000000080000001` | `0x0000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x0000000000000001` |
+| 23  | `0x8000000080008008` | `0x1000000000000000` | `0x0000000000000000` | `0x1000000000000000` | `0x1000000000001000` |
 
 </center>
+
+> Note that the hexadecimal expanded representation of each chunk of the `RC` corresponds to the binary representation of those 4 bits.
