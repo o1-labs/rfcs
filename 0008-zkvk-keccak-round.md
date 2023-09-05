@@ -22,7 +22,7 @@ The optimizations in the proposed design rely on a more efficient representation
 
 The Keccak hash function (later standardized by NIST as SHA3, with small variations) is known to be a quantum-safe, and very efficient hash to compute. Nonethelss, its intensive use of boolean operations which are costly in finite field arithmetic makes it a SNARK-unfriendly function. In this section, we propose an optimized design for our proof system that should outperform our current Keccak to become usable in the zkVM for the OP stack.
 
-The [Appendix](#appendix) covers a thorough description of the Keccak algorithm and specifies the required parameters needed for compatibility in our use case. The reader shall skip this section to find the details of the actual proposal in this RFC.The configuration of Keccak must be the same as that of the Ethereum EVM, meaning specifically:
+The [Appendix](#appendix) covers a practical description of the Keccak algorithm and specifies the required parameters needed for compatibility in our use case. The configuration of Keccak must be the same as that of the Ethereum EVM, meaning specifically:
 
 > * [pre-NIST variant of Keccak](https://keccak.team/files/Keccak-reference-3.0.pdf) (uses the $10^*1$ padding rule)
 > * variable input **byte** length (not any bit length)
@@ -33,6 +33,8 @@ The [Appendix](#appendix) covers a thorough description of the Keccak algorithm 
 > * 512 bits capacity ($c$)
 > * 1088 length bit rate ($r := b - c$)
 > * 24 rounds of permutation
+
+This section focuses on the actual changes for the proposed gadget.
 
 ### Bitwise-sparse representation
 
@@ -112,7 +114,7 @@ $$
 
 >Checking the correct form of the shifts should be done with a single-column lookup table with just the expanded values for the check, since the non-sparse pre-image is non-relevant here.
 
-### Lookup tables
+### Lookups
 
 <center>
 
@@ -397,9 +399,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| This RFC | 2441   | $24\times2=48$ | $24\times(112+800+800)=41,088$ |                
-| Old RFC | 14       | $24\times(50+25+20+25+75+150+1)=8,304$ | $24\times(0+0+140+0+700+400+0)=29,760$ |                
-| Old PoC  | 15      | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |      
+| This RFC | 2441   | $24\times2=48$ | $24\times(112+800+800)=41,088$ |    
 
 </center>
 
@@ -430,9 +430,9 @@ This gate uses much longer lookup tables. Understand if the gains in the number 
 
 Other configurations have been considered for the new Keccak gadgets, using the same theory underneath. Nonetheless, these approaches did not take that much advantage of the generalized expression framework. Instead of one single gate per round, one could take an alternative layout with a maximum column width of $14$, up to $8$ permutable cells, up to $12$ lookups per row, with $4$ custom gate types (`Xor64`, `Reset64`, `Rot64`, `Not64`), and a lookup table of $2^{16}$ entries. Here, the number of total lookups would not change, but the number of rows and copy constraints would be much higher. 
 
-| Version  | Rows / block |
-|----------|--------------|
-| Alternative | $24\times(50+25+20+25+75+150+1)=8,304$ | 
+| Version  | Columns | Rows / block | Lookups / block | 
+|----------|---------|--------------|-----------------|
+| Alternative | 14   | $24\times(50+25+20+25+75+150+1)=8,304$ | $24\times(112+800+800)=41,088$ |      
 
 These gates would provide some level of chainability between outputs of current row and inputs for next row. In particular, the layout of the alternative gates would be the following:
 
@@ -459,6 +459,10 @@ with one coefficient set to `2^{offset}`.
 ## Prior art
 
 The current Keccak PoC in SnarkyML was introduced to support Ethereum primitives in MINA zkApps. Due to this blockchain's design, the gadget needed to be compatible with Kimchi: a Plonk-like SNARK instantiated with Pasta curves for Pickles recursion and IPA commitents. This means that the design choices for that gadget were determined by some features of this proof system, such as: 15-column width witness, 7 permutable witness cells per row, access to the current and next rows, up to 4 lookups per row, access to 4-bit XOR lookup table, and less than $2^{16}$ rows. As a result, proving the Keccak hash of a message of 1 block length (up to 1080 bits) took ~15k rows.
+
+| Version  | Columns | Rows / block | Lookups / block | 
+|----------|---------|--------------|-----------------|
+| Old PoC  | 15      | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |   
 
 ## Unresolved questions
 
