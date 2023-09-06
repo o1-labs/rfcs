@@ -46,7 +46,7 @@ Given that simple binary operations are very costly within a SNARK, the new idea
 
 With this notation, input bitstrings are expanded inserting three `0` bits in between "real" bits (hence the _sparsity_). The motivation for this, is to use intermediate bits to store auxiliary information such as carry bits, resulting from algebraic computations of boolean functions. That means, for each bit in the original bitstring, its expansion will contain four bits. The following expression represents such mapping:
 
-$$\forall X \in \{b_i\}^\ell, b\in\{0,1\}: expand(X) \to 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0$$
+$$\forall X \in (b_i)^\ell, b\in[0,1]: expand(X) \to 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0$$
 
 The reason behind the choice of three empty intermediate bits in the sparse representation follows from the concrete use case of Keccak where no more than $2^4-1$ consecutive boolean operations are performed, and thus carries cannot overwrite the content of the bits to the leftmost bits.
 
@@ -56,15 +56,15 @@ Even though in each field element of ~254 bits long, one could fit up to 63 real
 
 Let $sparse(X)$ refer to a representation of $X$, where only the indices in the $4i$-th positions correspond to real bits, and the intermediate indices can contain auxiliary information. Connecting to the above, after performing a series of boolean operations to the $expand(X)$ one can obtain some $sparse(X)$, but both encode the same $X$. Concretely,
 
-$$\forall X\in\{b_i\}^\ell:\quad X \equiv \sum_{0}^{\ell-1} 2^i \cdot sparse(X)_{4i} $$
+$$\forall X\in(b_i)^\ell:\quad X \equiv \sum_{0}^{\ell-1} 2^i \cdot sparse(X)_{4i} $$
 
 
 
 #### Compression
 
-Another set of functions will be defined to be used in this new design. For $i\in\{0,3\}$, let $shift_i(X)$ be the function that performs the AND operation $(\wedge)$ of the sparse representation of the word $2^{\ell}-1$ ("all-ones" word in binary), shifted $i$ bits to the left, with the input word $X$. More formally,
+Another set of functions will be defined to be used in this new design. For $i\in[0,3]$, let $shift_i(X)$ be the function that performs the AND operation $(\wedge)$ of the sparse representation of the word $2^{\ell}-1$ ("all-ones" word in binary), shifted $i$ bits to the left, with the input word $X$. More formally,
 
-$$\forall X \in \{b_i\}^\ell, i\in\{0,3\}: shift_i(X) := \left(\ expand(2^\ell - 1)<<_i 0\ \right)\ \wedge \ X$$ 
+$$\forall X \in (b_i)^\ell, i\in[0,3]: shift_i(X) := \left(\ expand(2^\ell - 1)<<_i 0\ \right)\ \wedge \ X$$ 
 
 meaning, on input some $sparse(X)$, all four of:
 
@@ -88,7 +88,7 @@ $$
 
 In order to check the real bits behind a sparse representation, one can perform a lookup with the result of the $shift_0$. Note that this table is equivalent to the sparse table presented above. Before, on input a 16-bit word (equivalent to the row index), the table contained the expanded representation. Here instead, on input the expansion (because $shift_0$ has intermediate bits set to zero), one can check the word. 
 
-The correctness of the remaining shifts $(i\in\{1,3\})$ should also be checked. For this, the witness value $reset_i := shift_i/2^i$ will be stored in the witness in such a way that each $reset_i$ can be looked up reusing the table for $shift_0$, and then the following constraint should hold:
+The correctness of the remaining shifts $(i\in[1,3])$ should also be checked. For this, the witness value $reset_i := shift_i/2^i$ will be stored in the witness in such a way that each $reset_i$ can be looked up reusing the table for $shift_0$, and then the following constraint should hold:
 
 $$
 \begin{align*}
@@ -107,13 +107,13 @@ The XOR of 16-bit can be computed using addition of their expansions. The 16-bit
 
 Given expanded `left` and `right` inputs, the sparse representation of $XOR_{64}$ can be constrained in quarters of 16 bits, as:
 
-$$\forall i\in\{0,3\}: sparse(xor_i) = expand(left_i) + expand(right_i)$$
+$$\forall i\in[0,3]: sparse(xor_i) = expand(left_i) + expand(right_i)$$
 
 #### Reset
 
-After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For $n \in \{0, 3\}, let $reset_n = shift_n(sparse)/2^n$, the correct decomposition of a 64-bit word can be constrained as
+After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For $n \in [0, 3], let $reset_n = shift_n(sparse)/2^n$, the correct decomposition of a 64-bit word can be constrained as
 
-$$\forall i \in \{0,3\}: sparse_i = reset0_i + 2\cdot reset1_i + 4\cdot reset2_i + 8\cdot reset3_i$$
+$$\forall i \in [0,3]: sparse_i = reset0_i + 2\cdot reset1_i + 4\cdot reset2_i + 8\cdot reset3_i$$
 
 together with a lookup for each `reset_i`.
 
@@ -128,7 +128,7 @@ The AND operation can be constrained making use of XOR and Reset explained above
 
 The NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. The mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits. Given $x$ in expanded form (meaning, not any sparse representation of $x$ but the initial one with zero intermediate bits) the negation of one 64-bit word can be constrained as:
 
-$$\forall i \in\{0, 3\}: expand(not_i) = 0x1111111111111111 - expand(x_i)$$
+$$\forall i \in[0, 3]: expand(not_i) = 0x1111111111111111 - expand(x_i)$$
 
 > Because the inputs are known to be 16-bits at most, it is guaranteed that the total length of $X$ is at most 64 bits, and is correctly split into quarters `x[i]`.
 
