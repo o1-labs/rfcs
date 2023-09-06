@@ -81,8 +81,8 @@ The effect of each $shift_i$ is to null all but the $(4n+i)$-th bits of the expa
 
 $$
 \begin{align*}
-sparse(X) \iff & shift_0(sparse(X)) + shift_1(sparse(X)) \\
-+ & shift_2(sparse(X)) + shift_3(sparse(X))
+sparse(X) \iff & shift_0(sparse(X)) + shift_1(sparse(X))
++ shift_2(sparse(X)) + shift_3(sparse(X))
 \end{align*}
 $$
 
@@ -92,8 +92,8 @@ The correctness of the remaining shifts $(i\in[1,3])$ should also be checked. Fo
 
 $$
 \begin{align*}
-0 = sparse(X) - (\ & shift_0(sparse(X)) + 2 \cdot aux_1(sparse(X)) \\
-& + 4 \cdot aux_2(sparse(X)) + 8 \cdot aux_3(sparse(X))\ )
+0 = sparse(X) - (\ & reset_0(sparse(X)) + 2 \cdot reset_1(sparse(X)) \\
+& + 4 \cdot reset_2(sparse(X)) + 8 \cdot reset_3(sparse(X))\ )
 \end{align*}
 $$
 
@@ -128,7 +128,7 @@ The AND operation can be constrained making use of XOR and Reset explained above
 
 The NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. The mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits. Given $x$ in expanded form (meaning, not any sparse representation of $x$ but the initial one with zero intermediate bits) the negation of one 64-bit word can be constrained as:
 
-$$\forall i \in[0, 3]: expand(not_i) = 0x1111111111111111 - expand(x_i)$$
+$$\forall i \in[0, 3]: expand(not_i) = 0\text{x}1111111111111111 - expand(x_i)$$
 
 > Because the inputs are known to be 16-bits at most, it is guaranteed that the total length of $X$ is at most 64 bits, and is correctly split into quarters `x[i]`.
 
@@ -147,20 +147,16 @@ $$compose \to quarter_0 + 2^{16}quarter_1 + 2^{32}quarter_2 + 2^{48}quarter_3$$
 Then, the rotation of `offset` bits to the left can be constrained as:
 
 ```rust
-    constrain(0 == input * two_to_off - (quotient * 2^64 + remainder))
-    constrain(0 == remainder + quotient - output)
+constrain(0 == input * two_to_off - (quotient * 2^64 + remainder))
+constrain(0 == remainder + quotient - output)
 
-    // Check quotient < 2^offset <=> quotient + 2^64 - 2^off < 2^64
-    constrain(0 == bound - ( quotient + 2^64 - two_to_off ) )
-
-    for i in [0..4) {
-        lookup(rem_quarters[i]) // Check remainder < 2^64
-        lookup(quo_quarters[i]) // Check quotient < 2^64
-        lookup(aux_quarters[i]) // Check bound < 2^64
-    }
+// Check quotient < 2^offset <=> quotient + 2^64 - 2^off < 2^64
+constrain(0 == bound - ( quotient + 2^64 - two_to_off ) )
 ```
 
-### Keccak chip
+Together with $3\times4=12$ lookups to check that the remainder, quotient and bound are $<2^{64}$.
+
+### Constraints
 
 Support for padding shall be provided. In the Keccak PoC, this step takes place at the Snarky layer. It checks that the correct amount of bits in the $10*1$ rule are added until reaching a multiple of 1088 bits, and then adds 512 more zero bits to each block to form a full state.
 
@@ -180,6 +176,12 @@ The high-level layout of the gates follows:
 | Columns:      | [0...440)  | [440...1540) | [1540...2440) | 2440      | 
 | ------------- | ---------- | ------------ | ------------- | --------- |
 | `KeccakRound` | theta_step | pirho_step   |  chi_step     | iota_step |
+
+The `StateXOR` gate uses $100$ constraints 
+
+```rust
+constrain(xor_state[i] - (old_state[i] + new_state[i]))
+```
 
 #### Step theta
 
@@ -460,7 +462,7 @@ These gates would provide some level of chainability between outputs of current 
 
 | `Rot64` | `0*`   | `1*`   | `2!` | `3!` | `4!` | `5!` | `6!` | `7!` | `8!` | `9!` | `10!` | `11!` | `12!` | `13!` | 
 | ------- | ------ | ------ | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ----- | ----- | ----- | ----- |
-| `Curr`  | input  | output | quo0 | quo1 | quo2 | quo3 | rem0 | rem1 | rem2 | rem3 | aux0  | aux1  | aux2  | aux3  |
+| `Curr`  | input  | output | quo0 | quo1 | quo2 | quo3 | rem0 | rem1 | rem2 | rem3 | bnd0  | bnd1  | bnd2  | bnd3  |
 
 with one coefficient set to `2^{offset}`.
 
