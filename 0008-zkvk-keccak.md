@@ -191,7 +191,7 @@ $$
 \begin{align*}
 C[x] := &\ A[x][0]\ \oplus\ A[x][1]\ \oplus\ A[x][2]\ \oplus\ A[x][3]\ \oplus\ A[x][4] \\
 \iff
-sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) +\ & expand(A[x][3]) + expand(A[x][4]) \\
+sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) + expand(A[x][3]) + expand(A[x][4]) \\
 \end{align*} 
 $$
 
