@@ -322,7 +322,7 @@ $$
 
 | Columns: | [1540...1940) | [1940...2340) | [2340...2440) |
 | -------- | ------------- | ------------- | ------------- | 
-| PiRho    | reset_b       | reset_sum     | state_f       |
+| Chi      | reset_b       | reset_sum     | state_f       |
 
 
 This is constrained with the following $200$ constraints and $800$ lookups
@@ -400,7 +400,7 @@ The `KeccakRound` gate performs $1,780$ lookups to the table. They follow this n
 | Columns: | [1540...1940) | [1940...2340) | 
 | -------- | ------------- | ------------- |
 | `Curr`   | $400^{13}$    | $400^{14}$    |
-| PiRho    | reset_b       | reset_sum     |
+| Chi      | reset_b       | reset_sum     |
 
 
 ### Performance
