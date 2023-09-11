@@ -353,7 +353,7 @@ for i in [0..4)
     constrain( state_g(0,0)[i] - (state_f(0,0)[i] + expand(RC[r]))[i] )
 ```
 
-| Columns: | [2440...2441) |
+| Columns: | [2440...2444) |
 | -------- | ------------- | 
 | Iota     | g_0_0         | 
 
@@ -411,7 +411,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| This RFC | 2441   | $24\times2=48$ | $24\times(180+800+800)=42,720$ |    
+| This RFC | 2444   | $24\times2=48$ | $24\times(180+800+800)=42,720$ |    
 
 </center>
 
