@@ -173,9 +173,9 @@ The high-level layout of the gates follows:
 | ---------- | --------- | ----------- | ----------- |
 | `StateXOR` | old_state |  new_state  |  xor_state  |
 
-| Columns:      | [0...440)  | [440...1540) | [1540...2440) | 2440      | 
-| ------------- | ---------- | ------------ | ------------- | --------- |
-| `KeccakRound` | theta_step | pirho_step   |  chi_step     | iota_step |
+| Columns:      | [0...440)  | [440...1540) | [1540...2440) | [2440...2444) | 
+| ------------- | ---------- | ------------ | ------------- | ------------- |
+| `KeccakRound` | theta_step | pirho_step   |  chi_step     | iota_step     |
 
 The `StateXOR` gate uses $100$ constraints 
 
