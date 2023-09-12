@@ -290,18 +290,19 @@ $$
 Recall that in order to perform the rotation operation, the state needs to be reset. This step can be carried out with the following $125$ constraints and $800 (=400+100+100+100+100)$ lookups:
 
 ```rust
-for x in [0...5)
-    for y in [0...5)
-        constrain( state_e(x,y)[i] - (reset0_e(x,y)[i] + 2*reset1_e(x,y)[i] + 4*reset2_e(x,y)[i] + 8*reset3_e(x,y)[i] ) )
-        let word(x,y)      = dense_e(x,y)[0]     + 2^16*dense_e(x,y)[1]     + 2^32*dense_e(x,y)[2]     + 2^48*dense_e(x,y)[3]
-        let quotient(x,y)  = quotient_e(x,y)[0]  + 2^16*quotient_e(x,y)[1]  + 2^32*quotient_e(x,y)[2]  + 2^48*quotient_e(x,y)[3]
-        let remainder(x,y) = remainder_e(x,y)[0] + 2^16*remainder_e(x,y)[1] + 2^32*remainder_e(x,y)[2] + 2^48*remainder_e(x,y)[3]
-        let bound(x,y)     = bound_e(x,y)[0]     + 2^16*bound_e(x,y)[1]     + 2^32*bound_e(x,y)[2]     + 2^48*bound_e(x,y)[3]
-        let rotated(x,y)   = dense_rot_e(x,y)[0] + 2^16*dense_rot_e(x)[1] + 2^32*dense_rot_e(x,y)[2] + 2^48*dense_rot_e(x,y)[3]
-        constrain( word(x,y) * 2^(OFF(x,y)) - ( quotient(x) * 2^64 + remainder(x)) )
-        constrain( rotated(x,y) - (quotient(x,y) + remainder(x)) )
-        constrain( bound(x,y) - (quotient(x,y) + 2^64 - 2^(OFF(x,y)) )
-        constrain( state_b(y,2x+3y) - expand_rot_e(x,y) )
+for i in [0...4)
+    for x in [0...5)
+        for y in [0...5)
+            constrain( state_e(x,y)[i] - (reset0_e(x,y)[i] + 2*reset1_e(x,y)[i] + 4*reset2_e(x,y)[i] + 8*reset3_e(x,y)[i] ) )
+            let word(x,y)      = dense_e(x,y)[0]     + 2^16*dense_e(x,y)[1]     + 2^32*dense_e(x,y)[2]     + 2^48*dense_e(x,y)[3]
+            let quotient(x,y)  = quotient_e(x,y)[0]  + 2^16*quotient_e(x,y)[1]  + 2^32*quotient_e(x,y)[2]  + 2^48*quotient_e(x,y)[3]
+            let remainder(x,y) = remainder_e(x,y)[0] + 2^16*remainder_e(x,y)[1] + 2^32*remainder_e(x,y)[2] + 2^48*remainder_e(x,y)[3]
+            let bound(x,y)     = bound_e(x,y)[0]     + 2^16*bound_e(x,y)[1]     + 2^32*bound_e(x,y)[2]     + 2^48*bound_e(x,y)[3]
+            let rotated(x,y)   = dense_rot_e(x,y)[0] + 2^16*dense_rot_e(x)[1] + 2^32*dense_rot_e(x,y)[2] + 2^48*dense_rot_e(x,y)[3]
+            constrain( word(x,y) * 2^(OFF(x,y)) - ( quotient(x) * 2^64 + remainder(x)) )
+            constrain( rotated(x,y) - (quotient(x,y) + remainder(x)) )
+            constrain( bound(x,y) - (quotient(x,y) + 2^64 - 2^(OFF(x,y)) )
+            constrain( state_b(y,2x+3y) - expand_rot_e(x,y) )
 ```
 
 Note that the value `OFF(x,y)` will be a different constant for each index, according to the rotation table of Keccak.
@@ -332,7 +333,7 @@ for i in [0..4)
     for x in [0..5)
         for y in [0..5)
             let not(x,y)[i] = 0x1111111111111111 - reset0_b(x+1,y)[i]
-            let sum(x,y)[i] = not(x+1,y)[i] + reset1_b(x+2,y)[i]
+            let sum(x,y)[i] = not(x,y)[i] + reset1_b(x+2,y)[i]
             constrain( sum[i] - (reset0_sum(x,y)[i] + 2*reset1_sum(x,y)[i] + 4*reset2_sum(x,y)[i] + 8*reset3_sum(x,y)[i] ) )
             let and(x,y)[i] = reset1_sum(x,y)[i] 
             constrain( state_f(x,y)[i] - (reset0_b(x,y)[i] + and(x,y)[i]) )
