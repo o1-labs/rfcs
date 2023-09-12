@@ -228,7 +228,7 @@ This part uses the following 55 constraints
 ```rust
 for x in [0..5)
     for i in[0..4)
-        constrain( state_c(x) - (reset0_c(x)[i] + 2*reset1_c(x)[i] + 4*reset2_c(x)[i] + 8*reset3_c(x)[i] ) )
+        constrain( state_c(x)[i] - (reset0_c(x)[i] + 2*reset1_c(x)[i] + 4*reset2_c(x)[i] + 8*reset3_c(x)[i] ) )
 
 for x in [0..5)
     let word(x)      = dense_c(x)[0]     + 2^16*dense_c(x)[1]     + 2^32*dense_c(x)[2]     + 2^48*dense_c(x)[3]
@@ -242,7 +242,7 @@ for x in [0..5)
 
 for x in [0..5)
     for i in [0..4)
-        constrain( state_d(x)[i] - (reset0_c(x-1)[i] + expand_rot_c(x+1)[1]) )
+        constrain( state_d(x)[i] - (reset0_c(x-1)[i] + expand_rot_c(x+1)[i]) )
 ```
 
 and $180$ lookups.
@@ -292,7 +292,7 @@ Recall that in order to perform the rotation operation, the state needs to be re
 ```rust
 for x in [0...5)
     for y in [0...5)
-        constrain( state_e[i] - (reset0_e(x,y)[i] + 2*reset1_e(x,y)[i] + 4*reset2_e(x,y)[i] + 8*reset3_e(x,y)[i] ) )
+        constrain( state_e(x,y)[i] - (reset0_e(x,y)[i] + 2*reset1_e(x,y)[i] + 4*reset2_e(x,y)[i] + 8*reset3_e(x,y)[i] ) )
         let word(x,y)      = dense_e(x,y)[0]     + 2^16*dense_e(x,y)[1]     + 2^32*dense_e(x,y)[2]     + 2^48*dense_e(x,y)[3]
         let quotient(x,y)  = quotient_e(x,y)[0]  + 2^16*quotient_e(x,y)[1]  + 2^32*quotient_e(x,y)[2]  + 2^48*quotient_e(x,y)[3]
         let remainder(x,y) = remainder_e(x,y)[0] + 2^16*remainder_e(x,y)[1] + 2^32*remainder_e(x,y)[2] + 2^48*remainder_e(x,y)[3]
@@ -475,6 +475,10 @@ The current Keccak PoC in SnarkyML was introduced to support Ethereum primitives
 | Old PoC  | 15      | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |   
 
 ## Unresolved questions
+
+* During the review of this RFC:
+    * Resolve how many lookup tables are really needed (tradeoff between columns and rows)
+    * Resolve how to deal with input and output.
 
 * During the implementation of this RFC:
     * obtain exact measurements of the number of rows, columns, constraints, lookups, seconds, required per block hash;
