@@ -162,22 +162,17 @@ Support for padding shall be provided. In the Keccak PoC, this step takes place 
 
 If the input is not previously expanded, the next step is to expand all 25 words. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through the lookup table containing all $2^{16}$ entries. This step would require $4\times25=100$ lookups.
 
-The support for the Keccak hash function will require the following gate types:
+The support for the Keccak hash function will require the following gate type:
 
-- `StateXOR`: performs XOR of two $5\times5$ states
-- `KeccakRound:` performs one full round of the Keccak permutation function
+- `Keccak:` performs XOR of two $5\times5$ states followed by one full round of the Keccak permutation function
 
-The high-level layout of the gates follows:
+The high-level layout of the gate follows:
 
-| Columns:   | [0...100) | [100...200) | [200...300) |
-| ---------- | --------- | ----------- | ----------- |
-| `StateXOR` | old_state |  new_state  |  xor_state  |
+| Columns: | [0...100) | [100...200) | [200...640)  | [640...1740) | [1740...2640) | [2640...2644) | 
+| ---------| --------- | ----------- | ---------- | ------------ | ------------- | ------------- |
+| `Keccak` | old_state | new_state   | theta_step | pirho_step   |  chi_step     | iota_step     |
 
-| Columns:      | [0...440)  | [440...1540) | [1540...2440) | [2440...2444) | 
-| ------------- | ---------- | ------------ | ------------- | ------------- |
-| `KeccakRound` | theta_step | pirho_step   |  chi_step     | iota_step     |
-
-The `StateXOR` gate uses $100$ constraints 
+The XOR part of the gate uses $100$ constraints 
 
 ```rust
 constrain(xor_state[i] - (old_state[i] + new_state[i]))
@@ -195,9 +190,9 @@ sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) + expand(
 \end{align*} 
 $$
 
-| Columns: | [0...100) | [100...120) |
-| -------- | --------- | ----------- |
-| Theta    | state_a   |  state_c    |
+| Columns: | [200...300) | [300...320) |
+| -------- | ----------- | ----------- |
+| Theta    | state_a     |  state_c    |
 
 with the following 20 constraints 
 
@@ -219,7 +214,7 @@ $$
 
 For this, the 5 possible inputs of the rotation need to be reset. The input of the XOR will use the reset version as well, to reset any previous round auxiliary bits.
 
-| Columns: | [120...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320) | [320...340) | 
+| Columns: | [320...400) | [400...420) | [420...440) | [440...460) | [460...480) | [480...500) | [500...520) | [520...540) | 
 | -------- | --------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----- | ---- |
 | Theta    | reset_c     | dense_c     | quotient_c  | remainder_c | bound_c | dense_rot_c | expand_rot_c | state_d |
 
@@ -267,7 +262,7 @@ for i in [0..4)
             constrain( state_e(x,y)[i] - (state_a(x,y)[i] + state_d(x)[i]) )
 ```
 
-| Columns: | [340...440) |
+| Columns: | [540...640) |
 | -------- | ----------- |
 | Theta    | state_e     |
 
@@ -283,9 +278,9 @@ expand(B[y][2x+3y]) := &\ ROT(expand(E[x][y]), OFF[x][y])
 \end{align*} 
 $$
 
-| Columns: | [440...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) | [1440...1540) | 
-| -------- | ----------- | ----------- | ------------ | ------------- | ------------- | ------------- | ----- | ---- |
-| PiRho    | reset_e     | dense_e     | quotient_e   | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e | state_b |
+| Columns: | [640...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) | [1440...1540) | [1540...1640) | [1640...1740) | 
+| -------- | ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | ----- | ---- |
+| PiRho    | reset_e      | dense_e       | quotient_e    | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e | state_b |
 
 Recall that in order to perform the rotation operation, the state needs to be reset. This step can be carried out with the following $275(=75+200)$ constraints and $800 (=400+100+100+100+100)$ lookups:
 
@@ -321,7 +316,7 @@ F[x][y] := &\ B[x][y] \oplus (\ \neg B[x+1][y] \wedge \ B[x+2][y]) \\
 $$
 
 
-| Columns: | [1540...1940) | [1940...2340) | [2340...2440) |
+| Columns: | [1740...1940) | [2140...2540) | [2540...2640) |
 | -------- | ------------- | ------------- | ------------- | 
 | Chi      | reset_b       | reset_sum     | state_f       |
 
@@ -355,11 +350,11 @@ for i in [0..4)
     constrain( state_g(0,0)[i] - (state_f(0,0)[i] + expand(RC[r]))[i] )
 ```
 
-| Columns: | [2440...2444) |
+| Columns: | [2640...2644) |
 | -------- | ------------- | 
 | Iota     | g_0_0         | 
 
-After this last step of the permutation function, `KeccakRound` will store state `G` in the first $100$ cells of the next row, to be chained with the upcoming `StateXOR`. This requires $100$ copy constraints. Recall that except for `g_0_0`, the rest of `G` is `state_f`.
+After this last step of the permutation function, `Keccak` will store state `G` in the first $100$ cells of the next row, to be chained with the upcoming `StateXOR`. This requires $100$ copy constraints. Recall that except for `g_0_0`, the rest of `G` is `state_f`.
 
 
 ### Lookups
@@ -386,20 +381,20 @@ In order to check the first column of the table, it can be done shifting the con
 
 </center>
 
-The `KeccakRound` gate performs $1,780$ lookups to the table. They follow this new pattern, where $X_j$ means that the $j$-th chunk of lookups is performed, consisting of $X$ lookups to the table. When $(X_i^j)$ is used, then those are not extra lookups, but they are paired to other lookups to the other column with same indicator $j$. 
+The `Keccak` gate performs $1,780$ lookups to the table. They follow this new pattern, where $X_j$ means that the $j$-th chunk of lookups is performed, consisting of $X$ lookups to the table. When $(X_i^j)$ is used, then those are not extra lookups, but they are paired to other lookups to the other column with same indicator $j$. 
 
 
-| Columns | [120...140) | [140...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320)
+| Columns | [320...340) | [340...400) | [400...420) | [420...440) | [440...460) | [460...480) | [480...500) | [500...520)
 | ------- | --------- | ----------- | - | - | - | - | - | - |
 | `Curr`  | $20_2^1$   |  $60_2^2$    | $(20_1^1)$ | $20_1^3$ | $20_1^4$ | $20_1^5$ | $(20_1^6)$ | $20_2^6$ |
 | Theta  | reset0_c | reseti_c | dense_c | quotient_c | remainder_c | bound_c | dense_rot_c | expand_rot_c | 
 
-| Columns | [440...540) | [540...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) |
+| Columns | [640...740) | [640...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) | [1440...1540) | [1540...1640) |
 | -------- | ----------- | ----------- | ------------ | ------------- | ------------- | ------------- | ----- | ---- | 
 | `Curr` | $100_2^7$ | $300_8$ | $(100_1^7)$ | $100_1^9$ | $100_1^{10}$ | $100_1^{11}$ | $(100_1^{12})$ | $100_2^{12}$ |
 | PiRho    | reset0_e | reseti_e   | dense_e     | quotient_e   | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e |
 
-| Columns: | [1540...1940) | [1940...2340) | 
+| Columns: | [1740...2140) | [2140...2540) | 
 | -------- | ------------- | ------------- |
 | `Curr`   | $400^{13}$    | $400^{14}$    |
 | Chi      | reset_b       | reset_sum     |
@@ -413,7 +408,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| This RFC | 2444   | $24\times2=48$ | $24\times(180+800+800)=42,720$ |    
+| This RFC | 2644    | $24$         | $24\times(180+800+800)=42,720$ |    
 
 </center>
 
