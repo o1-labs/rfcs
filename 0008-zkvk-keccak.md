@@ -326,7 +326,7 @@ $$
 | Chi      | reset_b       | reset_sum     | state_f       |
 
 
-This is constrained with the following $200$ constraints and $800$ lookups
+This is constrained with the following $300$ constraints and $800$ lookups
 
 ```rust
 for i in [0..4)
@@ -334,7 +334,8 @@ for i in [0..4)
         for y in [0..5)
             let not(x,y)[i] = 0x1111111111111111 - reset0_b(x+1,y)[i]
             let sum(x,y)[i] = not(x,y)[i] + reset1_b(x+2,y)[i]
-            constrain( sum[i] - (reset0_sum(x,y)[i] + 2*reset1_sum(x,y)[i] + 4*reset2_sum(x,y)[i] + 8*reset3_sum(x,y)[i] ) )
+            constrain( state_b(x,y)[i] - (reset0_b(x,y)[i] + 2*reset1_b(x,y)[i] + 4*reset2_b(x,y)[i] + 8*reset3_b(x,y)[i] ) )
+            constrain( sum(x,y)[i] - (reset0_sum(x,y)[i] + 2*reset1_sum(x,y)[i] + 4*reset2_sum(x,y)[i] + 8*reset3_sum(x,y)[i] ) )
             let and(x,y)[i] = reset1_sum(x,y)[i] 
             constrain( state_f(x,y)[i] - (reset0_b(x,y)[i] + and(x,y)[i]) )
 ```
