@@ -36,6 +36,10 @@ The [Appendix](#appendix) covers a practical description of the Keccak algorithm
 
 This section focuses on the actual changes for the proposed gadget.
 
+### Input-Output format
+
+The Keccak gadget is triggered from the sys call. Inputs need to be written into memory and outputs are read from the sys call. One should expect inputs and outputs to be found in bytes serialization, with a big-endian encoding. 
+
 ### Bitwise-sparse representation
 
 Here, we present the bitwise-sparse representation of bitstrings that will be used to obtain more efficient computations of boolean functions within our proof system. 
@@ -57,8 +61,6 @@ Even though in each field element of ~254 bits long, one could fit up to 63 real
 Let $sparse(X)$ refer to a representation of $X$, where only the indices in the $4i$-th positions correspond to real bits, and the intermediate indices can contain auxiliary information. Connecting to the above, after performing a series of boolean operations to the $expand(X)$ one can obtain some $sparse(X)$, but both encode the same $X$. Concretely,
 
 $$\forall X\in(b_i)^\ell:\quad X \equiv \sum_{0}^{\ell-1} 2^i \cdot sparse(X)_{4i} $$
-
-
 
 #### Compression
 
@@ -98,8 +100,6 @@ $$
 $$
 
 ### Basic toolbox
-
-> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
 
 #### XOR
 
@@ -162,15 +162,35 @@ Support for padding shall be provided. In the Keccak PoC, this step takes place 
 
 If the input is not previously expanded, the next step is to expand all 25 words. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through the lookup table containing all $2^{16}$ entries. This step would require $4\times25=100$ lookups.
 
-The support for the Keccak hash function will require the following gate type:
+The support for the Keccak hash function will require the following gate types:
 
-- `Keccak:` performs XOR of two $5\times5$ states followed by one full round of the Keccak permutation function
+**Preconditions:** message is padded using the $10^*1$ rule until reaching a length of a multiple of the bitrate. Then, it is split into blocks of 1088 bits, and laid out into words, and expanded using the sparse lookup table.
+> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
+- `KeccakSetup`: takes a block as 68 chunks of 16 bits expanded, pads with zeros until reaching 100 chunks (1600 bits) to fit one whole state, and XORs it with the previous state.
+- `KeccakRound`: performs one full round of the Keccak permutation function.
 
-The high-level layout of the gate follows:
+The high-level layout of the gates follows:
 
-| Columns: | [0...100) | [100...200) | [200...640)  | [640...1740) | [1740...2640) | [2640...2644) | 
-| ---------| --------- | ----------- | ---------- | ------------ | ------------- | ------------- |
-| `Keccak` | old_state | new_state   | theta_step | pirho_step   |  chi_step     | iota_step     |
+| `KeccakSetup` | [0...100) | [100...168) | [168...200)  |  
+| ------------- | --------- | ----------- | ---------- | 
+| Curr | old_state | new_block   | zeros |
+| Next          | xor_state
+
+| `KeccakRound` | [0...440)   | [440...1540) | [1540...2440) | 
+| ------------- | ----------- | ------------ | ------------- | 
+| Curr          | theta_step  | pirho_step   |  chi_step     |
+
+| `KeccakRound` | [0...100)   |
+| ------------- | ----------- |
+| Next          | iota_step   |
+
+#### Setup
+
+The zero padding is enforced performing the following 32 constraints:
+
+```rust
+constrain(zeros[i])
+```
 
 The XOR part of the gate uses $100$ constraints 
 
@@ -190,9 +210,9 @@ sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) + expand(
 \end{align*} 
 $$
 
-| Columns: | [200...300) | [300...320) |
-| -------- | ----------- | ----------- |
-| Theta    | state_a     |  state_c    |
+| Columns: | [0...100) | [100...120) |
+| -------- | --------- | ----------- |
+| Theta    | state_a   |  state_c    |
 
 with the following 20 constraints 
 
@@ -214,7 +234,7 @@ $$
 
 For this, the 5 possible inputs of the rotation need to be reset. The input of the XOR will use the reset version as well, to reset any previous round auxiliary bits.
 
-| Columns: | [320...400) | [400...420) | [420...440) | [440...460) | [460...480) | [480...500) | [500...520) | [520...540) | 
+| Columns: | [120...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320) | [320...340) | 
 | -------- | --------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----- | ---- |
 | Theta    | reset_c     | dense_c     | quotient_c  | remainder_c | bound_c | dense_rot_c | expand_rot_c | state_d |
 
@@ -262,7 +282,7 @@ for i in [0..4)
             constrain( state_e(x,y)[i] - (state_a(x,y)[i] + state_d(x)[i]) )
 ```
 
-| Columns: | [540...640) |
+| Columns: | [340...440) |
 | -------- | ----------- |
 | Theta    | state_e     |
 
@@ -278,7 +298,7 @@ expand(B[y][2x+3y]) := &\ ROT(expand(E[x][y]), OFF[x][y])
 \end{align*} 
 $$
 
-| Columns: | [640...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) | [1440...1540) | [1540...1640) | [1640...1740) | 
+| Columns: | [440...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) | [1440...1540) | 
 | -------- | ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | ----- | ---- |
 | PiRho    | reset_e      | dense_e       | quotient_e    | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e | state_b |
 
@@ -316,9 +336,9 @@ F[x][y] := &\ B[x][y] \oplus (\ \neg B[x+1][y] \wedge \ B[x+2][y]) \\
 $$
 
 
-| Columns: | [1740...1940) | [2140...2540) | [2540...2640) |
+| Columns: | [1540...1940) | [1940...2340) | [2340...2344) |
 | -------- | ------------- | ------------- | ------------- | 
-| Chi      | reset_b       | reset_sum     | state_f       |
+| Chi      | reset_b       | reset_sum     | f_0_0     |
 
 
 This is constrained with the following $300$ constraints and $800$ lookups
@@ -350,9 +370,9 @@ for i in [0..4)
     constrain( state_g(0,0)[i] - (state_f(0,0)[i] + expand(RC[r]))[i] )
 ```
 
-| Columns: | [2640...2644) |
-| -------- | ------------- | 
-| Iota     | g_0_0         | 
+| Columns: | [0...4) | [4...100) |
+| -------- | ------- | --------- | 
+| Iota     | g_0_0   | state_f   |
 
 After this last step of the permutation function, `Keccak` will store state `G` in the first $100$ cells of the next row, to be chained with the upcoming `StateXOR`. This requires $100$ copy constraints. Recall that except for `g_0_0`, the rest of `G` is `state_f`.
 
