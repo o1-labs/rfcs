@@ -158,7 +158,7 @@ Together with $3\times4=12$ lookups to check that the remainder, quotient and bo
 
 ### Constraints
 
-Support for padding shall be provided. In the Keccak PoC, this step takes place at the Snarky layer. It checks that the correct amount of bits in the $10*1$ rule are added until reaching a multiple of 1088 bits, and then adds 512 more zero bits to each block to form a full state.
+Support for padding shall be provided. In the Keccak PoC, this step takes place at the Snarky layer. It checks that the correct amount of bits in the $10^*1$ rule are added until reaching a multiple of 1088 bits, and then adds 512 more zero bits to each block to form a full state.
 
 If the input is not previously expanded, the next step is to expand all 25 words. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through the lookup table containing all $2^{16}$ entries. This step would require $4\times25=100$ lookups.
 
