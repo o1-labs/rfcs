@@ -404,17 +404,17 @@ In order to check the first column of the table, it can be done shifting the con
 The `Keccak` gate performs $1,780$ lookups to the table. They follow this new pattern, where $X_j$ means that the $j$-th chunk of lookups is performed, consisting of $X$ lookups to the table. When $(X_i^j)$ is used, then those are not extra lookups, but they are paired to other lookups to the other column with same indicator $j$. 
 
 
-| Columns | [320...340) | [340...400) | [400...420) | [420...440) | [440...460) | [460...480) | [480...500) | [500...520)
+| Columns | [120...140) | [140...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320)
 | ------- | --------- | ----------- | - | - | - | - | - | - |
 | `Curr`  | $20_2^1$   |  $60_2^2$    | $(20_1^1)$ | $20_1^3$ | $20_1^4$ | $20_1^5$ | $(20_1^6)$ | $20_2^6$ |
 | Theta  | reset0_c | reseti_c | dense_c | quotient_c | remainder_c | bound_c | dense_rot_c | expand_rot_c | 
 
-| Columns | [640...740) | [640...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) | [1440...1540) | [1540...1640) |
+| Columns | [440...540) | [540...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) |
 | -------- | ----------- | ----------- | ------------ | ------------- | ------------- | ------------- | ----- | ---- | 
 | `Curr` | $100_2^7$ | $300_8$ | $(100_1^7)$ | $100_1^9$ | $100_1^{10}$ | $100_1^{11}$ | $(100_1^{12})$ | $100_2^{12}$ |
 | PiRho    | reset0_e | reseti_e   | dense_e     | quotient_e   | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e |
 
-| Columns: | [1740...2140) | [2140...2540) | 
+| Columns: | [1540...1940) | [1940...2340) | 
 | -------- | ------------- | ------------- |
 | `Curr`   | $400^{13}$    | $400^{14}$    |
 | Chi      | reset_b       | reset_sum     |
@@ -428,7 +428,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| This RFC | 2644    | $24$         | $24\times(180+800+800)=42,720$ |    
+| This RFC | 2344    | $24+1$       | $24\times(180+800+800)=42,720$ |    
 
 </center>
 
