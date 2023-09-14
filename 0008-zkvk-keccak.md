@@ -166,15 +166,15 @@ The support for the Keccak hash function will require the following gate types:
 
 **Preconditions:** message is padded using the $10^*1$ rule until reaching a length of a multiple of the bitrate. Then, it is split into blocks of 1088 bits, and laid out into words, and expanded using the sparse lookup table.
 > For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
-- `KeccakSetup`: takes a block as 68 chunks of 16 bits expanded, pads with zeros until reaching 100 chunks (1600 bits) to fit one whole state, and XORs it with the previous state.
+- `KeccakSponge`: performs formatting actions related to the Keccak sponge.
 - `KeccakRound`: performs one full round of the Keccak permutation function.
 
 The high-level layout of the gates follows:
 
-| `KeccakSetup` | [0...100) | [100...168) | [168...200)  |  
-| ------------- | --------- | ----------- | ---------- | 
-| Curr | old_state | new_block   | zeros |
-| Next          | xor_state
+| `KeccakSponge` | [0...100) | [100...168) | [168...200) | [200...204) | [204...208] | [208...212) | [212...216) | [216...224] | [224...232] | [232...240] | [240...248] |
+| -------------- | --------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| Curr           | old_state | new_block   | zeros       | dense0      | dense1      | dense2      | dense3      | bytes0      | bytes1      | bytes2      | bytes3      |
+| Next           | xor_state |
 
 | `KeccakRound` | [0...440)   | [440...1540) | [1540...2440) | 
 | ------------- | ----------- | ------------ | ------------- | 
@@ -184,18 +184,33 @@ The high-level layout of the gates follows:
 | ------------- | ----------- |
 | Next          | iota_step   |
 
-#### Setup
+#### Sponge
+
+There are two modes: absorb, and squeeze. 
+
+On absorb mode (first coefficient is 1), the gate takes a block as 68 chunks of 16 bits expanded, pads with zeros until reaching 100 chunks (1600 bits) to fit one whole state, and XORs it with the previous state.
 
 The zero padding is enforced performing the following 32 constraints:
 
 ```rust
-constrain(zeros[i])
+constrain(coeff0 * zeros[i])
 ```
 
 The XOR part of the gate uses $100$ constraints 
 
 ```rust
-constrain(xor_state[i] - (old_state[i] + new_state[i]))
+constrain(coeff0 * (xor_state[i] - (old_state[i] + new_state[i])))
+```
+
+On squeeze mode (second coefficient is 1), the first 256 bits of the digest (first 4 words of the first column of the state, meaning first 16 expanded terms) are decomposed from the expanded state to form 8 bytes corresponding to the hash. 
+
+```rust
+for w in [0..4) {
+    for q in [0..4) {
+        digest[w*q] <- old_state[w*q]
+        constrain(dense[w][q] - (bytes[w][q][0] + 2^8*bytes[w][q][1])) 
+    }
+}
 ```
 
 #### Step theta
@@ -401,7 +416,7 @@ In order to check the first column of the table, it can be done shifting the con
 
 </center>
 
-The `Keccak` gate performs $1,780$ lookups to the table. They follow this new pattern, where $X_j$ means that the $j$-th chunk of lookups is performed, consisting of $X$ lookups to the table. When $(X_i^j)$ is used, then those are not extra lookups, but they are paired to other lookups to the other column with same indicator $j$. 
+The `KeccakRound` gate performs $1,780$ lookups to the table. They follow this new pattern, where $X_j$ means that the $j$-th chunk of lookups is performed, consisting of $X$ lookups to the table. When $(X_i^j)$ is used, then those are not extra lookups, but they are paired to other lookups to the other column with same indicator $j$. 
 
 
 | Columns | [120...140) | [140...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320)
@@ -419,6 +434,23 @@ The `Keccak` gate performs $1,780$ lookups to the table. They follow this new pa
 | `Curr`   | $400^{13}$    | $400^{14}$    |
 | Chi      | reset_b       | reset_sum     |
 
+The design makes use of a smaller table containing all bytes (values up to 8 bits):
+
+<center>
+
+| row |
+| --- |
+| $0$ |
+| ... |
+| $255$ |
+
+</center>
+
+The `KeccakSponge` gate performs lookups to both tables. It looks up $32$ bytes into the byte-length lookup table. It also looks up the decomposition into dense quarters of the first 4 words in the sparse lookup table using $16$ lookups.
+
+| `KeccakSponge` | [0...16) | [200...216) | [216...248) | 
+| -------------- | -------- | ----------- | ----------- |
+| Curr           | $16_1$   | $(16_2)$    | $32$        |
 
 ### Performance
 
@@ -428,7 +460,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| This RFC | 2344    | $24+1$       | $24\times(180+800+800)=42,720$ |    
+| This RFC | 2344    | $24+1$       | $24\times(180+800+800)+48=42,768$ |    
 
 </center>
 
