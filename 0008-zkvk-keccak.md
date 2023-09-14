@@ -193,13 +193,13 @@ On absorb mode (first coefficient is 1), the gate takes a block as 68 chunks of 
 The zero padding is enforced performing the following 32 constraints:
 
 ```rust
-constrain(coeff0 * zeros[i])
+constrain(absorb * zeros[i])
 ```
 
 The XOR part of the gate uses $100$ constraints 
 
 ```rust
-constrain(coeff0 * (xor_state[i] - (old_state[i] + new_state[i])))
+constrain(absorb * (xor_state[i] - (old_state[i] + new_state[i])))
 ```
 
 On squeeze mode (second coefficient is 1), the first 256 bits of the digest (first 4 words of the first column of the state, meaning first 16 expanded terms) are decomposed from the expanded state to form 8 bytes corresponding to the hash. 
@@ -207,7 +207,7 @@ On squeeze mode (second coefficient is 1), the first 256 bits of the digest (fir
 ```rust
 for w in [0..4) {
     for q in [0..4) {
-        constrain(ceff1*(dense[w][q] - (bytes[w][q][0] + 2^8*bytes[w][q][1]))) 
+        constrain(squeeze*(dense[w][q] - (bytes[w][q][0] + 2^8*bytes[w][q][1]))) 
     }
 }
 ```
