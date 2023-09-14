@@ -207,8 +207,7 @@ On squeeze mode (second coefficient is 1), the first 256 bits of the digest (fir
 ```rust
 for w in [0..4) {
     for q in [0..4) {
-        digest[w*q] <- old_state[w*q]
-        constrain(dense[w][q] - (bytes[w][q][0] + 2^8*bytes[w][q][1])) 
+        constrain(ceff1*(dense[w][q] - (bytes[w][q][0] + 2^8*bytes[w][q][1]))) 
     }
 }
 ```
