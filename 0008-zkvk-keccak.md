@@ -202,13 +202,24 @@ The XOR part of the gate uses $100$ constraints
 constrain(absorb * (xor_state[i] - (old_state[i] + new_state[i])))
 ```
 
-On squeeze mode (second coefficient is 1), the first 256 bits of the digest (first 4 words of the first column of the state, meaning first 16 expanded terms) are decomposed from the expanded state to form 8 bytes corresponding to the hash. 
+On squeeze mode (second coefficient is 1), the first 256 bits of the digest (first 4 words of the first column of the state, meaning first 16 expanded terms) are decomposed from the expanded state to form 8 bytes corresponding to the hash.
 
 ```rust
 for w in [0..4) {
     for q in [0..4) {
         constrain(squeeze*(dense[w][q] - (bytes[w][q][0] + 2^8*bytes[w][q][1]))) 
     }
+}
+```
+Moreover, the state must correspond to the correct decomposition of the shifts:
+
+```rust
+for i in [0..16) {
+    constrain(squeeze * (old_state[i] - 
+                            (reset[4i] 
+                                + 2*reset[4i+1] 
+                                + 4*reset[4i+2] 
+                                + 8*reset[4i+3]))) 
 }
 ```
 
@@ -445,11 +456,11 @@ The design makes use of a smaller table containing all bytes (values up to 8 bit
 
 </center>
 
-The `KeccakSponge` gate performs lookups to both tables. It looks up $32$ bytes into the byte-length lookup table. It also looks up the decomposition into dense quarters of the first 4 words in the sparse lookup table using $16$ lookups.
+The `KeccakSponge` gate performs lookups to both tables. It looks up $32$ bytes into the byte-length lookup table. It also looks up the decomposition into dense quarters of the first 4 words in the sparse lookup table using $16$ lookups combining `dense` and `reset0`. Likewise, the remaining $48$ resets are looked up in the "second column" fashion into the sparse lookup table.
 
-| `KeccakSponge` | [0...16) | [200...216) | [216...248) | 
-| -------------- | -------- | ----------- | ----------- |
-| Curr           | $16_1$   | $(16_2)$    | $32$        |
+| `KeccakSponge` | [200...216)      | [216...248)   | [248...264)        | [264...312)      |
+| -------------- | ---------------- | ------------- | ------------------ | ---------------- | 
+| Curr           | `sparse`($16_1$) | `bytes`($32$) | (`sparse`$(16_2))$ | `sparse`($48_2$) |
 
 ### Performance
 
@@ -459,7 +470,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| This RFC | 2344    | $24+1$       | $24\times(180+800+800)+48=42,768$ |    
+| This RFC | 2344    | $24+1$       | $24\times(180+800+800)+96=42,816$ |    
 
 </center>
 
