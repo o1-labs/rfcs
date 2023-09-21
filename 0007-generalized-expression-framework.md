@@ -8,11 +8,11 @@ The goal of this RFC is to generalize the expression framework for the kimchi pr
 
 The goal of this RFC is to generalize the design of the expression framework, which is used by kimchi to describe the polynomial constraints that must be satisfied by a given proof. This goal will be met when it is possible to describe constraints over a different set of columns and challenges than those hard-coded in the berkeley version of the kimchi proof system.
 
-In particular, the requirements are that zkVM instructions can be encoded as an expressionunder the framework, without modifying or otherwise affecting the expressions used for the berkeley specialization of the kimchi framework.
+In particular, the requirements are that zkVM instructions can be encoded as an expression under the framework, without modifying or otherwise affecting the expressions used for the berkeley specialization of the kimchi framework.
 
 We can measure progress towards this goal by executing an intermediate task. The 'cairo gates' defined in the kimchi proof system are currently unused in berkeley, but the selectors for these gates are [hard-coded in the list used for the berkeley expressions](https://github.com/o1-labs/proof-systems/blob/17041948eb2742244464d6749560a304213f4198/kimchi/src/circuits/gate.rs#L102); when this RFC is successfully implemented, it should be possible to define those constraints over a cairo-specific set of columns, which in turn will allow those variants to be removed.
 
-We can also confirm progress by integrating a currently-unused gate (for example the ['generic boolean gate'](https://github.com/o1-labs/proof-systems/pull/940)), to demonstrate that it is possible to add an integrate a new gate without modifying the existing behaviour of the berkeley kimchi proof system.
+We can also confirm progress by integrating a currently-unused gate (for example the ['generic boolean gate'](https://github.com/o1-labs/proof-systems/pull/940)), to demonstrate that it is possible to add and integrate a new gate without modifying the existing behaviour of the berkeley kimchi proof system.
 
 This proposal is optimized for code re-use: the existing framework is familiar to the crypto team, and provides useful abstractions for creating and reasoning about proofs over different sets of polynomial constraints. In particular, this avoids the need to fork and maintain separate versions of the expression framework for each different proof system.
 
@@ -20,11 +20,11 @@ This RFC will result in our ability to implement 'customizable kimchi' -- a vers
 
 ## Detailed design
 
-Currently, the [expression framework](https://github.com/o1-labs/proof-systems/blob/master/kimchi/src/circuits/expr.rs) is specialized for those constraints and uses that are required for the berkeley hard-fork's version of kimchi. This RFC proposes the following modifications:
+Currently, the [expression framework](https://github.com/o1-labs/proof-systems/blob/master/kimchi/src/circuits/expr.rs) is specialized for those constraints that are required for the berkeley hard-fork's version of kimchi. This RFC proposes the following modifications:
 * abstract over the `Environment` type in `Expr`, to allow for different execution environments which require different sets of columns and constants;
 * abstract over the `Column` type in `Expr`, adding the corresponding helpers via a rust trait definition, which allow it to access the values in `Environment`;
 * abstract over the `Constants` type in `Expr`, adding the corresponding helpers via a rust trait definition, which allow it to access the values in `Environment`;
-* add helpers such as `map_column`, which allow an expression over one set of columns to be transformed into an expression over another set of column.
+* add helpers such as `map_column`, which allow an expression over one set of columns to be transformed into an expression over another set of columns.
 
 The precise set of modifications should be defined by the state of the expression framework at the time of this RFC's implementation. However, the most important modifications are:
 * transforming the definition of `get_column` into a trait instance, defined on `Environment` and parameterised by the abstracted input type `Column`;
@@ -56,7 +56,7 @@ Adding these extra layers of abstraction will result in slower compile times, an
 2. Testing approach: 
     * Compile Mina with the versions from before and after this change, running a local network with both versions connected, to confirm that they are still able to communicate.
     * Run a test benchmark with both versions of the proof system, ensuring that the performance change is negligible after these changes.
-    * Create an execute a test of a new custom constraint (e.g. the 'generic boolean' gate), ensuring that the main primitives of the expression framework still allow for its evaluation and use.
+    * Create and execute a test of a new custom constraint (e.g. the 'generic boolean' gate), ensuring that the main primitives of the expression framework still allow for its evaluation and use.
 3. Testing scope: 
     * The existing properties of the proof system are preserved.
     * The expression framework is able to be used for new specializations of the proof system.
@@ -78,7 +78,7 @@ This allows us to re-use the existing code and institutional knowledge as much a
 
 ### What other designs have been considered and what is the rationale for not choosing them?
 
-The most appealing, tried, and tested alternative is to fork the kimchi repository -- or just the expression framework -- to allow for a different set of columns or constants. However, this results in a large amount of duplicated code, especially in some of the more complex helpers, and isn't compatible with a generalized 'customizable kimchi/pickles'.
+The most appealing, tried, and tested alternative is to fork the kimchi repository -- or just the expression framework -- to allow for a different set of columns or constants. However, this results in a large amount of duplicated code, especially in some of the more complex helpers, and isn't compatible with a generalized 'customizable kimchi/pickles' proof system.
 
 ### What is the impact of not doing this?
 
