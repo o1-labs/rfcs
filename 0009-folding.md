@@ -31,15 +31,15 @@ single one.
 ### Folding in kimchi
 
 For kimchi, the witness is the same witness we already have: a list of columns/polynomials. And the instance is list of the
-commitments to those polynomial, plus the public inputs.  
+commitments to those polynomials, plus the public inputs.
 Additionally, to make folding work we need to add 2 things that will absorb errors generated during the folding, one is just
-a field element $u$, the other is an extra witness column $E$ with its corresponding commitment $\overline{E}$ in the instance.  
-We will call this new kind of instance a relaxed kimchi instance ( equivalent to the committed relaxed R1CS instance in nova,
-but we already had commitments so the only change is the relaxation ).  
-A normal kimchi instance-witness pair can be trivially converted into relaxed kimchi by just setting $U=1$ and $E=[0;N]$  
+a field element $u$, the other is an extra witness column $E$ with its corresponding commitment $\overline{E}$ in the instance.
+We will call this new kind of instance a relaxed kimchi instance (equivalent to the committed relaxed R1CS instance in Nova,
+but we already had commitments so the only change is the relaxation).
+A normal kimchi instance-witness pair can be trivially converted into relaxed kimchi by just setting $U=1$ and $E=[0;N]$
 The verifier part of the protocol is relatively simple, get some commitment for the errors generated, make a challenge, send
-the challenge to the prover and take a lineal combination of the instances using the challenge.
-For the prover is doing the same with the witness after computing the error and committing to them.
+the challenge to the prover and take a linear combination of the instances using the challenge.
+The prover is doing the same with the witness after computing the error and committing to them.
 
 ### Implementation
 
@@ -64,7 +64,7 @@ to the their relaxed version and apply it to each expression used.
 ### Transformation
 
 We can think that all kimchi expressions will ultimately aggregate into a multivariate polynomial, thanks to the quadricization
-RFC we can additionally assume it to be of degree 2 or less.  
+RFC we can additionally assume it to be of degree 2 or less.
 For each term we will have to do a change to the expression and add to the error, we have 3 cases for constant, degree 1 and
 degree 2 terms that will require different changes to the expression and contribute in a different way to the error.
 
@@ -93,8 +93,8 @@ Given that they all contain $r$, it can be omitted and multiplied to the entire 
 ## Test plan and functional requirements
 
 1. Testing goals and objectives:
-    - The only requirement would be for it to work, it doesn't need backwards compatibility given that it will be first used 
-    in the ZkVM.  
+    - The only requirement would be for it to work, it doesn't need backwards compatibility given that it will be first used
+    in the ZkVM.
 2. Testing approach:
     - Given that it is new and not a replacement for pickles, we are likely limited to unit test it.
     - When the ZkVM is ready, just running it with folding would be an useful test.
