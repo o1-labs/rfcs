@@ -38,7 +38,7 @@ This section focuses on the actual changes for the proposed gadget.
 
 ### Input-Output format
 
-The Keccak gadget is triggered from the sys call. Inputs need to be written into memory and outputs are read from the sys call. One should expect inputs and outputs to be found in bytes serialization, with a big-endian encoding. 
+The Keccak gadget is triggered from the sys call. Inputs need to be written into memory and outputs are read from the sys call. One should expect inputs and outputs to be found in bytes serialization, with a big-endian encoding. One can only read from Canon 4 bytes at a time, what means that the hash function will have to wait until the input is fully loaded onto memory.
 
 ### Bitwise-sparse representation
 
@@ -54,48 +54,47 @@ $$\forall X \in (b_i)^\ell, b\in[0,1]: expand(X) \to 0 \ 0 \ 0 \ b_{\ell-1} \ . 
 
 The reason behind the choice of three empty intermediate bits in the sparse representation follows from the concrete use case of Keccak where no more than $2^4-1$ consecutive boolean operations are performed, and thus carries cannot overwrite the content of the bits to the leftmost bits.
 
-> NOTE: the above means that after each step of the permutation, the expanded representation needs to be contracted, discard auxiliary bits, and expand again from scratch before starting the next step to ensure completeness of the encoding.
+> NOTE: the above means that after each step of the permutation, the expanded representation needs to be reset before starting the next step to ensure completeness of the encoding. 
 
-Even though in each field element of ~254 bits long, one could fit up to 63 real bits with this encoding, each witness value will only store 16 such real bits. Instead, the expansion of the full 64 bit words could be represented by composition of each of the four 16-bit parts. But this will not be computed in the circuit, since the expansion would not fit entirely in the field. The way to perform this mapping is through a 16-bit lookup table (of $2^{16}$ entries, larger than that would be too costly).
+Even though in each field element of ~254 bits long, one could fit up to 63 real bits with this encoding, each witness value will only store 16 such real bits. Instead, the expansion of the full 64 bit words could be represented by composition of each of the four 16-bit parts. But this will not be computed in the circuit, since the expansion would not fit entirely in the field. The way to perform this mapping is through a 16-bit 2-column lookup table that we call `Reset` (of $2^{16}$ entries, anything significantly larger than that such as 32 bits would be too costly).
 
-Let $sparse(X)$ refer to a representation of $X$, where only the indices in the $4i$-th positions correspond to real bits, and the intermediate indices can contain auxiliary information. Connecting to the above, after performing a series of boolean operations to the $expand(X)$ one can obtain some $sparse(X)$, but both encode the same $X$. Concretely,
+Let $sparse(X)$ refer to a representation of $X$, where only the indices in the $4i$-th positions correspond to real bits, and the intermediate indices can contain auxiliary information. Connecting to the above, on input a word $X$, we can expand it in order to perform a series of boolean operations (up to 15) which results in some $sparse(X)$, encoding the same $X$. Then,
 
-$$\forall X\in(b_i)^\ell:\quad X \equiv \sum_{0}^{\ell-1} 2^i \cdot sparse(X)_{4i} $$
+$$\forall X\in(b_i)^\ell:\quad expand(X) \equiv reset(sparse(X)) $$
 
 #### Compression
 
-Another set of functions will be defined to be used in this new design. For $i\in[0,3]$, let $shift_i(X)$ be the function that performs the AND operation $(\wedge)$ of the sparse representation of the word $2^{\ell}-1$ ("all-ones" word in binary), shifted $i$ bits to the left, with the input word $X$. More formally,
+Another set of functions will be defined to be used in this new design. For $i\in[0,3]$, let $mask_i(X)$ be the function that performs the AND operation $(\wedge)$ of the sparse representation of the word $2^{\ell}-1$ ("all-ones" word in binary), shifted $i$ bits to the left, with the input word $X$. More formally,
 
-$$\forall X \in (b_i)^\ell, i\in[0,3]: shift_i(X) := \left(\ expand(2^\ell - 1)<<_i 0\ \right)\ \wedge \ X$$ 
+$$\forall X \in (b_i)^\ell, i\in[0,3]: mask_i(X) := \left(\ expand(2^\ell - 1)<<_i 0\ \right)\ \wedge \ X$$ 
 
 meaning, on input some $sparse(X)$, all four of:
 
 $$ 
 \begin{align*}
-shift_0\left(sparse(X)\right) &:= 0 \ 0 \ 0 \ 1_{\ell-1} \ .\ .\ .\ 0 \ 0 \ 0 \ 1_{0} \ \wedge\ sparse(X) \equiv expand(X)\\
-shift_1\left(sparse(X)\right) &:= 0 \ 0 \ 1_{\ell-1} \ 0 \ . \ . \ . \ 0 \ 0 \ 1_{0} \ 0 \ \wedge\ sparse(X) \\
-shift_2\left(sparse(X)\right) &:= 0 \ 1_{\ell-1} \ 0 \ 0 \ . \ . \ . \ 0 \ 1_{0} \ 0 \ 0 \ \wedge\ sparse(X) \\
-shift_3\left(sparse(X)\right) &:= \ 1_{\ell-1} \ 0 \ 0 \ 0 \ . \ . \ . \ 1_{0} \ 0 \ 0 \ 0 \wedge\ sparse(X) \\
+mask_0\left(sparse(X)\right) &:= 0 \ 0 \ 0 \ 1_{\ell-1} \ .\ .\ .\ 0 \ 0 \ 0 \ 1_{0} \ \wedge\ sparse(X) \equiv expand(X) \equiv reset(sparse(X))\\
+mask_1\left(sparse(X)\right) &:= 0 \ 0 \ 1_{\ell-1} \ 0 \ . \ . \ . \ 0 \ 0 \ 1_{0} \ 0 \ \wedge\ sparse(X) \\
+mask_2\left(sparse(X)\right) &:= 0 \ 1_{\ell-1} \ 0 \ 0 \ . \ . \ . \ 0 \ 1_{0} \ 0 \ 0 \ \wedge\ sparse(X) \\
+mask_3\left(sparse(X)\right) &:= \ 1_{\ell-1} \ 0 \ 0 \ 0 \ . \ . \ . \ 1_{0} \ 0 \ 0 \ 0 \wedge\ sparse(X) \\
 \end{align*}
 $$
 
-The effect of each $shift_i$ is to null all but the $(4n+i)$-th bits of the expanded output. Meaning, they act as selectors of every other $(4n+i)$-th bit. That implies that one can rewrite the sparse representation of any word as:
+The effect of each $mask_i$ is to null all but the $(4n+i)$-th bits of the expanded output. Meaning, they act as selectors of every other $(4n+i)$-th bit. That implies that one can rewrite the sparse representation of any word as:
 
 $$
 \begin{align*}
-sparse(X) \iff & shift_0(sparse(X)) + shift_1(sparse(X))
-+ shift_2(sparse(X)) + shift_3(sparse(X))
+sparse(X) \iff & mask_0(sparse(X)) + mask_1(sparse(X))
++ mask_2(sparse(X)) + mask_3(sparse(X))
 \end{align*}
 $$
 
-In order to check the real bits behind a sparse representation, one can perform a lookup with the result of the $shift_0$. Note that this table is equivalent to the sparse table presented above. Before, on input a 16-bit word (equivalent to the row index), the table contained the expanded representation. Here instead, on input the expansion (because $shift_0$ has intermediate bits set to zero), one can check the word. 
-
-The correctness of the remaining shifts $(i\in[1,3])$ should also be checked. For this, the witness value $reset_i := shift_i/2^i$ will be stored in the witness in such a way that each $reset_i$ can be looked up reusing the table for $shift_0$, and then the following constraint should hold:
+In order to check correctness of a decomposition, we can rely on 4 lookups. The first one is a lookup to the `Reset` table using the "dense" word for the first column, and `mask_0` for the second column (because it is equivalent to the expansion). 
+The correctness of the remaining masks $(i\in[1,3])$ should also be checked. For this, the witness value $shift_i := mask_i/2^i$ will be stored in the witness in such a way that each $shift_i$ can be looked up using the "second column" of the `Reset` table (more about this later), and then the following constraint should hold:
 
 $$
 \begin{align*}
-0 = sparse(X) - (\ & reset_0(sparse(X)) + 2 \cdot reset_1(sparse(X)) \\
-& + 4 \cdot reset_2(sparse(X)) + 8 \cdot reset_3(sparse(X))\ )
+0 = sparse(X) - (\ & reset_0(sparse(X)) + 2 \cdot shift_1(sparse(X)) \\
+& + 4 \cdot shift_2(sparse(X)) + 8 \cdot shift_3(sparse(X))\ )
 \end{align*}
 $$
 
@@ -109,32 +108,32 @@ Given expanded `left` and `right` inputs, the sparse representation of $XOR_{64}
 
 $$\forall i\in[0,3]: sparse(xor_i) = expand(left_i) + expand(right_i)$$
 
+Nonetheless, if no more than 15 boolean operations have been performed since the latest reset, one can use sparse representations of the left and right inputs as well.
+
 #### Reset
 
-After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For $n \in [0, 3], let $reset_n = shift_n(sparse)/2^n$, the correct decomposition of a 64-bit word can be constrained as
+After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For $n \in [0, 3], let $shift_n = mask_n(sparse)/2^n$, the correct decomposition of a 64-bit word can be constrained as
 
-$$\forall i \in [0,3]: sparse_i = reset0_i + 2\cdot reset1_i + 4\cdot reset2_i + 8\cdot reset3_i$$
+$$\forall i \in [0,3]: sparse_i = shift0_i + 2\cdot shift1_i + 4\cdot shift2_i + 8\cdot shift3_i$$
 
-together with a lookup for each `reset_i`.
+together with a lookup for each `shift_i` (more about this later).
 
-Each `sparse[i]` will be the output of previous boolean operations. The `reset0[i]` corresponds to the clean expand of the word, and could be the input of some upcoming boolean operations. The `reset1[i]` will be used by the AND. The 64-bit word computed from the `dense_i` will be used in rotation.
+Each `sparse[i]` will be the output of previous boolean operations. The `shift0[i]` corresponds to the clean expand of the word, and could be the input of some upcoming boolean operations. The `shift1[i]` will be used by the AND. The 64-bit word computed from the `dense[i]` will be used in rotation.
 
 ##### AND
 
-Note that the AND of two expanded inputs corresponds to the terms in the $4n+1$-th positions. Meaning that $shift_1/2$ gives the expand value of the conjugation operation.
-The AND operation can be constrained making use of XOR and Reset explained above. With no further constraints, XOR is used to obtain `left+right`, and then Reset provides the expanded result of AND in the witnesses `reset1`.
+Note that the AND of two expanded inputs corresponds to the $4n+1$-th positions after an expanded XOR (addition). Meaning that $shift_1 = mask_1/2$ gives the expanded representation of the conjugation operation.
+The AND operation can be constrained making use of XOR and Reset explained above. With no further constraints, XOR is used to obtain `left+right`, and then Reset provides the expanded result of AND in the `shift1` witnesses.
 
 #### Negation
 
-The NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. The mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits. Given $x$ in expanded form (meaning, not any sparse representation of $x$ but the initial one with zero intermediate bits) the negation of one 64-bit word can be constrained as:
+The NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. The mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits. Given $x$ in reset form (meaning, not any sparse representation of $x$ but the initial expanded one with zero intermediate bits) the negation of one 64-bit word can be constrained as:
 
 $$\forall i \in[0, 3]: expand(not_i) = 0\text{x}1111111111111111 - expand(x_i)$$
 
-> Because the inputs are known to be 16-bits at most, it is guaranteed that the total length of $X$ is at most 64 bits, and is correctly split into quarters `x[i]`.
+> Because the inputs are known to be 16-bits at most, it is guaranteed that the total length of $x$ is at most 64 bits, and is correctly split into quarters `x[i]`.
 
 #### Rotation
-
-> If we could fit the whole 256 expanded bits of the 64-bit word, we could simulate rotations by $x$ bits as a rotation by $4*x$ on the sparse-bit representation, so we could avoid unpacking altogether, which would buy us some additional efficiency gains.
 
 Rotations of $b$ bits to the left will be performed directly on the full 64-bit word $X$ to obtain $Y$, using the algebraic observation that:
 
@@ -156,22 +155,25 @@ constrain(0 == bound - ( quotient + 2^64 - two_to_off ) )
 
 Together with $3\times4=12$ lookups to check that the remainder, quotient and bound are $<2^{64}$.
 
+> Assuming that we execute rotation starting form reset values, then one could perform the above operations directly on the expanded terms, since $4\cdot64-3=253$ encoded bits (removing the three leading zeros) would fit in the BN254 curve. In this scenario, rotations by $x$ bits would be mapped to rotations by an offset of $4\cdot x$ bits instead. Moreover, the constraints would need to be slightly different, to avoid overflows. In particular: `word = quotient * 2^(253-4*offset) + shift` and `output = quotient + shift * 2^(4*offset)`, and the output would already be in expanded format.  Nonetheless, in this case we would also need to perform bound checks, which would be much more costly due to the bitlengths. And in any case, each dense word should be expanded afterwards to be processed in later steps.
+
 ### Constraints
 
-Support for padding shall be provided. In the Keccak PoC, this step takes place at the Snarky layer. It checks that the correct amount of bits in the $10^*1$ rule are added until reaching a multiple of 1088 bits, and then adds 512 more zero bits to each block to form a full state.
 
-If the input is not previously expanded, the next step is to expand all 25 words. Each word of 64 bits will be split into 4 parts of 16 real bits each. The expansion itself will be performed through the lookup table containing all $2^{16}$ entries. This step would require $4\times25=100$ lookups.
+> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
 
 The support for the Keccak hash function will require the following gate types:
 
-**Preconditions:** message is padded using the $10^*1$ rule until reaching a length of a multiple of the bitrate. Then, it is split into blocks of 1088 bits, and laid out into words, and expanded using the sparse lookup table.
-> For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
+**PRECONDITIONS:** the message to be hashed should be padded with the $10^*1$ rule before 
+
+**NOTE:** we need to provide some mechanism to link blocks of the message to be hashed with the location in memory / public input, without relying on the permutation argument.
+
 - `KeccakSponge`: performs formatting actions related to the Keccak sponge.
 - `KeccakRound`: performs one full round of the Keccak permutation function.
 
 The high-level layout of the gates follows:
 
-| `KeccakSponge` | [0...100) | [100...168) | [168...200) | [200...204) | [204...208] | [208...212) | [212...216) | [216...224] | [224...232] | [232...240] | [240...248] |
+| `KeccakSponge` | [0...100) | [100...168) | [168...200) | [200...300) | [300...500) | [208...212) | [212...216) | [216...224] | [224...232] | [232...240] | [240...248] |
 | -------------- | --------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
 | Curr           | old_state | new_block   | zeros       | dense0      | dense1      | dense2      | dense3      | bytes0      | bytes1      | bytes2      | bytes3      |
 | Next           | xor_state |
@@ -186,42 +188,91 @@ The high-level layout of the gates follows:
 
 #### Sponge
 
-There are two modes: absorb, and squeeze. 
+Support for padding shall be provided. In the Keccak PoC, this step took place at the Snarky layer. It checks that the correct amount of bits in the $10^*1$ rule are added until reaching a multiple of 1088 bits, and then adds 512 more zero bits to each block to form a full state.
 
-On absorb mode (first coefficient is 1), the gate takes a block as 68 chunks of 16 bits expanded, pads with zeros until reaching 100 chunks (1600 bits) to fit one whole state, and XORs it with the previous state.
+If the input was not previously expanded, the next step would be to expand all 25 words. Each word of 64 bits would have to be split into 4 parts of 16 real bits each. The expansion itself would be performed through the `Reset` lookup table. This step would require $4\times25=100$ lookups.
 
-The zero padding is enforced performing the following 32 constraints:
+There are two main modes: absorb and squeeze. Inside the absorb mode, there are two additional submodes called pad and root, which can as well happen at the same time. 
 
-```rust
-constrain(absorb * zeros[i])
-```
 
-The XOR part of the gate uses $100$ constraints 
+- **Absorb mode**
 
-```rust
-constrain(absorb * (xor_state[i] - (old_state[i] + new_state[i])))
-```
+    In absorb mode, the first coefficient is set to 1: `absorb := coeff[0] = 1`, and the second coefficient is 0.
 
-On squeeze mode (second coefficient is 1), the first 256 bits of the digest (first 4 words of the first column of the state, meaning first 16 expanded terms) are decomposed from the expanded state to form 8 bytes corresponding to the hash.
+    The gate takes a block as 68 chunks of 16 bits expanded, pads with zeros until reaching 100 chunks (1600 bits) to fit one whole state, and XORs it with the previous state.
 
-```rust
-for w in [0..4) {
-    for q in [0..4) {
-        constrain(squeeze*(dense[w][q] - (bytes[w][q][0] + 2^8*bytes[w][q][1]))) 
+    The zero padding is enforced performing the following 32 constraints:
+
+    ```rust
+    constrain(absorb * zeros[i])
+    ```
+
+    The XOR part of the gate uses $100$ constraints 
+
+    ```rust
+    constrain(absorb * (xor_state[i] - (old_state[i] + new_state[i])))
+    ```
+    where `new_state` is the concatenation of `new_block` and `zeros`.
+
+    Additionally, the gate must check the decomposition into shifts of the new block.
+
+    ```rust
+    for i in [0..100) {
+        constrain(absorb * (new_block[i] - (
+                            shifts0(i)
+                            + 2 * shifts1(i)
+                            + 4 * shifts2(i)
+                            + 8 * shifts3(i) )))
     }
-}
-```
-Moreover, the state must correspond to the correct decomposition of the shifts:
+    ```
 
-```rust
-for i in [0..16) {
-    constrain(squeeze * (old_state[i] - 
-                            (reset[4i] 
-                                + 2*reset[4i+1] 
-                                + 4*reset[4i+2] 
-                                + 8*reset[4i+3]))) 
-}
-```
+    The correspondence between the shifts and the dense bytes will happen inside a lookup pattern.
+
+    - **Root mode**
+
+        In this mode, the third coefficient is set to 1: `root := coeff[2] = 1`, and `absorb = 1, squeeze = 0`. 
+
+        This mode is only performed once per hash, and it must happen in the first absorb. The only difference between this one and any other absorb is that the root mode sets the initial state to all zeros. For that reason, apart from the constraints above, it checks:
+
+        ```rust
+        constrain(root * old_state[i])
+        ```
+    
+    - **Pad mode** 
+
+        Padding with the $10^*1$ rule only happens once per hash. But unlike the root mode, padding happens only in the last absorb. That is because the input message is padded until reaching a length that is a multiple of 136 bytes, which always fully fits in one whole block. This means, in the case that the input message is $\leq 135$ bytes in length, the single absorb will run in both `root` and `pad` modes.
+
+        When in pad mode, we will have 136 selector flags (coefficient indices `[4..140)`) that will activate at most 136 positions corresponding to the padding. Additionally, each of the 136 coefficients corresponding to the bytes of the new block are set to either `0x00`, `0x01`, `0x80`, or `0x81`, which are all the possible combinations that a padding byte can take. In this mode, `absorb = 1, squeeze = 0`. 
+        
+        Altogether, in pad mode we obtain the following 136 constraints:
+
+        ```rust
+        constrain( flag[i] * (pad[i] - bytes[i]) )
+        ```
+
+        Moreover, the gate must show the link between the bytes and the actual state. For that, 
+
+
+
+- **Squeeze mode**
+
+    The gate takes the first 256 bits of the digest (first 4 words of the first column of the state, meaning first 16 expanded terms), and decomposes from the expanded state to form 32 bytes corresponding to the hash. 
+
+    In squeeze mode, the second coefficient is set to 1: `squeeze := coeff[1] = 1`, and rest of coefficients are 0.
+
+    Here, the state being decomposed into shifts is the one resulting from the most recent permutation round:
+
+    ```rust
+    for i in [0..16) {
+        constrain(squeeze * (old_state[i] - 
+                                (shift[4i] 
+                                    + 2*shift[4i+1] 
+                                    + 4*shift[4i+2] 
+                                    + 8*shift[4i+3]))) 
+    }
+    ```
+
+    The correspondence between the shifts and the dense bytes will happen inside a lookup pattern.
 
 #### Step theta
 
@@ -404,15 +455,9 @@ After this last step of the permutation function, `Keccak` will store state `G` 
 
 ### Lookups
 
-The design uses a 2-column lookup table containing the elements from $0$ to $2^{16}-1$, and their expansion. As such, it can be used to check that the right expansion was used for a given chunk of 16 bits. But it also can be used to check the correct form of the shifts, looking only at the second column (since the non-sparse pre-image is non-relevant for $reset_i$). 
+The design uses a 2-column lookup table called `Reset`` containing the elements from $0$ to $2^{16}-1$, and their expansion. As such, it can be used to check that the right expansion was used for a given chunk of 16 bits. 
 
-Doing the latter can be achieved in three ways:
-
-- Having two tables, where the second one only contains the expanded column. This implies having twice as many rows.
-- Having the non-sparse value in the witness to check the shifts fully in the table.
-- Checking the value is in the table, modulo $2^{64}$. Requires some extra logic in the lookups interface. 
-
-In order to check the first column of the table, it can be done shifting the content right by $64$ positions.
+Additionally, we create two more tables which correspond to the first and second columns of the former (called `Bytes16` and `Sparse` respectively). `Bytes16` can be used to range check some terms in rotation, whereas `Sparse` can be used to check the correct form of the shifts (since the non-sparse pre-image is non-relevant for $shift_i$ for $i\in[1,3]$). 
 
 <center>
 
@@ -426,25 +471,24 @@ In order to check the first column of the table, it can be done shifting the con
 
 </center>
 
-The `KeccakRound` gate performs $1,780$ lookups to the table. They follow this new pattern, where $X_j$ means that the $j$-th chunk of lookups is performed, consisting of $X$ lookups to the table. When $(X_i^j)$ is used, then those are not extra lookups, but they are paired to other lookups to the other column with same indicator $j$. 
-
+The `KeccakRound` gate performs $1,760$ lookups as indicated below (parenthesis means that they are part of another lookup and should not be counted twice):
 
 | Columns | [120...140) | [140...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320)
 | ------- | --------- | ----------- | - | - | - | - | - | - |
-| `Curr`  | $20_2^1$   |  $60_2^2$    | $(20_1^1)$ | $20_1^3$ | $20_1^4$ | $20_1^5$ | $(20_1^6)$ | $20_2^6$ |
+| `Curr`  | 20`Reset` | 60`Sparse` | (20`Reset`) | 20`Bytes16` | 20`Bytes16` | 20`Bytes16` | 20`Reset` | (20`Reset`) |
 | Theta  | reset0_c | reseti_c | dense_c | quotient_c | remainder_c | bound_c | dense_rot_c | expand_rot_c | 
 
 | Columns | [440...540) | [540...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) |
 | -------- | ----------- | ----------- | ------------ | ------------- | ------------- | ------------- | ----- | ---- | 
-| `Curr` | $100_2^7$ | $300^8_2$ | $(100_1^7)$ | $100_1^9$ | $100_1^{10}$ | $100_1^{11}$ | $(100_1^{12})$ | $100_2^{12}$ |
+| `Curr` | 100`Reset` | 300`Sparse` | (100`Reset`) | 100`Bytes16` | 100`Bytes16` | 100`Bytes16` | 100`Reset` | (100`Reset`) |
 | PiRho    | reset0_e | reseti_e   | dense_e     | quotient_e   | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e |
 
 | Columns: | [1540...1940) | [1940...2340) | 
 | -------- | ------------- | ------------- |
-| `Curr`   | $400_2^{13}$  | $400_2^{14}$  |
+| `Curr`   | 400`Sparse`   | 400`Sparse`   |
 | Chi      | reset_b       | reset_sum     |
 
-The design makes use of a smaller table containing all bytes (values up to 8 bits):
+The design makes use of a smaller table containing all bytes (values up to 8 bits), or reuses `Bytes16` or `Bytes12` with a scaling factor.
 
 <center>
 
@@ -456,11 +500,15 @@ The design makes use of a smaller table containing all bytes (values up to 8 bit
 
 </center>
 
-The `KeccakSponge` gate performs lookups to both tables. It looks up $32$ bytes into the byte-length lookup table. It also looks up the decomposition into dense quarters of the first 4 words in the sparse lookup table using $16$ lookups combining `dense` and `reset0`. Likewise, the remaining $48$ resets are looked up in the "second column" fashion into the sparse lookup table.
+The `KeccakSponge` gate performs 200*2 + 100 + 300 lookups:
 
-| `KeccakSponge` | [200...216)      | [216...248)   | [248...264)        | [264...312)      |
-| -------------- | ---------------- | ------------- | ------------------ | ---------------- | 
-| Curr           | `sparse`($16_1$) | `bytes`($32$) | (`sparse`$(16_2))$ | `sparse`($48_2$) |
+| `KeccakSponge` | [200...400) | [400...500)  | [500...800)      |
+| -------------- | ---------------- | ------------- | ------------------ | 
+| Curr           | 200`Bytes` + (100`Reset`) | 100`Reset` | 300`Sparse` |
+
+The 100 lookups to `Reset` are performed using a linear combination of the bytes to obtain the corresponding 16 dense bits for each `shift0` term. Take into account that bytes shall be laid out in big-endian format, whereas each dense pair is in little-endian.
+
+$shift_0[i] = expand(\ bytes[2\cdot i] + 2^8 \cdot bytes[2\cdot i+1]\ )$
 
 ### Performance
 
@@ -470,7 +518,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| This RFC | 2344    | $24+1$       | $24\times(180+800+800)+96=42,816$ |    
+| This RFC | 2344    | $1+24+1(+1)$ | $24\times(180+800+800)+800=43,520$ |    
 
 </center>
 
@@ -541,13 +589,15 @@ The current Keccak PoC in SnarkyML was introduced to support Ethereum primitives
 
 * During the implementation of this RFC:
     * obtain exact measurements of the number of rows, columns, constraints, lookups, seconds, required per block hash;
-    * find out if the round constants should be hardcoded (takes memory space) or generated (takes computation resources);
-    * decide if the rotation offsets will be directly stored modulo 64 or not;
     * if the endianness of the target input format is little endian, it will need to be transformed into big endian;
-    * if the input is given as a bitstring, pack it into bytes.
+    * pack the bytestring given in chunks of 4 bytes.
 
 * Future work: 
     * support SHA3 (NIST variant of Keccak), different output lengths, and different state widths;
+    * improve the lookup argument to reuse the `Reset` table also for single-column lookups. Perhaps this can work adding some logic such as performing lookups modulo a constant ($2^{64}$ in this case), or shifting right by a given number of positions ($64$ in this case);
+    * optimize the `KeccakRound` to remove redundant intermediate states (some preliminar ideas have been performed);
+    * optimize range checks or think of a different approach towards rotation.
+
 
 ## Appendix
 
