@@ -508,7 +508,7 @@ The `KeccakSponge` gate performs 200*2 + 100 + 300 lookups:
 
 The 100 lookups to `Reset` are performed using a linear combination of the bytes to obtain the corresponding 16 dense bits for each `shift0` term. Take into account that bytes shall be laid out in big-endian format, whereas each dense pair is in little-endian.
 
-$shift_0[i] = expand(\ bytes[2\cdot i] + 2^8 \cdot bytes[2\cdot i+1]\ )$
+$$shift_0[i] = expand(\ bytes[2\cdot i] + 2^8 \cdot bytes[2\cdot i+1]\ )$$
 
 ### Performance
 
