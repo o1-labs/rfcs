@@ -189,7 +189,7 @@ corresponds to no data has been read and no error is raised.
 
 #### Pre-image oracle
 
-When the buffer to be read is the pre-image oracle, i.e. when `a1` equals `5`, a
+When the buffer to be read is the pre-image oracle, i.e. when `a0` equals `5`, a
 chunk of the pre-image is read, and copy into the memory.
 The pre-image that must be read is designed by the `preimageKey`, and the actual
 chunk is given by the preimage offset variable.
@@ -202,7 +202,7 @@ have been read.
 
 <!-- DONE -->
 
-When `a1` equals `3` (alias by `fdHintRead`), we simulate we read all data by
+When `a0` equals `3` (alias by `fdHintRead`), we simulate we read all data by
 setting `v0` to the value contained in the register `a2`. It has no other effect.
 
 #### Default case
