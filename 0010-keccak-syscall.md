@@ -189,10 +189,14 @@ corresponds to no data has been read and no error is raised.
 
 #### Pre-image oracle
 
-When the buffer to be read is the pre-image oracle, i.e. when `a1` equals `5`.
+When the buffer to be read is the pre-image oracle, i.e. when `a1` equals `5`, a
+chunk of the pre-image is read, and copy into the memory.
+The pre-image that must be read is designed by the `preimageKey`, and the actual
+chunk is given by the preimage offset variable.
 
 At the end of the call, the register `v0` must contain the number of bytes that
 have been read.
+
 
 #### Hint response
 
@@ -248,7 +252,7 @@ value `0` must be set in `a3`.
 
 In Cannon, even though the body is not empty, the code has no effect on the
 output. It can therefore be ignored.
-The number of bytes, i.e. the value in `a2`, must be copited into `v0` and
+The number of bytes, i.e. the value in `a2`, must be copied into `v0` and
 the value `0` must be set in `a3`.
 
 #### Pre-image Oracle
