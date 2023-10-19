@@ -194,10 +194,12 @@ chunk of the pre-image is read, and copy into the memory.
 The pre-image that must be read is determined by the `preimageKey`, and the actual
 chunk is given by the preimage offset variable.
 
-The number of bytes that must be read is in the register `a2`.
+The number of bytes that must be read is in the register `a2` and the address
+where the chunk as to be written is in the register `a1`.
 
 At the end of the call, the register `v0` must contain the number of bytes that
-have been read.
+have been read. Also, the preimage offset has to be incremented by the number of
+bytes that has been read.
 
 
 #### Hint response
