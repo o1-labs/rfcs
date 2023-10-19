@@ -191,8 +191,10 @@ corresponds to no data has been read and no error is raised.
 
 When the buffer to be read is the pre-image oracle, i.e. when `a0` equals `5`, a
 chunk of the pre-image is read, and copy into the memory.
-The pre-image that must be read is designed by the `preimageKey`, and the actual
+The pre-image that must be read is determined by the `preimageKey`, and the actual
 chunk is given by the preimage offset variable.
+
+The number of bytes that must be read is in the register `a2`.
 
 At the end of the call, the register `v0` must contain the number of bytes that
 have been read.
