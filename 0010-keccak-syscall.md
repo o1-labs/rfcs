@@ -259,15 +259,24 @@ the value `0` must be set in `a3`.
 
 <!-- DONE -->
 
-The file descriptor `fdPreimageWrite` (value `6`) is used to read a pre-image key from the memory.
-It has to be read maximum 4 bytes at a time.
-The bytes are written in a pre-image key variable/column from right to left.
+The file descriptor `fdPreimageWrite` (value `6`) is used to read a pre-image
+key from the memory.
+The address to be read is located in the register `a1` and the number of bytes
+that has to be read is in the register `a2`, and must be constrained to 4 bytes
+as any IO operations.
 
-A variable pre-image key offset is reset to `0` everytime in this case, leaving a
+The bytes are written in a pre-image key variable from right to left. The
+existing bytes are shifted left by `a2` bytes, and the queried bytes must be
+written at the end of the key.
+
+The variable pre-image key offset is reset to `0` everytime in this case, leaving a
 place for optimisation in the MIPS code by avoiding calling `8` times the syscall
 if keys are not far away.
+
+<!--
 The pre-image key offset is used by the syscall `sysRead` on the file descriptor
 `fdPreimageRead` is used to know the chunk it is processing.
+-->
 
 #### Default case
 
