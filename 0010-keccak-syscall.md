@@ -201,6 +201,8 @@ At the end of the call, the register `v0` must contain the number of bytes that
 have been read. Also, the preimage offset has to be incremented by the number of
 bytes that has been read.
 
+<!-- TODO(to define): we want to check the data has been correctly read, with
+keccak. However, we don't know yet when we did finish to read the data -->
 
 #### Hint response
 
