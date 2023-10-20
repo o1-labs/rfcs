@@ -41,13 +41,13 @@ Under the primary command `zk`, the new `lightnet` sub-commands will be introduc
   - Mina Daemon GraphQL endpoint for communication: [http://localhost:8080/graphql](http://localhost:8080/graphql)
   - PostgreSQL connection string: `postgresql://postgres:postgres@localhost:5432/archive`;
   - Mina Daemon and Archive Node logs path;
-  - [o1js configuration](https://github.com/o1-labs/o1js/blob/ccf50e0b58190d9700c6dda4fafee3e62e270131/src/examples/zkapps/hello_world/run_live.ts#L18) code snippet.
+  - [o1js configuration](https://github.com/o1-labs/o1js/blob/ccf50e0b58190d9700c6dda4fafee3e62e270131/src/examples/zkapps/hello_world/run_live.ts#L18) code snippet and/or link to the example usage documentation.
 
 #### Stop lightnet network
 
 - **Command**: `zk lightnet stop`
-  - In future we might want to extend this command with additional options to preserve the network state between containers lifecycle.
-- **Function**: Destroys the running container. Repeating the command while network is down should not throw an error but rather output a message that the network is already down.
+  - In future we might want to extend this command with additional options to preserve the network state between containers launches. But for now, we will keep it simple and clean up any leftovers.
+- **Function**: Destroys the running container and cleans up any leftovers. Repeating the command while network is down should not throw an error but rather output a message that the network is already down.
 - **Output**: Maybe blockchain state (blocks height, slots, epoch, txns processed during the session, etc.) at the time of command issuing.
 
 #### Handle logs
