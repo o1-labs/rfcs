@@ -50,6 +50,12 @@ Under the primary command `zk`, the new `lightnet` sub-commands will be introduc
 - **Function**: Destroys the running container and cleans up any leftovers. Repeating the command while network is down should not throw an error but rather output a message that the network is already down.
 - **Output**: Maybe blockchain state (blocks height, slots, epoch, txns processed during the session, etc.) at the time of command issuing.
 
+#### Get lightnet network status
+
+- **Command**: `zk lightnet status`
+- **Function**: Fetches the lightnet network status.
+- **Output**: Whether the network is running and possible reasons if it is not running.
+
 #### Handle logs
 
 - **Command**: `zk lightnet logs <sub-command>`
