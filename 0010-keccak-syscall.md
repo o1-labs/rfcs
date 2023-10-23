@@ -279,6 +279,9 @@ The variable pre-image key offset is reset to `0` everytime in this case, leavin
 place for optimisation in the MIPS code by avoiding calling `8` times the syscall
 if keys are not far away.
 
+At the end of the execution, the register `v0` must contain the number of bytes
+that have been written.
+
 <!--
 The pre-image key offset is used by the syscall `sysRead` on the file descriptor
 `fdPreimageRead` is used to know the chunk it is processing.
