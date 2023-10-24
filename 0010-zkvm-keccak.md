@@ -8,7 +8,7 @@ This document presents a design to deeply support the Keccak hash function for e
 
 ## Motivation
 
-One component of the Optimism stack system is the pre-image data oracle which is responsible for getting information about the EVM into the MIPS world. The OP stack currently uses the existing ledger which is built on top of Keccak hashes as a baseline.
+One component of the Optimism stack system is the pre-image data oracle which is responsible for getting information about the chains. The OP stack currently uses the existing ledger which is built on top of Keccak hashes as a baseline.
 
 Having a dedicated chip inside Kimchi to prove correct computation of Keccak hashes from pre-image data (blocks) will result in a more efficient design of the MIPS zkVM as a whole, meeting the performance goals of the [OP RFP](https://github.com/ethereum-optimism/ecosystem-contributions/issues/61#issuecomment-1611488039).
 
@@ -165,8 +165,6 @@ Together with $3\times4=12$ lookups to check that the remainder, quotient and bo
 The support for the Keccak hash function will require the following gate types:
 
 **PRECONDITIONS:** the message to be hashed should be padded with the $10^*1$ rule before 
-
-**NOTE:** we need to provide some mechanism to link blocks of the message to be hashed with the location in memory / public input, without relying on the permutation argument.
 
 - `KeccakSponge`: performs formatting actions related to the Keccak sponge.
 - `KeccakRound`: performs one full round of the Keccak permutation function.
@@ -522,6 +520,19 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 </center>
 
+### Input / Output 
+
+We need to provide some mechanism to link blocks of the message to be hashed with the location in memory / public input, without relying on the permutation argument. Based on the [`syscalls` RFC](https://github.com/o1-labs/rfcs/pull/30), we want to have a Keccak communication channel between components of the system, where the syscalls could do:
+
+`lookup_aggreg += 1/(x + keccak_channel_table_id + value * joint_combiner^1)`
+
+and then the Keccak chip handles reading them with
+
+`lookup_aggreg -= 1/(x + keccak_channel_table_id + value * joint_combiner^1)`
+
+so that the final lookup aggregation is unchanged iff the Keccak chip processed and proved all of the messages.
+
+
 ## Test plan and functional requirements
 
 1. Testing goals and objectives: 
@@ -541,7 +552,7 @@ Counting the costs of the steps presented above, the following table summarizes 
 ## Drawbacks
 [drawbacks]: #drawbacks
 
-This gate uses much longer lookup tables. Understand if the gains in the number of rows of Keccak compensate for the necessity of a $2^{16}$ lookup table.
+This gate uses 3 lookup tables of length $2^{16}$. Even if other parts of the system need tables this large, it comes with a cost.
 
 ## Rationale and alternatives
 
@@ -584,7 +595,6 @@ The current Keccak PoC in SnarkyML was introduced to support Ethereum primitives
 ## Unresolved questions
 
 * During the review of this RFC:
-    * Resolve how many lookup tables are really needed (tradeoff between columns and rows)
     * Resolve how to deal with input and output.
 
 * During the implementation of this RFC:
