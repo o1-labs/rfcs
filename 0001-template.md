@@ -72,7 +72,6 @@ For SnarkyJS and other zkApps-related projects:
     * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.
 
 ## Drawbacks
-[drawbacks]: #drawbacks
 
 Why should we *not* do this?
 
