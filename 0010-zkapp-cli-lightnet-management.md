@@ -1,4 +1,4 @@
-# RFC for zkapp-cli enhancements to provide the local lightnet networks management
+# RFC for zkApp CLI enhancements to provide the local lightnet networks management
 
 Introduce new sub-commands to the existing zkapp CLI application to streamline the local lightnet networks management for development and testing purposes.
 
