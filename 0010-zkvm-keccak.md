@@ -50,7 +50,7 @@ Given that simple binary operations are very costly within a SNARK, the new idea
 
 With this notation, input bitstrings are expanded inserting three `0` bits in between "real" bits (hence the _sparsity_). The motivation for this, is to use intermediate bits to store auxiliary information such as carry bits, resulting from algebraic computations of boolean functions. That means, for each bit in the original bitstring, its expansion will contain four bits. The following expression represents such mapping:
 
-$$\forall X \in (b_i)^\ell, b\in[0,1]: expand(X) \to 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0$$
+$$\forall X \in \mathbb B^\ell: expand(X) \to 0 \ 0 \ 0 \ b_{\ell-1} \ . \ . \ . \ 0 \ 0 \ 0 \ b_0$$
 
 The reason behind the choice of three empty intermediate bits in the sparse representation follows from the concrete use case of Keccak where no more than $2^4-1$ consecutive boolean operations are performed, and thus carries cannot overwrite the content of the bits to the leftmost bits.
 
@@ -60,7 +60,7 @@ Even though in each field element of ~254 bits long, one could fit up to 63 real
 
 Let $sparse(X)$ refer to a representation of $X$, where only the indices in the $4i$-th positions correspond to real bits, and the intermediate indices can contain auxiliary information. Connecting to the above, on input a word $X$, we can expand it in order to perform a series of boolean operations (up to 15) which results in some $sparse(X)$, encoding the same $X$. Then,
 
-$$\forall X\in(b_i)^\ell:\quad expand(X) \equiv reset(sparse(X)) $$
+$$\forall X\in\mathbb B^\ell:\quad expand(X) \equiv reset(sparse(X)) $$
 
 #### Compression
 
