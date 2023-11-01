@@ -12,7 +12,7 @@ One component of the Optimism stack system is the pre-image data oracle which is
 
 Having a dedicated chip inside Kimchi to prove correct computation of Keccak hashes from pre-image data (blocks) will result in a more efficient design of the MIPS zkVM as a whole, meeting the performance goals of the [OP RFP](https://github.com/ethereum-optimism/ecosystem-contributions/issues/61#issuecomment-1611488039).
 
-As indicated in the PRD, any member of the OP ecosystem who wanted to prove the state transition between two blocks of an OP stack chain executing the Cannon program in the O(1) MIPS zkVM should complete within 2 days (before optimizations) to meet the latency estimates from the RFP. 
+As indicated in the PRD, any member of the OP ecosystem who wanted to prove the state transition between two blocks of an OP stack chain executing the `op-program` program in the O(1) MIPS zkVM should complete within 2 days (before optimizations) to meet the latency estimates from the RFP. 
 
 The ultimate objective is to improve the performance of our current Keccak gadget, to get over one hash per second. The new design would be a success if the number of hashes per second is faster than that of the current [SnarkyML Keccak PoC](https://github.com/MinaProtocol/mina/pull/13196). 
 
