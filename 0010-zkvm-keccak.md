@@ -171,9 +171,9 @@ The support for the Keccak hash function will require the following gate types:
 
 The high-level layout of the gates follows:
 
-| `KeccakSponge` | [0...100) | [100...168) | [168...200) | [200...300) | [300...500) | [208...212) | [212...216) | [216...224] | [224...232] | [232...240] | [240...248] |
-| -------------- | --------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-| Curr           | old_state | new_block   | zeros       | dense0      | dense1      | dense2      | dense3      | bytes0      | bytes1      | bytes2      | bytes3      |
+| `KeccakSponge` | [0...100) | [100...168) | [168...200) | [200...400) | [400...800) |
+| -------------- | --------- | ----------- | ----------- | ----------- | ----------- |
+| Curr           | old_state | new_block   | zeros       | bytes      | shifts      |
 | Next           | xor_state |
 
 | `KeccakRound` | [0...440)   | [440...1540) | [1540...2440) | 
