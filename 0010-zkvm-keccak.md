@@ -83,7 +83,7 @@ The effect of each $mask_i$ is to null all but the $(4n+i)$-th bits of the expan
 
 $$
 \begin{align*}
-sparse(X) \iff &mask_0(sparse(X)) + mask_1(sparse(X)) 
+sparse(X) \iff &mask_0(sparse(X)) + mask_1(sparse(X)) \\
 & + mask_2(sparse(X)) + mask_3(sparse(X))
 \end{align*}
 $$
