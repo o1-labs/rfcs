@@ -112,7 +112,7 @@ Nonetheless, if no more than 15 boolean operations have been performed since the
 
 #### Reset
 
-After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For $n \in [0, 3], let $shift_n = mask_n(sparse)/2^n$, the correct decomposition of a 64-bit word can be constrained as
+After each step of Keccak, the sparse representation must be reset to avoid overflows of the intermediate bits. For $n \in [0, 3]$, let $shift_n = mask_n(sparse)/2^n$, the correct decomposition of a 64-bit word can be constrained as
 
 $$\forall i \in [0,3]: sparse_i = shift0_i + 2\cdot shift1_i + 4\cdot shift2_i + 8\cdot shift3_i$$
 
