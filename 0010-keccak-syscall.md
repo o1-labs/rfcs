@@ -215,11 +215,15 @@ If we have finished reading the data, we run the permutation. In the case the to
 length is a multiple of 136, an additional permutation is executed
 with the expected padding.
 
+Reading additional bytes after the EOF must not have any effect and must be
+allowed.
+
 After we read the data and run the permutation a last time as described above,
 we must verify that the preimage key corresponds to the output of sponge.
 To achieve this, we compare the 31 bytes first bytes as the first byte is
 dropped for the preimage key type. The output of the keccak sponge is described
 in the [Keccak RFC](./keccak.md).
+
 
 #### Hint response
 
