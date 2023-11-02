@@ -216,7 +216,10 @@ length is a multiple of 136, an additional permutation is executed
 with the expected padding.
 
 Reading additional bytes after the EOF must not have any effect and must be
-allowed.
+allowed. This can be achieved by activating the "preimage read gate" iff the
+different between the number of bytes that have to be read and the preimage
+offset is not zero. In the case we arrived at the end of the file, the preimage
+offset must not be increased and the number of bytes read must be set `0`.
 
 After we read the data and run the permutation a last time as described above,
 we must verify that the preimage key corresponds to the output of sponge.
