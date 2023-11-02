@@ -201,8 +201,25 @@ At the end of the call, the register `v0` must contain the number of bytes that
 have been read. Also, the preimage offset has to be incremented by the number of
 bytes that has been read.
 
-<!-- TODO(to define): we want to check the data has been correctly read, with
-keccak. However, we don't know yet when we did finish to read the data -->
+The preimage data length is located in the 8 first addresses, encoded on 64
+bits in big-endian.
+
+A difference with Cannon is we verify the preimage data is the actual data the
+user has requested previously. To achieve this, we will use the optimised
+keccak gate described in [Keccak RFC](./keccak.md).
+
+The keccak sponge state is 136 bytes, and is located in the columns `[100,
+168(`. While reading the preimage data, we can fill at the same time the sponge
+state. When 136 bytes have been read, a keccak permutation is executed.
+If we have finished reading the data, we run the permutation. In the case the total
+length is a multiple of 136, an additional permutation is executed
+with the expected padding.
+
+After we read the data and run the permutation a last time as described above,
+we must verify that the preimage key corresponds to the output of sponge.
+To achieve this, we compare the 31 bytes first bytes as the first byte is
+dropped for the preimage key type. The output of the keccak sponge is described
+in the [Keccak RFC](./keccak.md).
 
 #### Hint response
 
@@ -278,6 +295,8 @@ written at the end of the key.
 The variable pre-image key offset is reset to `0` everytime in this case, leaving a
 place for optimisation in the MIPS code by avoiding calling `8` times the syscall
 if keys are not far away.
+The keccak state is reinitialized and the data already absorbed
+is considered lost.
 
 At the end of the execution, the register `v0` must contain the number of bytes
 that have been written.
