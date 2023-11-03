@@ -164,7 +164,7 @@ Together with $3\times4=12$ lookups to check that the remainder, quotient and bo
 
 The support for the Keccak hash function will require the following gate types:
 
-**PRECONDITIONS:** the message to be hashed should be padded with the $10^*1$ rule before 
+**PRECONDITIONS:** the message to be hashed should be padded with the $10^*1$ rule beforehand. This padding is given by the regular expression $10^*1$, which means that the input message is padded with a starting $1$ bit, followed by as many zeros as needed, until when adding a final $1$ bit, the whole padded message has a length that is a multiple of the rate (1088 bits). 
 
 - `KeccakSponge`: performs formatting actions related to the Keccak sponge.
 - `KeccakRound`: performs one full round of the Keccak permutation function.
