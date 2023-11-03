@@ -104,7 +104,7 @@ $$
 
 The XOR of 16-bit can be computed using addition of their expansions. The 16-bit output of the XOR will be located on the $4n$ positions, whereas the intermediate positions will contain any possible carry terms.
 
-Given expanded `left` and `right` inputs, the sparse representation of $XOR_{64}$ can be constrained in quarters of 16 bits, as:
+Given expanded `left`, `right` inputs both in $\mathbb B^{64}$, the sparse representation of $XOR_{64}$ can be constrained in quarters of 16 bits, as:
 
 $$\forall i\in[0,3]: sparse(xor_i) = expand(left_i) + expand(right_i)$$
 
@@ -116,18 +116,18 @@ After each step of Keccak, the sparse representation must be reset to avoid over
 
 $$\forall i \in [0,3]: sparse_i = shift0_i + 2\cdot shift1_i + 4\cdot shift2_i + 8\cdot shift3_i$$
 
-together with a lookup for each `shift_i` (more about this later).
+where $sparse_i\in\mathbb B^{64}$ and $sparse\in\mathbb B^{256}$, together with a lookup for each `shift_i` (more about this later).
 
 Each `sparse[i]` will be the output of previous boolean operations. The `shift0[i]` corresponds to the clean expand of the word, and could be the input of some upcoming boolean operations. The `shift1[i]` will be used by the AND. The 64-bit word computed from the `dense[i]` will be used in rotation.
 
 ##### AND
 
-Note that the AND of two expanded inputs corresponds to the $4n+1$-th positions after an expanded XOR (addition). Meaning that $shift_1 = mask_1/2$ gives the expanded representation of the conjugation operation.
+Note that the AND of two expanded inputs corresponds to the $4n+1$-th positions after an expanded XOR (addition). Meaning that $shift_1 = mask_1/2$ gives the expanded representation of the conjunction operation.
 The AND operation can be constrained making use of XOR and Reset explained above. With no further constraints, XOR is used to obtain `left+right`, and then Reset provides the expanded result of AND in the `shift1` witnesses.
 
 #### Negation
 
-The NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. The mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits. Given $x$ in reset form (meaning, not any sparse representation of $x$ but the initial expanded one with zero intermediate bits) the negation of one 64-bit word can be constrained as:
+The NOT operation will be performed with a subtraction operation using the constant term $(2^{16}-1)$ for each 16-bit quarter, and only later it will be expanded. The mechanism to check that the input is at most 64 bits long, will rely on the composition of the sparse representation. Meaning, 64-bit words produce four 16-bit lookups, which implies that the real bits take no more than 64 bits. Given $x$ in **reset** form (meaning, not any sparse representation of $x$ but the initial expanded one with zero intermediate bits, the canonical representation) the negation of one 64-bit word can be constrained as:
 
 $$\forall i \in[0, 3]: expand(not_i) = 0\text{x}1111111111111111 - expand(x_i)$$
 
