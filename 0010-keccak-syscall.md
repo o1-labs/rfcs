@@ -96,7 +96,7 @@ when it has a different value. Reduction to polynomials of at most degree `2` ca
 done using [quadracization](./0008-kimchi-polynomial-quadracization.md).
 
 We suppose quadracization is going to be used, and therefore, we will not talk
-about the degree of the different polynomial constraints, and the detailled
+about the degree of the different polynomial constraints, and the detailed
 description will stay high level using the API described above, with some
 additional tweaks if necessary for a specific syscall behavior.
 
