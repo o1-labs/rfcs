@@ -306,18 +306,18 @@ sparse(D[x]) := &\ expand(C[x-1]) + ROT(expand(C[x+1]), 1)\\
 \end{align*} 
 $$
 
-For this, the 5 possible inputs of the rotation need to be reset. The input of the XOR will use the reset version as well, to reset any previous round auxiliary bits.
+For this, the 5 possible inputs of the rotation need to be reset. The input of the XOR will use the canonical version as well, to reset any previous round auxiliary bits.
 
 | Columns: | [120...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320) | [320...340) | 
 | -------- | --------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----- | ---- |
-| Theta    | reset_c     | dense_c     | quotient_c  | remainder_c | bound_c | dense_rot_c | expand_rot_c | state_d |
+| Theta    | shifts_c  | dense_c     | quotient_c  | remainder_c | bound_c | dense_rot_c | expand_rot_c | state_d |
 
 This part uses the following 55 constraints
 
 ```rust
 for x in [0..5)
     for i in[0..4)
-        constrain( state_c(x)[i] - (reset0_c(x)[i] + 2*reset1_c(x)[i] + 4*reset2_c(x)[i] + 8*reset3_c(x)[i] ) )
+        constrain( state_c(x)[i] - (shift0_c(x)[i] + 2*shift1_c(x)[i] + 4*shift2_c(x)[i] + 8*shift3_c(x)[i] ) )
 
 for x in [0..5)
     let word(x)      = dense_c(x)[0]     + 2^16*dense_c(x)[1]     + 2^32*dense_c(x)[2]     + 2^48*dense_c(x)[3]
@@ -331,7 +331,7 @@ for x in [0..5)
 
 for x in [0..5)
     for i in [0..4)
-        constrain( state_d(x)[i] - (reset0_c(x-1)[i] + expand_rot_c(x+1)[i]) )
+        constrain( state_d(x)[i] - (shift0_c(x-1)[i] + expand_rot_c(x+1)[i]) )
 ```
 
 and $180$ lookups.
@@ -374,7 +374,7 @@ $$
 
 | Columns: | [440...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) | [1440...1540) | 
 | -------- | ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | ----- | ---- |
-| PiRho    | reset_e      | dense_e       | quotient_e    | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e | state_b |
+| PiRho    | shift_e      | dense_e       | quotient_e    | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e | state_b |
 
 Recall that in order to perform the rotation operation, the state needs to be reset. This step can be carried out with the following $275(=75+200)$ constraints and $800 (=400+100+100+100+100)$ lookups:
 
@@ -390,7 +390,7 @@ for x in [0...5)
         constrain( rotated(x,y) - (quotient(x,y) + remainder(x)) )
         constrain( bound(x,y) - (quotient(x,y) + 2^64 - 2^(OFF(x,y)) )
         for i in [0...4)
-            constrain( state_e(x,y)[i] - (reset0_e(x,y)[i] + 2*reset1_e(x,y)[i] + 4*reset2_e(x,y)[i] + 8*reset3_e(x,y)[i] ) )
+            constrain( state_e(x,y)[i] - (shift0_e(x,y)[i] + 2*shift1_e(x,y)[i] + 4*shift2_e(x,y)[i] + 8*shift3_e(x,y)[i] ) )
             constrain( state_b(y,2x+3y)[i] - expand_rot_e(x,y)[i] )            
 ```
 
@@ -412,7 +412,7 @@ $$
 
 | Columns: | [1540...1940) | [1940...2340) | [2340...2344) |
 | -------- | ------------- | ------------- | ------------- | 
-| Chi      | reset_b       | reset_sum     | f_0_0     |
+| Chi      | shift_b       | shift_sum     | f_0_0     |
 
 
 This is constrained with the following $300$ constraints and $800$ lookups
@@ -421,12 +421,12 @@ This is constrained with the following $300$ constraints and $800$ lookups
 for i in [0..4)
     for x in [0..5)
         for y in [0..5)
-            let not(x,y)[i] = 0x1111111111111111 - reset0_b(x+1,y)[i]
-            let sum(x,y)[i] = not(x,y)[i] + reset1_b(x+2,y)[i]
-            constrain( state_b(x,y)[i] - (reset0_b(x,y)[i] + 2*reset1_b(x,y)[i] + 4*reset2_b(x,y)[i] + 8*reset3_b(x,y)[i] ) )
-            constrain( sum(x,y)[i] - (reset0_sum(x,y)[i] + 2*reset1_sum(x,y)[i] + 4*reset2_sum(x,y)[i] + 8*reset3_sum(x,y)[i] ) )
-            let and(x,y)[i] = reset1_sum(x,y)[i] 
-            constrain( state_f(x,y)[i] - (reset0_b(x,y)[i] + and(x,y)[i]) )
+            let not(x,y)[i] = 0x1111111111111111 - shift0_b(x+1,y)[i]
+            let sum(x,y)[i] = not(x,y)[i] + shift1_b(x+2,y)[i]
+            constrain( state_b(x,y)[i] - (shift0_b(x,y)[i] + 2*shift1_b(x,y)[i] + 4*shift2_b(x,y)[i] + 8*shift3_b(x,y)[i] ) )
+            constrain( sum(x,y)[i] - (shift0_sum(x,y)[i] + 2*shift1_sum(x,y)[i] + 4*shift2_sum(x,y)[i] + 8*shift3_sum(x,y)[i] ) )
+            let and(x,y)[i] = shift1_sum(x,y)[i] 
+            constrain( state_f(x,y)[i] - (shift0_b(x,y)[i] + and(x,y)[i]) )
 ```
 
 #### Step iota
@@ -474,12 +474,12 @@ The `KeccakRound` gate performs $1,760$ lookups as indicated below (parenthesis 
 | Columns | [120...140) | [140...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320)
 | ------- | --------- | ----------- | - | - | - | - | - | - |
 | `Curr`  | 20`Reset` | 60`Sparse` | (20`Reset`) | 20`Bytes16` | 20`Bytes16` | 20`Bytes16` | 20`Reset` | (20`Reset`) |
-| Theta  | reset0_c | reseti_c | dense_c | quotient_c | remainder_c | bound_c | dense_rot_c | expand_rot_c | 
+| Theta  | shift0_c | reseti_c | dense_c | quotient_c | remainder_c | bound_c | dense_rot_c | expand_rot_c | 
 
 | Columns | [440...540) | [540...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) |
 | -------- | ----------- | ----------- | ------------ | ------------- | ------------- | ------------- | ----- | ---- | 
 | `Curr` | 100`Reset` | 300`Sparse` | (100`Reset`) | 100`Bytes16` | 100`Bytes16` | 100`Bytes16` | 100`Reset` | (100`Reset`) |
-| PiRho    | reset0_e | reseti_e   | dense_e     | quotient_e   | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e |
+| PiRho    | shift0_e | reseti_e   | dense_e     | quotient_e   | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e |
 
 | Columns: | [1540...1940) | [1940...2340) | 
 | -------- | ------------- | ------------- |
@@ -571,8 +571,8 @@ These gates would provide some level of chainability between outputs of current 
 
 | Gate      | `0*!`    | `1*!`    | `2*!`    | `3*! `   | `4*!!`    | `5*!!`  | `6*` | `7!!`    | `8!!`    | `9!!`    | `10!!`   | `11`   | `12`   |
 | --------- | -------- | -------- | -------- | -------- | -------- | -------- | ---- | -------- | -------- | -------- | -------- | ------ | ------ | 
-| `Reset64` | sparse0  | sparse1  | sparse2  | sparse3  | reset1_0 | reset1_1 | word | reset2_0 | reset2_1 | reset3_0 | reset3_1 | dense0 | dense1 | 
-| `Zero`    | reset0_0 | reset0_1 | reset0_2 | reset0_3 | reset1_2 | reset1_3 |      | reset2_2 | reset2_3 | reset3_2 | reset3_3 | dense2 | dense3 |
+| `Reset64` | sparse0  | sparse1  | sparse2  | sparse3  | shift1_0 | shift1_1 | word | shift2_0 | shift2_1 | shift3_0 | shift3_1 | dense0 | dense1 | 
+| `Zero`    | shift0_0 | shift0_1 | shift0_2 | shift0_3 | shift1_2 | shift1_3 |      | shift2_2 | shift2_3 | shift3_2 | shift3_3 | dense2 | dense3 |
 
 | `Not64` | `0*` | `1*` | `2*` | `3*` | `4*` | `5*` | `6*` | `7*` |
 | ------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
