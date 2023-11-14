@@ -611,6 +611,8 @@ The current Keccak PoC in SnarkyML was introduced to support Ethereum primitives
 
 ## Appendix
 
+The official documentation and resources regarding the Keccak hash function can be found in the [Keccak team website](https://keccak.team/).
+
 ### Keccak algorithm
 
 The high level idea of this sponge-based algorithm iteratively is to apply a permutation function to an initial state for a number of rounds (absorb phase) and to finally crop the state, when needed, obtaining the digest (squeeze) as follows:
