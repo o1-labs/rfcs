@@ -63,14 +63,6 @@ One could argue that we could leverge the exiting Kubernetes infrastructure and 
 
 By not implementing this RFC, we will not be able to run integration tests locally. This will make it difficult for contributors to run integration tests locally and will make it difficult to develop the protocol locally.
 
-## Prior art
-
-Discuss prior art, both the good and the bad, in relation to this proposal.
-
-Prior art is any evidence that your feature (invention, change, proposal) is already known.
-
-Think about the lessons from other blockchain projects or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.
-
 ## Unresolved questions
 
 - What are the limits of the local backend? How many nodes can we run on a single machine? For a given hardware configuration, it's not clear how many nodes we can run on a single machine. This is something that we will have to test and figure out.
