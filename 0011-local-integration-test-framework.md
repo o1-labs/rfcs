@@ -66,3 +66,5 @@ By not implementing this RFC, we will not be able to run integration tests local
 ## Unresolved questions
 
 - What are the limits of the local backend? How many nodes can we run on a single machine? For a given hardware configuration, it's not clear how many nodes we can run on a single machine. This is something that we will have to test and figure out.
+
+- Are there differences in how the chosen tools will operate between operating systems? Could there be performance or stability issues on certain operating systems? This is something that we will have to test and figure out.
