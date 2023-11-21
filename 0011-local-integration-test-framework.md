@@ -99,3 +99,5 @@ By not implementing this RFC, we will not be able to run integration tests local
 - What are the limits of the local backend? How many nodes can we run on a single machine? For a given hardware configuration, it's not clear how many nodes we can run on a single machine. This is something that we will have to test and figure out.
 
 - Are there differences in how the chosen tools will operate between operating systems? Could there be performance or stability issues on certain operating systems? This is something that we will have to test and figure out.
+
+- Are containers still built with [puppeteer](https://github.com/MinaProtocol/mina/tree/develop/dockerfiles/puppeteer-context) to allow for dynamic control of nodes starting/stopping? Seems like they are [here](https://github.com/MinaProtocol/mina/blob/78535ae3a73e0e90c5f66155365a934a15535779/dockerfiles/Dockerfile-mina-daemon#L90), but would appreciate a confirmation. If not, what are other alternatives for defining node behavior?
