@@ -47,9 +47,40 @@ Lucy is designed with an extensible architecture that allows for the addition of
 
 Node logging and information gathering is done by [GraphQL queries](https://github.com/MinaProtocol/mina/blob/compatible/src/lib/integration_test_lib/graphql_requests.ml) to the Mina daemon. These queries is what allows Lucy to gather information about the network and confirm if integration test conditions pass or fail. When the Kubernetes backend is deployed, nodes are deployed via the user-defined network configuration. They are then started and polled for logs and network information. This polling approach works for the Kubernetes backend as the logs are pre-filtered (so the volume of logs are very low), and the logs parsing is fast enough in this case. However, the approach of polling can be a performance bottleneck for the local backend as the volume of logs can be very high if we run SNARKless networks. These types of networks run by much faster by comparison, where a 5-10 second delay in log gathering could break the running test. Furthermore, the log volume per second of a snarkless network is massive by comparison due to the speed the network operates at. For this reason, polling is not the best approach for the local backend.
 
-Instead, the local backend will use a push based approach, where all logs from nodes are forwarded to Lucy. This approach will be implemented by using a [pipe](https://man7.org/linux/man-pages/man3/mkfifo.3.html) that is shared between all containers in the network. This pipe will be created by the Lucy and will be mounted in every container specified in the docker-compose file. This pipe will then act as the communication between all container logs and the Lucy. On startup, Lucy will create a pipe in the current directory and will include that file as a bind mount for each container in the docker-compose file. Furthermore, we can tag all container logs with a unique identifier so that Lucy can filter logs by container. This will allow us to deal with scenarios where we read duplicate logs and allows for easier filtering.
+Instead, the local backend will use a push based approach, where all logs from nodes are forwarded to Lucy. This approach will be implemented by using a [pipe](https://man7.org/linux/man-pages/man3/mkfifo.3.html) that is shared between all containers in the network. This pipe will be created by Lucy and will be mounted in every container specified in the docker-compose file. This pipe will then act as the communication between all container logs and the Lucy. On startup,
+
+Lucy will create a pipe in the current directory and will include that file as a bind mount for each container in the docker-compose file. Furthermore, we can tag all container logs with a unique identifier so that Lucy can filter logs by container. This will allow us to deal with scenarios where we read duplicate logs and allows for easier filtering.
 
 A further optimization we can do is apply [`logproc`](https://github.com/MinaProtocol/mina/blob/compatible/src/app/logproc/logproc.ml) to all container output before it's written to the pipe. `logproc` can help us filter logs by log level, which will help us reduce the volume of logs that are written to the pipe. This will help us reduce the amount of logs that are written to the pipe and will help us reduce the amount of logs that Lucy has to parse.
+
+For example, we could write an entrypoint script for each container that redirects stdout and stderr to the named pipe with a prefix of the container name. This will allow us to filter logs by container name and will allow us to deal with duplicate logs.
+
+```bash
+#!/bin/bash
+NAMED_PIPE="/path/to/named_pipe"
+CONTAINER_ID=${CONTAINER_ID:-"unknown_container"}
+prepend_container_id() {
+    while IFS= read -r line; do
+        echo "$CONTAINER_ID: $line"
+    done
+}
+cat - | prepend_container_id | logproc -i inline -f '!(.level in ["Spam", "Debug"])' | tee -a $NAMED_PIPE
+```
+
+Then, inside the docker-compose file, we can specify the entrypoint script to use for each container.
+
+```yaml
+version: "3.8"
+services:
+  node:
+    image: minaprotocol/mina-daemon:...
+    entrypoint: /bin/bash -c "/path/to/puppeteer-context/start.sh $$@ | /usr/local/bin/log_processor.sh"
+    environment:
+      - CONTAINER_ID=mina-node-1
+    volumes:
+      - ./pipe:/path/to/pipe
+      - ./log_processor.sh:/usr/local/bin/log_processor.sh
+```
 
 ## Drawbacks
 
