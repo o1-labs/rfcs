@@ -23,7 +23,7 @@ Each RFC captures technical details for a specific change within a limited syste
 
 1. Product teams define product requirements in the product requirements doc (PRD).
 2. An internal O(1) Labs team member creates the RFC pull request using the [0000-template.md](0001-template.md).
-3. The RFC submitter describe changes in enough detail to inform the decision. Be sure to include links to proposed changes to persistent or cannonical design records such as specs and code comments.
+3. The RFC submitter describes changes in enough detail to inform the decision. Be sure to include links to proposed changes to persistent or canonical design records, such as specs and code comments.
 4. Discussions occur in the RFC pull request within a rapid, defined time period.
 5. If architecture changes proposed in the initial RFC are significantly changed during the discussion, update the RFC in the open pull request. If the RFC PR is already merged, the submitter updates the RFC in a separate pull request.
 6. All architects must respond to the RFC pull request within two business days.
