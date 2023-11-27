@@ -51,9 +51,9 @@ Instead, the local backend will use a push-based approach, where all logs from n
 
 Lucy will create a pipe in the current directory and will include that file as a bind mount for each container in the docker swarm file. Furthermore, we can tag all container logs with a unique identifier so that Lucy can filter logs by the container. This will allow us to deal with scenarios where we read duplicate logs and allow for easier filtering.
 
-A further optimization we can do is apply [`logproc`](https://github.com/MinaProtocol/mina/blob/compatible/src/app/logproc/logproc.ml) to all container output before it's written to the pipe. `logproc` can help us filter logs by log level, which will help us reduce the volume of logs that are written to the pipe. This will help us reduce the number of logs that are written to the pipe and the number of logs that Lucy has to parse.
+A further optimization we will apply is using [`logproc`](https://github.com/MinaProtocol/mina/blob/compatible/src/app/logproc/logproc.ml) to all container output before it's written to the pipe. `logproc` can help us filter logs by log level, which will help us reduce the volume of logs that are written to the pipe. This will help us reduce the number of logs that are written to the pipe and the number of logs that Lucy has to parse.
 
-For example, we could write an entry point script for each container that redirects stdout and stderr to the named pipe with a prefix of the container name. This will allow us to filter logs by container name and will allow us to deal with duplicate logs.
+Concretely, we will include an entry point script for each container that redirects stdout and stderr to the named pipe with a prefix of the container name. This will allow us to filter logs by container name and will allow us to deal with duplicate logs. An example of this script is shown below:
 
 ```bash
 #!/bin/bash
