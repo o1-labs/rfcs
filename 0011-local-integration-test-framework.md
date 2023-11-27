@@ -43,6 +43,34 @@ Lucy is designed with an extensible architecture that allows for the addition of
 - [`Log_engine_intf`](https://github.com/MinaProtocol/mina/blob/c396e82af6da7f69817b8885e46b4da94715e27e/src/lib/integration_test_lib/intf.ml#L115):
   - Specifies how to gather logs from the network. This is important as this is how Lucy gathers network information and confirms if integration test conditions pass or fail. The Kubernetes backend uses the Mina GraphQL API to poll for network state and stores those logs in Google Stack Driver. The local backend will use a pipe to gather logs from the network in a similar fashion.
 
+As a comparison, Kubernetes specifies a [config type](https://github.com/MinaProtocol/mina/blob/7d11e9bb3a45cfdda8d06d1d4819ef3a31dd2983/src/lib/integration_test_cloud_engine/mina_automation.ml#L57) that is used to specify the Kubernetes cluster configuration. This config type is then used to generate a Terraform file that specifies the topology and configuration of the Kubernetes cluster. This Terraform file is then used to deploy the Kubernetes cluster to GKE. We will do the same thing for the local backend, but instead of generating a Terraform file, we will generate a Docker Swarm file that specifies the topology and configuration of the network. This Docker Swarm file will then be used to deploy the network on a local machine. One aspect of the Docker Swarm file to highlight is that it will be in JSON format, so no new libraries to handle YAML will be necessary. The configuration type could look something like this:
+
+```ocaml
+type docker_config =
+    { docker_swarm_version : string
+    ; stack_name : string
+    ; mina_image : string
+    ; mina_agent_image : string
+    ; mina_bots_image : string
+    ; mina_points_image : string
+    ; mina_archive_image : string
+    ; runtime_config : Yojson.Safe.t
+    ; docker_volume_configs : docker_volume_configs list
+    ; seed_configs : seed_config list
+    ; block_producer_configs : block_producer_config list
+    ; snark_coordinator_config : snark_coordinator_config option
+    ; archive_node_configs : archive_node_configs list
+    ; log_precomputed_blocks : bool
+    ; cpu_request : int
+    ; mem_request : string
+    ; worker_cpu_request : int
+    ; worker_mem_request : string
+    }
+  [@@deriving to_yojson]
+```
+
+This type is fed into the `Engine` interface, which then specifies how to transform this type into a Docker Swarm file and deploys it to a local machine.
+
 ### Node Communication/Logging
 
 Node logging and information gathering is done by [GraphQL queries](https://github.com/MinaProtocol/mina/blob/compatible/src/lib/integration_test_lib/graphql_requests.ml) to the Mina daemon. These queries are what allow Lucy to gather information about the network and confirm if integration test conditions pass or fail. When the Kubernetes backend is deployed, nodes are deployed via the user-defined network configuration. They are then started and [polled for logs](https://github.com/MinaProtocol/mina/blob/78535ae3a73e0e90c5f66155365a934a15535779/src/lib/integration_test_cloud_engine/graphql_polling_log_engine.ml#L122) and network information. This polling approach works for the Kubernetes backend as the logs are pre-filtered (so the volume of logs is very low), and the logs parsing is fast enough in this case. However, the polling approach can be a performance bottleneck for the local backend as the volume of logs can be very high if we run SNARKless networks. These types of networks run much faster by comparison, where a 5-10 second delay in log gathering could break the running test. Furthermore, the log volume per second of a SNARKless network is massive by comparison due to the speed at which the network operates. For this reason, polling is not the best approach for the local backend.
