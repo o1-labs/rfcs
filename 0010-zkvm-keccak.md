@@ -102,7 +102,7 @@ $$
 
 #### XOR
 
-The XOR of 16-bit can be computed using addition of their expansions. The 16-bit output of the XOR will be located on the $4n$ positions, whereas the intermediate positions will contain any possible carry terms.
+The XOR of 16-bit can be computed using addition over the underlying field of their expansions. The 16-bit output of the XOR will be located on the $4n$ positions, whereas the intermediate positions will contain any possible carry terms.
 
 Given expanded `left`, `right` inputs both in $\mathbb B^{64}$, the sparse representation of $XOR_{64}$ can be constrained in quarters of 16 bits, as:
 
