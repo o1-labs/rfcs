@@ -99,7 +99,47 @@ b_poly(x) = (1 + chal[-1] x)(1 + chal[-2] x^2)(1 + chal[-3] x^4)...
 ```
 and can be easily computed using a standard circuit of size `domain_size` using the algorithm [here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L294).
 
-Once the coefficients of `b_poly` have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`.
+Once the coefficients of `b_poly` have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`. Since the basis of the MSM is known and fixed, we can convert the 254-bit scalings into a series of `k`-bit scalings, by computing
+```
+x = x_0 + 2^k x_1 + 2^(2k) x_2 + ...
+```
+and computing the scaling `x G` in parts as
+```
+x_0 G + x_1 (2^k G) + x_2 (2^(2k) G) + ...
+```
+where each of the `2^i G` terms are known constants.
+
+From here, we can use a standard 'bucketing' trick with `2^k` buckets to avoid doing any doublings or scalings at all, requiring only `n+2^(2k)` curve point additions:
+```rust
+let mut buckets: [C; 2^k] = [H; 2^k]; /* Where `H` is the blinding generator. */
+for (coefficient, commitment) in to_scale_pairs {
+    buckets[coefficient] += commitment;
+}
+let mut total = -H.scale(2^k * (2^k + 1) / 2); /* TODO(mrmr1993): Check that this is correct. */
+let mut right_sum = H;
+for i in 1..buckets.length() {
+    right_sum += buckets[buckets.length() - i];
+    total += right_sum;
+}
+```
+
+Notice that this works because after successive iterations we have (ignoring the `H` terms for now):
+```
+// First iteration
+right_sum = buckets[2^k - 1]
+total = buckets[2^k - 1]
+// Second iteration
+right_sum = buckets[2^k - 1] + buckets[2^k - 2]
+total = 2*buckets[2^k - 1] + buckets[2^k - 2]
+...
+// `i`th iteration
+right_sum = buckets[2^k - 1] + buckets[2^k - 2] + ... + buckets[2^k - i]
+total = i*buckets[2^k - 1] + (i-1)*buckets[2^k - 2] + ... + buckets[2^k - i]
+...
+// `2^k-1`th iteration
+right_sum = buckets[2^k - 1] + ... + buckets[1]
+total = (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buckets[1]
+```
 
 <!--In general:
 
