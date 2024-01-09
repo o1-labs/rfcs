@@ -109,7 +109,7 @@ x_0 G + x_1 (2^k G) + x_2 (2^(2k) G) + ...
 ```
 where each of the `2^i G` terms are known constants.
 
-From here, we can use a standard 'bucketing' trick with `2^k` buckets to avoid doing any doublings or scalings at all, requiring only `n+2^(2k)` curve point additions:
+From here, we can use a standard 'bucketing' trick with `2^k` buckets to avoid doing any doublings or scalings at all, requiring only `n*(254/k)+2^(2k)` curve point additions:
 ```rust
 let mut buckets: [C; 2^k] = [H; 2^k]; /* Where `H` is the blinding generator. */
 for (coefficient, commitment) in to_scale_pairs {
