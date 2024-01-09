@@ -41,6 +41,7 @@ The details of the consensus algorithm are elided here, but can be found in the 
 When we verify a kimchi proof, all of the required information is included in either the *verification key* or the *proof*. We describe the contents of the verification key as 'fixed' -- they define the circuit / statement to be proved -- and the contents of the proof represent the specific instance that satisfies that circuit / statement.
 
 At a high-level, the kimchi verification protocol runs through 3 distinct stages of the protocol. The full algorithm in the reference implementation can be found [here](https://github.com/o1-labs/proof-systems/blob/master/kimchi/src/verifier.rs). This algorithm operates over a curve `C` (Pallas or Vesta in the context of pickles).
+
 Absorbing the polynomial commitments:
 * setup a 'sponge' for the Fiat-Shamir transformation, using the Poseidon hash function over the base field of `C`;
 * absorb the verification key's contents into the sponge;
