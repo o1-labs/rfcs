@@ -100,7 +100,7 @@ and can be easily computed using a standard circuit of size `domain_size` using 
 
 Once the coefficients of `b_poly` have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`.
 
-In general:
+<!--In general:
 
 * Be specific. This document is meant to share intent to your colleagues. Share what you believe you will actually do.
 * Be decisive. No maybes. Any uncertainty can be captured in the unresolved questions section at the end.
@@ -137,11 +137,11 @@ For Mina Daemon:
 
 For SnarkyJS and other zkApps-related projects:
 
-* The spec is inline comments. Prefer [cargo-spec](https://github.com/mimoo/cargo-specification) format, so we can extract them later.
+* The spec is inline comments. Prefer [cargo-spec](https://github.com/mimoo/cargo-specification) format, so we can extract them later.-->
 
 ## Test plan and functional requirements
 
-1. Testing goals and objectives: 
+<!--1. Testing goals and objectives: 
     * Specify the overall goals and objectives of testing for the proposed feature or project. This can help set the expectations for testing efforts once the implementation details are finalized.
 2. Testing approach: 
     * Outline the general approach or strategy for testing that will be followed. This can include mentioning the types of testing to be performed (e.g., unit testing, integration testing, performance testing) and any specific methodologies or tools that will be utilized.
@@ -150,11 +150,11 @@ For SnarkyJS and other zkApps-related projects:
 4. Testing requirements: 
     * Specify any specific testing requirements that need to be considered, such as compliance requirements, security testing, or specific user scenarios to be tested.
 5. Testing resources: 
-    * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.
+    * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.-->
 
 ## Drawbacks
 
-Why should we *not* do this?
+<!--Why should we *not* do this?-->
 
 ## Rationale and alternatives
 
@@ -184,14 +184,14 @@ It is not practical to build a Mina -> EVM state bridge without this or an simil
 
 ## Prior art
 
-Discuss prior art, both the good and the bad, in relation to this proposal. 
+<!--Discuss prior art, both the good and the bad, in relation to this proposal. 
 
 Prior art is any evidence that your feature (invention, change, proposal) is already known. 
 
-Think about the lessons from other blockchain projects or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.
+Think about the lessons from other blockchain projects or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.-->
 
 ## Unresolved questions
 
-* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
+<!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
 * What parts of the design do you expect to resolve through the implementation of this feature before merge?
-* What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
+* What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?-->
