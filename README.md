@@ -2,11 +2,13 @@
 
 RFCs facilitate rapid review and approval from O(1) Labs architects. RFCs are an effective way to manage planned changes and provide a contextual historical artifact. An open and honest dialog in a Request for Comments (RFC) workflow is visible and provides historical context.
 
+We have a strong commitment to RFCs serving as the genesis of the work. 
+
 ## Motivation
 
 The RFC workflow ensures that all important stakeholders participate in the RFC review process. 
 
-RFCs provide context on why the decisions were made and describe the technical climate at the time the idea was proposed. RFCs use existing git collaboration tools to create, edit, maintain, and build consensus on code ideas that impact all of engineering. 
+RFCs provide context on why the decisions were made and describe the technical climate at the time the idea was proposed. RFCs use existing Git collaboration tools to create, edit, maintain, and build consensus on code ideas that impact all of engineering. 
 
 ## RFCs at O(1) Labs
 
@@ -20,24 +22,30 @@ Each RFC captures technical details for a specific change within a limited syste
 ## Workflow
 
 1. Product teams define product requirements in the product requirements doc (PRD).
-2. An internal O(1) Labs team member creates a pull request using the [0000-template.md](0001-template.md).
-3. The RFC describes changes in enough detail to inform the decision. This includes links to proposed changes to persistent or cannonical design records such as specs and code comments.
+2. An internal O(1) Labs team member creates the RFC pull request using the [0000-template.md](0001-template.md).
+3. The RFC submitter describes changes in enough detail to inform the decision. Be sure to include links to proposed changes to persistent or canonical design records, such as specs and code comments.
 4. Discussions occur in the RFC pull request within a rapid, defined time period.
-5. If architecture changes proposed in the initial RFC are significantly changed during the discussion, the submitter updates the RFC in a separate pull request.
+5. If architecture changes proposed in the initial RFC are significantly changed during the discussion, update the RFC in the open pull request. If the RFC PR is already merged, the submitter updates the RFC in a separate pull request.
 6. All architects must respond to the RFC pull request within two business days.
-7. RFC approval by all architects is required before implementation decisions.
+7. To keep the RFC current and alive, the submitter and product manager work together to get approval and closure on the RFC.
+8. RFC approval by all architects is required before implementation decisions.
 
 ## Qualities of effective RFCs
 
 - Prefer timely over perfect
 - Enable collaborative code comments, questions, and responses that capture the relevant RFC discussion
 - Provide context for changes that impact different product areas
+- Currency
 
 ## Who?
 
-Who can submit an RFC? Anyone.
-Who should read RFCs? Everyone.
-Who must approve RFCs? All architects.
+We are actively inclusive.
+
+- Who can submit an RFC? Anyone.
+
+- Who should read RFCs? Everyone.
+
+- Who must approve RFCs? All architects.
 
 
 
