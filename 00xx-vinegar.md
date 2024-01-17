@@ -5,9 +5,13 @@ Vinegar is a compatibility layer that allows "importing" target proofs that are 
 ## Kimchi and Pickles overview
 
 The kimchi verifier receives a proof in the form of mainly commitments, evaluations, and challenges; this comes together with a public input the proof is verified against. The verification procedure can broadly be broken down into the following stages:
-1. Absorb commitments to the polynomials and squeeze challenges, over several rounds as needed.
+1. Absorb commitments to the polynomials and squeeze challenges, over several rounds as needed. Generate
+    - In `proof-systems/kimchi`, see `verifier.rs/oracles`: this stage corresponds to until squeezing `alpha`, absorbing `t_comm`, and fivally squeezing `zeta` and computing `zetaw` (both are evaluation points). Up to this point we are using `fq_sponge`.
 1. Sample an evaluation point for the polynomials, absorb the evaluations, and check that the evaluations satisfy the 'combined constraint polynomial'.
+    - Continuing in `verifier.rs/oracles`, now we instantiate the `fr_sponge`, absorb some gather all evaluations (`polys`, `public_evals`, `ft_eval1`, `ft_eval0`), absorb them while in the process squeezing out recombination challenges `v/u` (also called `polyscale/evalscale`). And then the combined constraint polynomial is computed as `combined_inner_product`.
+    - Now, looking into `verifier.rs/to_batch` -- after `OraclesResult` that corresponds to the previous computation, we compute `f_comm`, and continue collecting evaluations, now into `evaluations`, to return them together with previous data in `BatchEvaluationProof`.
 1. Verify that the polynomial commitments and their evaluations  are consistent by checking the 'opening proof' of the polynomial commitment scheme.
+    - This corresponds to `OpeningProof::verify` call in the end of `batch_verify`. Internally, this will combine all the evaluations together, and check that they are consistent with the commitments, jointly.
 
 *volhovm: TODO elaborate on these three stages*
 
@@ -22,8 +26,11 @@ The Step circuit is a kimchi proof over the vesta curve; the Wrap circuit is a k
 Assume that we are verifying a Vesta proof, but the below applies equivalently to Pallas. Here is how the list in the previous section maps on our curves:
 
 1. The logic for absorbing the commitments is run inside a Pallas proof.
+    - See the first half of `wrap_verifier.ml/incrementally_verify_proof`: in several rounds we absorb `sg_old`, `x_hat`, `w_comm`, lookup data, `z_comm`, `t_comm`; while in parallel squeezing out `index_digest`, `joint_combiner`, `beta`, `gamma`, `alpha`, `zeta`.
 1. The 'combined constraint polynomial' is checked inside a Vesta proof.
-1. The 'opening proof' is run inside a 'pallas' proof.
+    - This part corresponds to `wrap_verifier.ml/finalize_other_proof`. This checks correctness of computation of `polyscale` and `evalscale`, of `combined_inner_product`, and of the `b` value (combined evaluation of the IPA challenge polynomial).
+1. The 'opening proof' is run inside a Pallas proof.
+    - This is again `wrap_verifier.ml/incrementally_verify_proof`, but the second half of it, which calls `check_bulletproof`.
 
 Since we have 2 proofs in parallel (one for each curve), we need to *communicate state* between them. We use the public input as the communication mechanism. For example, the Pallas proof will expose the challenges from the first step, as well as the random oracle's state imported into the opening proof.
 
