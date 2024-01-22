@@ -4,32 +4,36 @@ Vinegar is a compatibility layer that allows "importing" target proofs that are 
 
 ## Kimchi and Pickles overview
 
-The kimchi verifier receives a proof in the form of mainly commitments, evaluations, and challenges; this comes together with a public input the proof is verified against. The verification procedure can broadly be broken down into the following stages:
-1. Absorb commitments to the polynomials and squeeze challenges, over several rounds as needed. Generate
-    - In `proof-systems/kimchi`, see `verifier.rs/oracles`: this stage corresponds to until squeezing `alpha`, absorbing `t_comm`, and fivally squeezing `zeta` and computing `zetaw` (both are evaluation points). Up to this point we are using `fq_sponge`.
-1. Sample an evaluation point for the polynomials, absorb the evaluations, and check that the evaluations satisfy the 'combined constraint polynomial'.
-    - Continuing in `verifier.rs/oracles`, now we instantiate the `fr_sponge`, absorb some gather all evaluations (`polys`, `public_evals`, `ft_eval1`, `ft_eval0`), absorb them while in the process squeezing out recombination challenges `v/u` (also called `polyscale/evalscale`). And then the combined constraint polynomial is computed as `combined_inner_product`.
-    - Now, looking into `verifier.rs/to_batch` -- after `OraclesResult` that corresponds to the previous computation, we compute `f_comm`, and continue collecting evaluations, now into `evaluations`, to return them together with previous data in `BatchEvaluationProof`.
+The kimchi verifier receives a proof in the form of mainly commitments, evaluations, and challenges; this comes together with a public input the proof is verified against. Fix a curve $\mathcal{E}$, it has two fields: the base field (for $(x,y) \in \mathcal{E}$, both $x$ and $y$ are base field elements) and the scalar field (for $G$ the generator and group elements $r G \in \mathcal{E}$, $r$ is a scalar field element).
+
+The verification procedure can broadly be broken down into the following stages:
+1. Absorb commitments to the polynomials and squeeze challenges, over several rounds as needed. Sample an evaluation point for the polynomials.
+    - In `proof-systems/kimchi`, this corresponds to the first part of `verifier.rs/oracles`: absorbing verifier index, absorbing `prev_chalenges`, absorbing `public_comm` (public input polynomial), absorbing `w_comm`, absorbing some lookup tables, computing `joint_combiner`, absorbing lookup commits, squeezing out `beta`, `gamma`, absorbing lookup polynomial and `z_comm`, squeezing `alpha`, absorbing `t_comm`, and finally squeezing `zeta` and computing `zetaw` (both are evaluation points). Up to this point we are using `fq_sponge`, the sponge that consumes points (i.e. group elements, a pair of base field elements) of the proof's curve, and squeezes elements of this curve's scalar field (as a first step, it squeezes out also base field elements, but we can convert those to scalar field elements).
+1. Absorb the evaluations, and check that the evaluations satisfy the 'combined constraint polynomial'.
+    - Continuing in `verifier.rs/oracles`, now we instantiate the `fr_sponge` --- a sponge which absorbs and produces elements in the scalar field. First we absorb the previous recursion challenges (`prev_challenge_digest = prev_challenges.chals`, which are scalars over the same group), compute `public_evals` (from `public_input`, also scalar field element), absorb `ft_eval1` together with `public_evals`. Then squeeze out recombination challenges `v`,`u` (also called `polyscale`,`evalscale`). And then compute and return (1) previous recursion challenges evaluation `polys`, (2) combined evaluation `evals`, (3) evaluation `ft_eval0`, (4) the combined constraint polynomial `combined_inner_product`.
+    - Now, looking into `verifier.rs/to_batch` -- after `OraclesResult` that corresponds to the previous computation, we compute `f_comm`, and start collecting evaluations, now into `evaluations`, to return them together with previous data in `BatchEvaluationProof`.
+    - Note: `prev_challenges` that are the input to `verifier.rs` are coming from 2 itertaions before --- not from the previous proof, but from the one before that. Hence they are over the same group (`prev.challenges.comm` is a commitment, that is group element, and `prev_challenges.chals` are scalar field elements) as the target one for the proof that we are verifying. Hence `prev_challenges.chals` are absorbed in this step.
+    - volhovm: what is this "checking that the evaluations satisfy the combined constraint polynomial"? I don't think there's any *checking* or *verification* happening at this point, we merely compute thes polynomial, no?
 1. Verify that the polynomial commitments and their evaluations  are consistent by checking the 'opening proof' of the polynomial commitment scheme.
     - This corresponds to `OpeningProof::verify` call in the end of `batch_verify`. Internally, this will combine all the evaluations together, and check that they are consistent with the commitments, jointly.
-
-*volhovm: TODO elaborate on these three stages*
 
 In order to *recursively* verify a kimchi proof in pickles, we need to be able to efficiently run these steps inside a circuit. However, some of the operations are run on elliptic curve points -- represented as tuples in the *base field* -- and others are run against the *scalar field*, that is the field $F_q$ of scalars for elliptic curve points that form a group. To handle both without an expensive simulation of foreign field arithmetic in the verifier circuit, instead we generate a pair of circuits, where each shares some of the work.
 
 Pickles is our current implementation of a recursive verifier for the kimchi proof system, implemented as a pair of circuits Step and Wrap implemented on top of kimchi.
 
-The Step circuit is a kimchi proof over the vesta curve; the Wrap circuit is a kimchi proof over the pallas curve.
+The Step circuit is a kimchi proof over the Vesta curve (its commitments are Vesta curve points); the Wrap circuit is a kimchi proof over the Pallas curve.
 
 ### Verifying a proof in a circuit
 
-Assume that we are verifying a Vesta proof, but the below applies equivalently to Pallas. Here is how the list in the previous section maps on our curves:
+Assume that we are verifying a Pallas (wrap) proof, but the below applies equivalently to Vesta. Here is how the list in the previous section maps on our curves:
 
-1. The logic for absorbing the commitments is run inside a Pallas proof.
+1. The logic for absorbing the commitments is run inside a Vesta proof.
+    - Wrap commitments are Pallas points made of two Pallas base field elements. These are Vesta scalar field elements, which makes them easy to reason about in the Vesta proof -- the next Step proof that verifies a Wrap.
     - See the first half of `wrap_verifier.ml/incrementally_verify_proof`: in several rounds we absorb `sg_old`, `x_hat`, `w_comm`, lookup data, `z_comm`, `t_comm`; while in parallel squeezing out `index_digest`, `joint_combiner`, `beta`, `gamma`, `alpha`, `zeta`.
-1. The 'combined constraint polynomial' is checked inside a Vesta proof.
+1. The 'combined constraint polynomial' is checked inside a Pallas proof.
+    - This is deferred to the *next wrap proof*, that is the one that follows Step that verifies the target Wrap proof.
     - This part corresponds to `wrap_verifier.ml/finalize_other_proof`. This checks correctness of computation of `polyscale` and `evalscale`, of `combined_inner_product`, and of the `b` value (combined evaluation of the IPA challenge polynomial).
-1. The 'opening proof' is run inside a Pallas proof.
+1. The 'opening proof' is run inside a Vesta proof.
     - This is again `wrap_verifier.ml/incrementally_verify_proof`, but the second half of it, which calls `check_bulletproof`.
 
 Since we have 2 proofs in parallel (one for each curve), we need to *communicate state* between them. We use the public input as the communication mechanism. For example, the Pallas proof will expose the challenges from the first step, as well as the random oracle's state imported into the opening proof.
@@ -66,6 +70,7 @@ The responsibilities of vinegar-wrap will then be to:
 * verify the remainder of the kimchi proof over the 'base field'
 * perform initial verification of the 'vinegar-step' proof over the 'base field'
 * expose the remaining unverified information from 'vinegar-step' in the public input, so that it can be finalized by a pickles step proof
+    - During 'vinegar-wrap', the VinegarStep's `challenge_poly_commitments` and `old_bulletproof_challenges` will create `MessageForNextWrap` that will be a part of the VinegarWrap statement. Then they will be passed to the Step proof, and from there consumed in `step_verifier/finalize_other_proof`.
 * expose a public input compatible with the pickles format, so that pickles recursion can operate over the proof.
 
 The operations needed are conceptually very similar to the operations in the existing pickles circuits. However, because we want to avoid hard-coding the particular details of the kimchi proof into the circuit, we will need to be careful to construct 'vinegar-step' and 'vinegar-wrap' in a generic way, with some mechanism to describe the verification steps required for a particular kimchi-style proof.
