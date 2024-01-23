@@ -1,6 +1,8 @@
-# zkVM-Optimized Keccak
+# zkVM-Optimized Keccak (Revised)
 
 This RFC presents a design of a Kimchi chip for the Keccak hash function. It is optimized for the zkVM project, making use of our [generalized expression framework](./0007-generalized-expression-framework.md), and assuming a variant of Kimchi using a Nova-styled folding over BN128 and KZG commitments. The generalized expression framework will provide the ability to create arbitrary number of columns and lookups per row for custom gates. This allows more optimized approaches to address boolean SNARK-unfriendly relations.
+
+More abstractly, the design of the Keccak circuits can be seen as a Turing machine with access to a memory tape containing the witness data at each step. Moreover, it will make use of a shared tape as a communication channel between the Keccak and the MIPS circuits. This is widely explained in the [Keccak syscalls RFC](./0012-keccak-syscalls.md). 
 
 ## Summary
 
@@ -20,7 +22,7 @@ The optimizations in the proposed design rely on a more efficient representation
 
 ## Detailed design
 
-The Keccak hash function (later standardized by NIST as SHA3, with small variations) is known to be a quantum-safe, and very efficient hash to compute. Nonethelss, its intensive use of boolean operations which are costly in finite field arithmetic makes it a SNARK-unfriendly function. In this section, we propose an optimized design for our proof system that should outperform our current Keccak to become usable in the zkVM for the OP stack.
+The Keccak hash function (later standardized by NIST as SHA3, with small variations) is known to be a quantum-safe, and very efficient hash to compute. Nonethelss, its intensive use of boolean operations which are costly in finite field arithmetic makes it a SNARK-unfriendly function. In this section, we propose an optimized design for our proof system that should outperform our current Keccak to become usable in the zkVM for the OP stack. Moreover, the particular design of the circuit must be universal in style, so that instances of the circuit can be folded.
 
 The [Appendix](#appendix) covers a practical description of the Keccak algorithm and specifies the required parameters needed for compatibility in our use case. The configuration of Keccak must be the same as that of the Ethereum EVM, meaning specifically:
 
@@ -38,7 +40,21 @@ This section focuses on the actual changes for the proposed gadget.
 
 ### Input-Output format
 
-The Keccak gadget is triggered from the sys call. Inputs need to be written into memory and outputs are read from the sys call. One should expect inputs and outputs to be found in bytes serialization, with a big-endian encoding. One can only read from Canon 4 bytes at a time, what means that the hash function will have to wait until the input is fully loaded onto memory.
+Thinking of the MIPS and the Keccak instances as two Turing machines is a useful abstraction. In this sense, the interpreter of the syscall reading preimage data from the oracle must trigger the Keccak proving workflow once full preimage data have been processed.  One should expect inputs and outputs to be found in bytes serialization, with a big-endian encoding. One can only read from Canon 4 bytes at a time, what means that the hash function will have to wait until the input is fully loaded onto memory.
+
+That means, inputs and outputs of the Keccak hash function need to be passed between these two circuits. Because these are two independent machines, any kind of communication between them will happen through a shared memory tape. More concretely, inputs to the Keccak hash function will be written into the tape from the MIPS side, and read from the trape from the Keccak side; and the output of the hash function will be written into the tape from the Keccak side, and read from the tape from the MIPS side.
+
+Using RAMLookups, the idea behind this shared memory is to enable a read/write table whose content must sum to zero at the end of the execution. That will mean that for each value that was added to the channel, the corresponding process consumed it correctly.
+
+In order to write a lookup:
+
+`lookup_aggreg += 1/(x + keccak_channel_table_id + value * joint_combiner^1)`
+
+and then to read a lookup:
+
+`lookup_aggreg -= 1/(x + keccak_channel_table_id + value * joint_combiner^1)`
+
+so that the final lookup aggregation is unchanged iff the Keccak chip processed and proved all of the messages.
 
 ### Bitwise-sparse representation
 
@@ -162,61 +178,137 @@ Together with $3\times4=12$ lookups to check that the remainder, quotient and bo
 
 > For efficiency reasons, the state is assumed to be stored in expanded form, so that back-and-forth conversions do not need to take place repeatedly.
 
-The support for the Keccak hash function will require the following gate types:
+Each Keccak circuit will have $2^{15}$ rows. The resulting instance must be identical to any other Keccak circuit, so that they are foldable. This has a series of implications, but the most relevant one in this section is the following: 
 
-**PRECONDITIONS:** the message to be hashed should be padded with the $10^*1$ rule beforehand. This padding is given by the regular expression $10^*1$, which means that the input message is padded with a starting $1$ bit, followed by as many zeros as needed, until when adding a final $1$ bit, the whole padded message has a length that is a multiple of the rate (1088 bits). 
+_Unlike Kimchi or base Plonk, where circuit gates could have public coefficients to configure each row, folding schemes require that the relation remains unchanged across instances._
 
-- `KeccakSponge`: performs formatting actions related to the Keccak sponge.
-- `KeccakRound`: performs one full round of the Keccak permutation function.
+This implies that any public flag or constant that could be used to define the actual step must be treated as private witnesses together with additional lookups and constraints to prove their correctness (as they are no longer accessible by the verifier).
 
-The high-level layout of the gates follows:
+Altogether, this means that the main design chip will consist of a single universal row encoding any kind of Keccak step (just like MIPS rows encode any possible instruction). Thanks to some witness flags, the chip will distinguish between two modes of operation:
+- **Sponge**: the row will perform formatting actions related to the Keccak sponge. A sponge step can be either an absorb or a squeeze; and absorbs can optionally be root absorbs (the first one) and pad (the last one).
+- **Round**: the row will perform one full round of the Keccak permutation function. This means a round step will run all of theta, pi-rho, chi, and iota algorithm in one single circuit row.
 
-| `KeccakSponge` | [0...100) | [100...168) | [168...200) | [200...400) | [400...800) |
-| -------------- | --------- | ----------- | ----------- | ----------- | ----------- |
-| Curr           | old_state | new_block   | zeros       | bytes      | shifts      |
-| Next           | xor_state |
+Making use of the generic expression framework, we can define the `KeccakColumn` enum, which will be used to refer to variables in the circuit, whose variants are: 
+- `HashIndex`: keeps track of which Keccak hash inside the circuit this row belongs to.
+- `StepIndex`: keeps track of the Keccak step number of the current hash.
+- `FlagRound`:indicates the Keccak round number corresponding to the current row, if the row is not a sponge. It ranges between 0 and 24 (excluded).
+- `FlagAbsorb`: indicates whether the current row is an absorb sponge (boolean value).
+- `FlagSqueeze`: indicates whether the current row is a squeeze sponge (boolean value). 
+- `FlagRoot`: indicates whether the current row corresponds to the first absorb sponge (boolean value). 
+- `PadLength`: indicates the length in bytes of the padding of the block (if any). It ranges between 0 and 136 (excluded).
+- `InvPadLength`: equals the inverse of `PadLength` when this is nonzero, used to check if the current row corresponds to the last absorb sponge.
+- `TwoToPad`: stores the value $2^{\text {PadLength}}$, used to check the correctness of the padding.
+- `PadBytesFlags[0..136)`: contains 136 boolean values indicating whether the i-th byte of the block to be absorbed is involved in the padding or not.
+- `PadSuffix[0..4)`: contains 5 field elements containing the claimed pad for `PadLength` bytes. The first chunk contains the most significant 12 bytes, whereas the others contain 31 bytes each (so that the 1088 bits fit in 5 field elements).
+- `RoundConstants[0..3)`: contains the round constants used by the iota algorithm of the current round, stored as four quarters expressed in bitwise sparse representation.
+- `Input[0..100)`: contains 100 field elements which are the inputs of the current row. If it is a sponge step, it corresponds to the old state; if it is a round step, it corresponds to the state A of the theta algorithm. _Disclaimer: it does not refer to the input of the entire hash function, that is handled in the syscalls communication channel._
+- `Output[0..100)`: contains 100 field elements which are the outputs of the current row. It if is a sponge step, it corresponds to the XOR of the blocks of the absorb; if it is a round, it corresponds to the state G of the iota algorithm. _Disclaimer: it does not refer to the output of the entire hash function, that is handled in the syscalls communication channel._
+- `SpongeNewState[0..100)`: contains the new bolock to be absorbed padded with 64 bytes to zero (the last 32 positions), producing a state of 1600 bits stored as 100 expanded elements.
+- `SpongeBytes[0..200)`: contains the decomposition into bytes of the new state if it is an absorb, or the old state of the squeeze to produce the output of the hash.
+- `SpongeShifts[0..400)`: contains the shifts of the new state if it is an absorb to prove the expansion, or the old state of the squeeze to help prove the byte decomposition above.
 
-| `KeccakRound` | [0...440)   | [440...1540) | [1540...2440) | 
-| ------------- | ----------- | ------------ | ------------- | 
-| Curr          | theta_step  | pirho_step   |  chi_step     |
+Apart from those variants, it also contains the following columns whose meaning will be clearer when reading the constraints where these are used. Note that some intermediate states of the Keccak permutation function have been removed from the witness because their correctness can be embedded into other constraints, making the proof shorter. Keep in mind that the actual columns will be single-indexed encoded, but here they are presented with multiple indices to better understand where the sizes come from:
 
-| `KeccakRound` | [0...100)   |
-| ------------- | ----------- |
-| Next          | iota_step   |
+- `ThetaShiftsC[0..80)` with `i=[0..4), x=[0..5), q=[0..4)`,
+- `ThetaDenseC[0..20)` with `x=[0,5), q=[0,4)`,
+- `ThetaQuotientC[0..5)` with `x=[0..5)`,
+- `ThetaRemainderC[0..20)` with `x=[0..5), q=[0..4)`,
+- `ThetaDenseRotC[0..20)` with `x=[0..5), q=[0..4)`,
+- `ThetaExpandRotC[0..20]` with `x=[0..5), q=[0..4)`,
+- `PiRhoShiftsE[0..400)` with `i=[0..4), y=[0..5), x=[0..5), q=[0..4)`,
+- `PiRhoDenseE[0..100)` with `y=[0..5), x=[0..5), q=[0..4)`,
+- `PiRhoQuotientE[0..100)` with `y=[0..5), x=[0..5), q=[0..4)`,
+- `PiRhoRemainderE[0..100)` with ` y=[0..5), x=[0..5), q=[0..4)`,
+- `PiRhoDenseRotE[0..100)` with `y=[0..5), x=[0..5), q=[0..4)`,
+- `PiRhoExpandRotE[0..100)` with `y=[0..5), x=[0..5), q=[0..4)`,
+- `ChiShiftsB[0..400)` with `i=[0..4), y=[0..5), x=[0..5), q=[0..4)`,
+- `ChiShiftsSum[0..400)` with `i=[0..4), y=[0..5), x=[0..5), q=[0..4)`.
+
+The above are just aliases for the underneath witness columns. The round alone requires 1965 columns to store the above values, whereas the sponge alone requires 800. Because all rows need to look identical, this means sponge rows will pay for the full length of the columns. That means we can reuse some free space of sponge witnesses to store flags that are only required when the step is a sponge. This means, instead of requiring a trivial witness vector of 2219 entries, the implementation can also work with 2074 instead. The high-level layout of the actual witness values results as follows:
+
+| `Common` | hash_index | step_index | mode_flags | curr[0..100) | next
+| -------------- | --------- | ----------- | ----------- | --- | --- |
+|  | `HashIndex` | `StepIndex`   | `FlagRound` | `Input` | `Output`
+|  |             |               | `FlagAbsorb` | 
+|  |             |               | `FlagSqueeze` |
+
+
+| `Sponge` | curr[100...200) |  curr[200...400) | curr[400...800) | curr[800..804) | curr[804..940) | curr[940..945) | 
+| -------------- | ----------- | ----------- | ----------- | ---- | --- | --- |
+|  | `SpongeNewState` where: | `SpongeBytes`       | `SpongeShifts` | `FlagRoot` | `PadBytesFlags` | `PadSuffix`
+|  | new block [100..168) |  |  | `PadLength`
+|  | zeros [168..200)  |    |  | `InvPadLength`
+|  |                   |    |  | `TwoToPad`
+
+
+| `Round` | curr[100...265) | curr[265...1165) | curr[1165...1965) | curr[1965..1969) |
+| ------- | --------------- | ---------------- | ----------------- | ---------------- |
+| | `ThetaShiftsC` | `PiRhoShiftsE` | `ChiShiftsB` | `RoundConstants` |
+| | `ThetaDenseC` | `PiRhoDenseE` | `ChiShiftsSum` |
+| | `ThetaQuotientC` | `PiRhoQuotientE` |  |
+| | `ThetaRemainderC` | `PiRhoRemainderE` |  |
+| | `ThetaDenseRotC` | `PiRhoDenseRotE` |  |
+| | `ThetaExpandRotC` | `PiRhoExpandRotE` |  |
+
+#### Flags
+
+Because the concrete configuration of the gate is hidden inside witnesses instead of public coefficients, there need to be constraints to check the correctness of the operation mode. These basically consist of booleanity and mutual-exclusivity checks:
+
+Check that absorb, squeeze, and root flags, are either true or false:
+```rust
+constrain(is_boolean(is_absorb));
+constrain(is_boolean(is_squeeze));
+constrain(is_boolean(is_root));
+```
+
+Check that the 136 leading bytes of the new block are either involved in padding or not:
+```rust
+for i in [0..136)
+    constrain(is_pad * is_boolean(in_padding(i)));
+```
+
+Check that root nor pad can happen in squeeze nor rounds:
+```rust
+constrain(either_false(is_squeeze, is_root));
+constrain(either_false(is_squeeze, is_pad));
+constrain(either_false(is_round, is_root));
+constrain(either_false(is_round, is_pad));
+```
+
+Check that absorb and squeeze cannot happen at the same time:
+```rust
+constrain(either_false(is_absorb, is_squeeze));
+```
+Note that other checks hold trivially by construction of the variables involved. For example, `is_round` is defined as the negation of `is_sponge`, so it must aslo be boolean, and they are mutually exclusive. Similarly, `is_pad` is defined as whether `PadLength` is nonzero (using the inverse), so it is also boolean. Regarding the rest of flags which are not always boolean, the correctness will follow from the lookup tables themselves.
 
 #### Sponge
 
-Support for padding shall be provided. In the Keccak PoC, this step took place at the Snarky layer. It checks that the correct amount of bits in the $10^*1$ rule are added until reaching a multiple of 1088 bits, and then adds 512 more zero bits to each block to form a full state.
-
-If the input was not previously expanded, the next step would be to expand all 25 words. Each word of 64 bits would have to be split into 4 parts of 16 real bits each. The expansion itself would be performed through the `Reset` lookup table. This step would require $4\times25=100$ lookups.
-
-There are two main modes: absorb and squeeze. Inside the absorb mode, there are two additional submodes called pad and root, which can as well happen at the same time. 
-
+There are two main modes: absorb and squeeze. Inside the absorb mode, there are two additional submodes called pad and root, which can as well happen at the same time (if there is only one block to be hashed, and then the first absorb is also the last one).
 
 - **Absorb mode**
 
-    In absorb mode, the first coefficient is set to 1: `absorb := coeff[0] = 1`, and the second coefficient is 0.
+    In absorb mode, `FlagAbsorb` is set to 1, whereas `FlagSqueeze` and `FlagRound` remain as 0.
 
     The gate takes a block as 68 chunks of 16 bits expanded, pads with zeros until reaching 100 chunks (1600 bits) to fit one whole state, and XORs it with the previous state.
 
     The zero padding is enforced performing the following 32 constraints:
 
     ```rust
-    constrain(absorb * zeros[i])
+    constrain(is_absorb * zeros[i])
     ```
 
     The XOR part of the gate uses $100$ constraints 
 
     ```rust
-    constrain(absorb * (xor_state[i] - (old_state[i] + new_state[i])))
+    constrain(is_absorb * (xor_state[i] - (old_state[i] + new_state[i])))
     ```
-    where `new_state` is the concatenation of `new_block` and `zeros`.
+    where `new_state` is the concatenation of `new_block` and `zeros`, and `old_state` corresponds to the columns in `Input`.
 
-    Additionally, the gate must check the decomposition into shifts of the new block.
+    Additionally, the gate must check the decomposition into shifts of the new block (where `shiftsi()` corresponds to every 100th chunk of `SpongeShifts(idx)`):
 
     ```rust
     for i in [0..100) {
-        constrain(absorb * (new_block[i] - (
+        constrain(is_absorb * (new_block[i] - (
                             shifts0(i)
                             + 2 * shifts1(i)
                             + 4 * shifts2(i)
@@ -228,53 +320,62 @@ There are two main modes: absorb and squeeze. Inside the absorb mode, there are 
 
     - **Root mode**
 
-        In this mode, the third coefficient is set to 1: `root := coeff[2] = 1`, and `absorb = 1, squeeze = 0`. 
+        In this mode, which can only happen when `is_absorb=1`, `FlagRoot` is set to 1.
 
         This mode is only performed once per hash, and it must happen in the first absorb. The only difference between this one and any other absorb is that the root mode sets the initial state to all zeros. For that reason, apart from the constraints above, it checks:
 
         ```rust
-        constrain(root * old_state[i])
+        constrain(is_root * old_state[i])
         ```
     
     - **Pad mode** 
 
-        Padding with the $10^*1$ rule only happens once per hash. But unlike the root mode, padding happens only in the last absorb. That is because the input message is padded until reaching a length that is a multiple of 136 bytes, which always fully fits in one whole block. This means, in the case that the input message is $\leq 135$ bytes in length, the single absorb will run in both `root` and `pad` modes.
+        Padding with the $10^*1$ rule only happens once per hash, in the last absorb. That is because the input message is padded until reaching a length that is a multiple of 136 bytes, which always fully fits in one whole block. This means, in the case that the input message is $\leq 135$ bytes in length, the single absorb will run in both `is_root` and `is_pad` modes.
 
-        When in pad mode, we will have 136 selector flags (coefficient indices `[4..140)`) that will activate at most 136 positions corresponding to the padding. Additionally, each of the 136 coefficients corresponding to the bytes of the new block are set to either `0x00`, `0x01`, `0x80`, or `0x81`, which are all the possible combinations that a padding byte can take. In this mode, `absorb = 1, squeeze = 0`. 
+        When in pad mode, we will have 136 selector flags `PadBytesFlags` that will activate at most 136 positions corresponding to the padding. Moreover, `PadLength` will take a nonzero value between 1 and 135. 
         
-        Altogether, in pad mode we obtain the following 136 constraints:
-
+        Additionally, each of the 136 bytes of the new block are set to either `0x00`, `0x01`, `0x80`, or `0x81`, which are all the possible combinations that a padding byte can take. These known values are aggregated into 5 field elements inside `PadSuffix`, which will be used inside a lookup table to check that the padding was done correctly for a given padding length. The gate must show the link between the bytes and the actual state as: 
         ```rust
-        constrain( flag[i] * (pad[i] - bytes[i]) )
+        for i in [0..5)
+            constrain(is_pad * (block_in_padding(i) - pad_suffix(i)))
+        
         ```
 
-        Moreover, the gate must show the link between the bytes and the actual state. For that, 
+        Moreover, the padding location must be checked to be at the end of the message. This is done using the `TwoToPad` value and the idea that if the padding is located at the end, then the last and consecutive `PadLength` bytes in `PadBytesFlags` must be set to one. 
+        ```rust
+        let pad_at_end := [0..136).fold(0, |acc, i| 2 * acc  + sponge_byte(i));
 
-
+        constrain(is_pad * (two_to_pad - 1 - pad_at_end));
+        ```
 
 - **Squeeze mode**
 
     The gate takes the first 256 bits of the digest (first 4 words of the first column of the state, meaning first 16 expanded terms), and decomposes from the expanded state to form 32 bytes corresponding to the hash. 
 
-    In squeeze mode, the second coefficient is set to 1: `squeeze := coeff[1] = 1`, and rest of coefficients are 0.
+    In squeeze mode, `FlagSqueeze` is set to 1; leaving `FlagAbsorb`, `FlagRoot`, `PadLength`, and `FlagRound` to 0.
 
     Here, the state being decomposed into shifts is the one resulting from the most recent permutation round:
 
     ```rust
-    for i in [0..16) {
-        constrain(squeeze * (old_state[i] - 
+    for i in [0..16)
+        constrain(is_squeeze * (old_state[i] - 
                                 (shift[4i] 
                                     + 2*shift[4i+1] 
                                     + 4*shift[4i+2] 
                                     + 8*shift[4i+3]))) 
-    }
     ```
 
     The correspondence between the shifts and the dense bytes will happen inside a lookup pattern.
 
-#### Step theta
+#### Round
 
-For each row `x in [0..5)` in the state `A`, compute the `C` state:
+When the Keccak step being performed is a round, `FlagRound` is assigned to the i-th Keccak round (value from 0 to 23), and `RoundConstants` are instantiated accordingly.
+
+- **Theta algorithm**
+
+Here, `state_a` is contained inside the witness variable `Input`. 
+
+For each row `x in [0..5)` in the state `A`, compute the `C` state as:
 
 $$
 \begin{align*}
@@ -284,16 +385,16 @@ sparse(C[x]) := &\ expand(A[x][0]) + expand(A[x][1]) + expand(A[x][2]) + expand(
 \end{align*} 
 $$
 
-| Columns: | [0...100) | [100...120) |
-| -------- | --------- | ----------- |
-| Theta    | state_a   |  state_c    |
-
-with the following 20 constraints 
+and constrain its value by embedding it into the following 20 shifts decomposition constraints
 
 ```rust
-for i in [0..4)
-    for x in [0..5)
-        constrain(state_c(x)[i] - ( state_a(x,0)[i] + state_a(x,1)[i] + state_a(x,2)[i] + state_a(x,3)[i] + state_a(x,4)[i]) )
+for x in [0..5)
+    for q in [0..4)
+        state_c(x)[q] := state_a(x,0)[q] + state_a(x,1)[q] + state_a(x,2)[q] + state_a(x,3)[q] + state_a(x,4)[q];
+            constrain(is_round * (state_c(x)[q] - ( shift0_c(x)[q] 
+                                                + 2*shift1_c(x)[q] 
+                                                + 4*shift2_c(x)[q] 
+                                                + 8*shift3_c(x)[q] )))
 ```
 
 Similarly, for each row `x in [0..5)`, perform the following operation splitting into quarters
@@ -306,35 +407,29 @@ sparse(D[x]) := &\ expand(C[x-1]) + ROT(expand(C[x+1]), 1)\\
 \end{align*} 
 $$
 
+Here, indices operations must be performed modulo 5, so `x+1` should be `(x+1)%5` whereas `x-1` should be `(x+4)%5`.
+
+```rust
+    for x in [0..5)
+        for q in [0..4)
+            state_d(x)[q] := shifts0_c(x-1)[q] + expand_rot_c(x+1)[q]
+```
+
 For this, the 5 possible inputs of the rotation need to be reset. The input of the XOR will use the canonical version as well, to reset any previous round auxiliary bits.
 
-| Columns: | [120...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320) | [320...340) | 
-| -------- | --------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----- | ---- |
-| Theta    | shifts_c  | dense_c     | quotient_c  | remainder_c | bound_c | dense_rot_c | expand_rot_c | state_d |
-
-This part uses the following 55 constraints
+This part uses the following 15 constraints
 
 ```rust
 for x in [0..5)
-    for i in[0..4)
-        constrain( state_c(x)[i] - (shift0_c(x)[i] + 2*shift1_c(x)[i] + 4*shift2_c(x)[i] + 8*shift3_c(x)[i] ) )
-
-for x in [0..5)
     let word(x)      = dense_c(x)[0]     + 2^16*dense_c(x)[1]     + 2^32*dense_c(x)[2]     + 2^48*dense_c(x)[3]
-    let quotient(x)  = quotient_c(x)[0]  + 2^16*quotient_c(x)[1]  + 2^32*quotient_c(x)[2]  + 2^48*quotient_c(x)[3]
-    let remainder(x) = remainder_c(x)[0] + 2^16*remainder_c(x)[1] + 2^32*remainder_c(x)[2] + 2^48*remainder_c(x)[3]
-    let bound(x)     = bound_c(x)[0]     + 2^16*bound_c(x)[1]     + 2^32*bound_c(x)[2]     + 2^48*bound_c(x)[3]
-    let rotated(x)   = dense_rot_c(x)[0] + 2^16*dense_rot_c(x)[1] + 2^32*dense_rot_c(x)[2] + 2^48*dense_rot_c(x)[3]
-    constrain( word(x) * 2^1 - ( quotient(x) * 2^64 + remainder(x)) )
-    constrain( rotated(x) - (quotient(x) + remainder(x)) )
-    constrain( bound(x) - (quotient(x) + 2^64 - 2^1) )
-
-for x in [0..5)
-    for i in [0..4)
-        constrain( state_d(x)[i] - (shift0_c(x-1)[i] + expand_rot_c(x+1)[i]) )
+    let remainder(x) = remainder_c(x,0) + 2^16*remainder_c(x)[1] + 2^32*remainder_c(x)[2] + 2^48*remainder_c(x)[3]
+    let rotated(x)   = dense_rot_c(x,0) + 2^16*dense_rot_c(x)[1] + 2^32*dense_rot_c(x)[2] + 2^48*dense_rot_c(x)[3]
+    constrain(is_round * (word(x) * 2 - (quotient_c(x) * 2^64 + remainder_c(x))));
+    constrain(is_round * (rotated(x) - (quotient_c(x) + remainder(x))));
+    constrain(is_round * (is_boolean(quotient_c(x))));
 ```
 
-and $180$ lookups.
+and $140$ lookups.
 
 
 Next, for each row `x in [0..5)` and column `y in [0..5)`, compute (with no need of resetting `D`):
@@ -347,20 +442,14 @@ sparse(E[x][y]) := &\ sparse(A[x][y]) + sparse(D[x])\\
 \end{align*} 
 $$
 
-This part uses the following 100 constraints
-
 ```rust
 for i in [0..4)
     for x in [0..5)
         for y in [0..5)
-            constrain( state_e(x,y)[i] - (state_a(x,y)[i] + state_d(x)[i]) )
+            state_e(x,y)[q] := state_a(x,y)[q] + state_d(x)[q];
 ```
 
-| Columns: | [340...440) |
-| -------- | ----------- |
-| Theta    | state_e     |
-
-#### Step pi-rho
+- **Pi-Rho algorithm**
 
 For each row `x in [0..5)` and column `y in [0..5)`, perform (into quarters):
 
@@ -372,11 +461,7 @@ expand(B[y][2x+3y]) := &\ ROT(expand(E[x][y]), OFF[x][y])
 \end{align*} 
 $$
 
-| Columns: | [440...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) | [1440...1540) | 
-| -------- | ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | ----- | ---- |
-| PiRho    | shift_e      | dense_e       | quotient_e    | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e | state_b |
-
-Recall that in order to perform the rotation operation, the state needs to be reset. This step can be carried out with the following $275(=75+200)$ constraints and $800 (=400+100+100+100+100)$ lookups:
+Recall that in order to perform the rotation operation, the state needs to be reset. This step can be carried out with the following $150$ constraints and $800$ lookups:
 
 ```rust
 for x in [0...5)
@@ -384,20 +469,18 @@ for x in [0...5)
         let word(x,y)      = dense_e(x,y)[0]     + 2^16*dense_e(x,y)[1]     + 2^32*dense_e(x,y)[2]     + 2^48*dense_e(x,y)[3]
         let quotient(x,y)  = quotient_e(x,y)[0]  + 2^16*quotient_e(x,y)[1]  + 2^32*quotient_e(x,y)[2]  + 2^48*quotient_e(x,y)[3]
         let remainder(x,y) = remainder_e(x,y)[0] + 2^16*remainder_e(x,y)[1] + 2^32*remainder_e(x,y)[2] + 2^48*remainder_e(x,y)[3]
-        let bound(x,y)     = bound_e(x,y)[0]     + 2^16*bound_e(x,y)[1]     + 2^32*bound_e(x,y)[2]     + 2^48*bound_e(x,y)[3]
         let rotated(x,y)   = dense_rot_e(x,y)[0] + 2^16*dense_rot_e(x)[1] + 2^32*dense_rot_e(x,y)[2] + 2^48*dense_rot_e(x,y)[3]
-        constrain( word(x,y) * 2^(OFF(x,y)) - ( quotient(x) * 2^64 + remainder(x)) )
-        constrain( rotated(x,y) - (quotient(x,y) + remainder(x)) )
-        constrain( bound(x,y) - (quotient(x,y) + 2^64 - 2^(OFF(x,y)) )
-        for i in [0...4)
-            constrain( state_e(x,y)[i] - (shift0_e(x,y)[i] + 2*shift1_e(x,y)[i] + 4*shift2_e(x,y)[i] + 8*shift3_e(x,y)[i] ) )
-            constrain( state_b(y,2x+3y)[i] - expand_rot_e(x,y)[i] )            
+        constrain( is_round * (word(x,y) * 2^(OFF(x,y)) - ( quotient(x) * 2^64 + remainder(x))) )
+        constrain( is_round * (rotated(x,y) - (quotient(x,y) + remainder(x)) ))
+        for q in [0...4)
+            let state_b(y,2x+3y)[q] = expand_rot_e(x,y)[q];
+            constrain( is_round * (state_e(x,y)[q] - (shift0_e(x,y)[q] + 2*shift1_e(x,y)[q] + 4*shift2_e(x,y)[q] + 8*shift3_e(x,y)[q] ) ))
 ```
 
 Note that the value `OFF(x,y)` will be a different constant for each index, according to the rotation table of Keccak.
 
 
-#### Step chi
+- **Chi algorithm**
 
 For each row `x in [0..5)` and column `y in [0..5)`, perform (into quarters):
 
@@ -409,27 +492,21 @@ F[x][y] := &\ B[x][y] \oplus (\ \neg B[x+1][y] \wedge \ B[x+2][y]) \\
 \end{align*} 
 $$
 
-
-| Columns: | [1540...1940) | [1940...2340) | [2340...2344) |
-| -------- | ------------- | ------------- | ------------- | 
-| Chi      | shift_b       | shift_sum     | f_0_0     |
-
-
-This is constrained with the following $300$ constraints and $800$ lookups
+This is constrained with the following $200$ constraints and $800$ lookups
 
 ```rust
-for i in [0..4)
+for q in [0..4)
     for x in [0..5)
         for y in [0..5)
-            let not(x,y)[i] = 0x1111111111111111 - shift0_b(x+1,y)[i]
-            let sum(x,y)[i] = not(x,y)[i] + shift1_b(x+2,y)[i]
-            constrain( state_b(x,y)[i] - (shift0_b(x,y)[i] + 2*shift1_b(x,y)[i] + 4*shift2_b(x,y)[i] + 8*shift3_b(x,y)[i] ) )
-            constrain( sum(x,y)[i] - (shift0_sum(x,y)[i] + 2*shift1_sum(x,y)[i] + 4*shift2_sum(x,y)[i] + 8*shift3_sum(x,y)[i] ) )
+            let not(x,y)[q] = 0x1111111111111111 - shift0_b(x+1,y)[q]
+            let sum(x,y)[q] = not(x,y)[q] + shift1_b(x+2,y)[q]
+            constrain( is_round * (state_b(x,y)[i] - (shift0_b(x,y)[q] + 2*shift1_b(x,y)[q] + 4*shift2_b(x,y)[q] + 8*shift3_b(x,y)[q] ) ))
+            constrain( is_round * (sum(x,y)[q] - (shift0_sum(x,y)[q] + 2*shift1_sum(x,y)[q] + 4*shift2_sum(x,y)[q] + 8*shift3_sum(x,y)[q] ) ))
             let and(x,y)[i] = shift1_sum(x,y)[i] 
-            constrain( state_f(x,y)[i] - (shift0_b(x,y)[i] + and(x,y)[i]) )
+            let state_f(x,y)[q] = shift0_b(x,y)[q] + and(x,y)[q];
 ```
 
-#### Step iota
+- **Iota algorithm**
 
 On round $r$, update the word in the first row, first column xoring with the round constant as
 
@@ -437,29 +514,27 @@ $$
 G[0][0] \oplus RC[r] \iff sparse(G[0][0]) + expand(RC[r])
 $$
 
-The round constants should be stored in expanded form, taking $24\times4$ witness cells as public inputs. This only requires $4$ constraints and no lookups.
+The round constants should be stored in expanded form in `RoundConstants`. This only requires $4$ constraints and $1$ lookup.
 
 ```rust
-for i in [0..4)
-    constrain( state_g(0,0)[i] - (state_f(0,0)[i] + expand(RC[r]))[i] )
+for q in [0..4)
+    constrain( state_g(0,0)[q] - (state_f(0,0)[q] + round_constants(q) )
 ```
 
-| Columns: | [0...4) | [4...100) |
-| -------- | ------- | --------- | 
-| Iota     | g_0_0   | state_f   |
-
-After this last step of the permutation function, `Keccak` will store state `G` in the first $100$ cells of the next row, to be chained with the upcoming `StateXOR`. This requires $100$ copy constraints. Recall that except for `g_0_0`, the rest of `G` is `state_f`.
+After this last step of the permutation function, `Keccak` will store state `G` in `Output`. Recall that except for `g_0_0`, the rest of `G` is `state_f`.
 
 
 ### Lookups
 
-The design uses a 2-column lookup table called `Reset`` containing the elements from $0$ to $2^{16}-1$, and their expansion. As such, it can be used to check that the right expansion was used for a given chunk of 16 bits. 
+Each row of Keccak needs 2342 read lookups.
 
-Additionally, we create two more tables which correspond to the first and second columns of the former (called `Bytes16` and `Sparse` respectively). `Bytes16` can be used to range check some terms in rotation, whereas `Sparse` can be used to check the correct form of the shifts (since the non-sparse pre-image is non-relevant for $shift_i$ for $i\in[1,3]$). 
+#### Tables
+
+The design uses a 2-column lookup table called `Reset`` containing the elements from $0$ to $2^{16}-1$, and their expansion. As such, it can be used to check that the right expansion was used for a given chunk of 16 bits. 
 
 <center>
 
-| row | expansion of each 16-bit input                                    |
+| `Reset` | expansion of each 16-bit input                                    |
 | --- | ----------------------------------------------------------------- |
 | $0$ |`0000000000000000000000000000000000000000000000000000000000000000` |
 |     | ...                                                               |
@@ -469,28 +544,35 @@ Additionally, we create two more tables which correspond to the first and second
 
 </center>
 
-The `KeccakRound` gate performs $1,760$ lookups as indicated below (parenthesis means that they are part of another lookup and should not be counted twice):
-
-| Columns | [120...140) | [140...200) | [200...220) | [220...240) | [240...260) | [260...280) | [280...300) | [300...320)
-| ------- | --------- | ----------- | - | - | - | - | - | - |
-| `Curr`  | 20`Reset` | 60`Sparse` | (20`Reset`) | 20`Bytes16` | 20`Bytes16` | 20`Bytes16` | 20`Reset` | (20`Reset`) |
-| Theta  | shift0_c | reseti_c | dense_c | quotient_c | remainder_c | bound_c | dense_rot_c | expand_rot_c | 
-
-| Columns | [440...540) | [540...840) | [840...940) | [940...1040) | [1040...1140) | [1140...1240) | [1240...1340) | [1340...1440) |
-| -------- | ----------- | ----------- | ------------ | ------------- | ------------- | ------------- | ----- | ---- | 
-| `Curr` | 100`Reset` | 300`Sparse` | (100`Reset`) | 100`Bytes16` | 100`Bytes16` | 100`Bytes16` | 100`Reset` | (100`Reset`) |
-| PiRho    | shift0_e | reseti_e   | dense_e     | quotient_e   | remainder_e   | bound_e       | dense_rot_e   | expand_rot_e |
-
-| Columns: | [1540...1940) | [1940...2340) | 
-| -------- | ------------- | ------------- |
-| `Curr`   | 400`Sparse`   | 400`Sparse`   |
-| Chi      | reset_b       | reset_sum     |
-
-The design makes use of a smaller table containing all bytes (values up to 8 bits), or reuses `Bytes16` or `Bytes12` with a scaling factor.
+Additionally, we create two more tables which correspond to the first and second columns of the former (called `RangeCheck16` and `Sparse` respectively). `RangeCheck16` can be used to range check some terms in rotation, whereas `Sparse` can be used to check the correct form of the shifts (since the non-sparse pre-image is non-relevant for $shift_i$ for $i\in[1,3]$). 
 
 <center>
 
-| row |
+| `RangeCheck16` | 
+| --- | 
+| $0$ |
+| ... |                                      
+| $2^{16}-1$ |
+
+</center>
+
+<center>
+
+| `Sparse` |
+| --- | 
+| `0000000000000000000000000000000000000000000000000000000000000000` |
+| ...            |
+| `000` $b_{15}$ `000` $b_{14}$ `000` $b_{13}$ `000` $b_{12}$ `000` $b_{11}$ `000` $b_{10}$ `000` $b_{9}$ `000` $b_{8}$ `000` $b_{7}$ `000` $b_{6}$ `000` $b_{5}$ `000` $b_{4}$ `000` $b_{3}$ `000` $b_{2}$ `000` $b_{1}$ `000` $b_{0}$ |
+|  ...             |
+| `0001000100010001000100010001000100010001000100010001000100010001` |
+
+</center>
+
+The design makes use of a smaller table containing all bytes (values up to 8 bits).
+
+<center>
+
+| `Byte` |
 | --- |
 | $0$ |
 | ... |
@@ -498,15 +580,140 @@ The design makes use of a smaller table containing all bytes (values up to 8 bit
 
 </center>
 
-The `KeccakSponge` gate performs 200*2 + 100 + 300 lookups:
+In order to check the correctness of the round constants, there is a table containing each round index and the 4 expanded quarters of the corresponding round constant.
 
-| `KeccakSponge` | [200...400) | [400...500)  | [500...800)      |
-| -------------- | ---------------- | ------------- | ------------------ | 
-| Curr           | 200`Bytes` + (100`Reset`) | 100`Reset` | 300`Sparse` |
+<center>
 
-The 100 lookups to `Reset` are performed using a linear combination of the bytes to obtain the corresponding 16 dense bits for each `shift0` term. Take into account that bytes shall be laid out in big-endian format, whereas each dense pair is in little-endian.
+| `RoundConstants` | | | | |
+| --- | - | - | - | - |
+| $0$ | expand(`0x0000`) | expand(`0x0000`) | expand(`0x0000`) | expand(`0x0001`) |
+| ... |
+| $23$ | expand(`0x8000`) | expand(`0x0000`) | expand(`0x8000`) | expand(`0x8008`) |
 
-$$shift_0[i] = expand(\ bytes[2\cdot i] + 2^8 \cdot bytes[2\cdot i+1]\ )$$
+</center>
+
+In order to check the padding, the `Pad` table stores information about the pad length, the power of two of this value, and the 5 padding suffix blocks.
+
+| `Pad` | | | | | | |
+| --- | - | - | - | - | - | - |
+| $1$ | $2$ | 0 | 0 | 0 | 0 | 0x81 |
+| ... |
+| $135$ | $2^{135}$ | 0x01 | 0 | 0 | 0 | 0x80 |
+
+</center>
+
+#### Step lookups
+
+- **Round step**
+
+The round mode performs $1,741$ read lookups as indicated below:
+
+- _Theta algorithm_
+
+Theta requires 140 lookups.
+
+In round steps, `ThetaRemainderC` values need to be checked to be 64 bits at most, which is done using one `RangeCheck16` lookups per quarter with the value:
+```rust
+vec![remainder_c(x)[q]]
+```
+
+In round steps, we check that `ThetaExpandRotC` is the expansion of `ThetaDenseRotC` and `ThetaShiftC0` is the expansion of `ThetaDenseC` 
+ with 40 lookups to the `Reset` table with the values:
+```rust
+vec![dense_rot_c(x)[q], expand_rot_c(x)[ q]]
+vec![dense_c(x)[q], shifts0_c(x)[q]]
+```
+
+Finally, the rest of `shifts_c` must be looked up in the `Sparse` table.
+```rust
+vec![shifts1_c(x)[q]]
+vec![shifts2_c(x)[q]]
+vec![shifts3_c(x)[q]]
+```
+
+- _Pi-Rho algorithm_
+
+PiRho requires 800 lookups.
+
+In round steps, the values of the remainder and quotient of state E must be range checked to be at most 64 bits, by looking up these values in the `RangeCheck16` table:
+```rust
+vec![quotient_e(x,y)[q]]
+vec![remiander_e(x,y)[q]]
+```
+
+In round steps, we must check that `PiRhoExpandRotE` is the expansion of `PiRhoDenseRotE` and `PiRhoShift0E` is the expansion of `PiRhoDenseE` with the following lookups to the `Reset` table:
+```rust
+vec![dense_rot_e(x,y)[q], expand_rot_e(x,y)[q]]
+vec![dense_e(x,y)[q], shifts0_e(x,y)[q]]
+```
+
+For the rest of shifts, they must be checked to be correct sparse values with the `Sparse` table:
+```rust
+vec![shifts1_e(x,y)[q]]
+vec![shifts2_e(x,y)[q]]
+vec![shifts3_e(x,y)[q]]
+```
+
+- _Chi algorithm_
+
+The chi algorithm requires 800 lookups to check that `ChiShiftsB` and `ChiShiftsSum` are in the `Sparse` table.
+```rust
+vec![shiftsi_b(x,y)[q]]
+vec![shiftsi_sum(x,y)[q]]
+```
+
+- _Iota algorithm_
+
+The iota algorithm requires 1 lookup to check the correctness of the `RoundConstants`:
+```rust
+vec![round(),
+    round_constants()[0],
+    round_constants()[1],
+    round_constants()[2],
+    round_constants()[3],
+    ]
+```
+
+- **Sponge step**
+
+The sponge mode gate performs $601$ read lookups:
+
+When the step is a padding, this entry will be looked up from the `Pad` table:
+
+```rust
+vec![ pad_length(),
+      two_to_pad(),
+      pad_suffix(0),
+      pad_suffix(1),
+      pad_suffix(2),
+      pad_suffix(3),
+      pad_suffix(4),
+    ],
+;
+```
+
+The byte decomposition in sponge steps will be checked with the following 200 lookups to the `Bytes` table: 
+```rust
+vec![ sponge_byte(i)]
+```
+
+The shifts of sponge rows will be checked to be correct sparse values looking up these 300 values in the `Sparse` table:
+```rust
+vec![sponge_shifts1(i)]
+vec![sponge_shifts2(i)]
+vec![sponge_shifts3(i)]
+```
+
+Similarly for the canonical value stored in `sponge_shifts0`, these 100 lookups to the `Reset` table additionally check that each pair of bytes is composed into the correct dense quarters. Note that these 100 lookups to `Reset` are performed using a linear combination of the bytes to obtain the corresponding 16 dense bits for each `shift0` term. Take into account that bytes shall be laid out in big-endian format, whereas each dense pair is in little-endian.
+```rust
+let dense = sponge_byte(2 * i) + sponge_byte(2 * i + 1) * 2^8;
+vec![dense, sponge_shifts0(i)]
+```
+
+#### Inter-step lookups
+
+Because there are no copy constraints between rows to keep instances identical for folding, the design needs to account for a mechanism to connect consecutive Keccak steps inputs and outputs. For this, we use the `KeccakStep` table, used to store the hash index, step number, and corresponding input/output. This way, the output of step `i` is written when the step is not a squeeze (in whose case the output shall be written to the `Syscall` table instead), and read as input of step `i+1` when the step is not a root absorb(in whose case the input shall be read from the `Syscall` table instead).
+
 
 ### Performance
 
@@ -516,22 +723,9 @@ Counting the costs of the steps presented above, the following table summarizes 
 
 | Version  | Columns | Rows / block | Lookups / block | 
 |----------|---------|--------------|-----------------|
-| This RFC | 2344    | $1+24+1(+1)$ | $24\times(180+800+800)+800=43,520$ |    
+| This RFC | 2074    | $25(+1)$ | $58k$ |    
 
 </center>
-
-### Input / Output 
-
-We need to provide some mechanism to link blocks of the message to be hashed with the location in memory / public input, without relying on the permutation argument. Based on the [`syscalls` RFC](https://github.com/o1-labs/rfcs/pull/30), we want to have a Keccak communication channel between components of the system, where the syscalls could do:
-
-`lookup_aggreg += 1/(x + keccak_channel_table_id + value * joint_combiner^1)`
-
-and then the Keccak chip handles reading them with
-
-`lookup_aggreg -= 1/(x + keccak_channel_table_id + value * joint_combiner^1)`
-
-so that the final lookup aggregation is unchanged iff the Keccak chip processed and proved all of the messages.
-
 
 ## Test plan and functional requirements
 
@@ -548,66 +742,6 @@ so that the final lookup aggregation is unchanged iff the Keccak chip processed 
 5. Testing resources: 
     * Run the official [test vectors](https://keccak.team/archives.html).
     * Obtain actual examples of blocks to hash, with different lengths.
-
-## Drawbacks
-[drawbacks]: #drawbacks
-
-This gate uses 3 lookup tables of length $2^{16}$. Even if other parts of the system need tables this large, it comes with a cost.
-
-## Rationale and alternatives
-
-Other configurations have been considered for the new Keccak gadgets, using the same theory underneath. Nonetheless, these approaches did not take that much advantage of the generalized expression framework. Instead of one single gate per round, one could take an alternative layout with a maximum column width of $14$, up to $8$ permutable cells, up to $12$ lookups per row, with $4$ custom gate types (`Xor64`, `Reset64`, `Rot64`, `Not64`), and a lookup table of $2^{16}$ entries. Here, the number of total lookups would not change, but the number of rows and copy constraints would be much higher. 
-
-| Version  | Columns | Rows / block | Lookups / block | 
-|----------|---------|--------------|-----------------|
-| Alternative | 14   | $24\times(50+25+20+25+75+150+1)=8,304$ | $24\times(180+800+800)=42,720$ |      
-
-These gates would provide some level of chainability between outputs of current row and inputs for next row. In particular, the layout of the alternative gates would be the following:
-
-| Gate    | `0*`  | `1*`  | `2*`  | `3*`  | `4*`   | `5*`   | `6*`   | `7*`   |
-| ------- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ |
-| `Xor64` | left0 | left1 | left2 | left3 | right0 | right1 | right2 | right3 | 
-| `Zero`  | xor0  | xor1  | xor2  | xor3  |
-
-| Gate      | `0*!`    | `1*!`    | `2*!`    | `3*! `   | `4*!!`    | `5*!!`  | `6*` | `7!!`    | `8!!`    | `9!!`    | `10!!`   | `11`   | `12`   |
-| --------- | -------- | -------- | -------- | -------- | -------- | -------- | ---- | -------- | -------- | -------- | -------- | ------ | ------ | 
-| `Reset64` | sparse0  | sparse1  | sparse2  | sparse3  | shift1_0 | shift1_1 | word | shift2_0 | shift2_1 | shift3_0 | shift3_1 | dense0 | dense1 | 
-| `Zero`    | shift0_0 | shift0_1 | shift0_2 | shift0_3 | shift1_2 | shift1_3 |      | shift2_2 | shift2_3 | shift3_2 | shift3_3 | dense2 | dense3 |
-
-| `Not64` | `0*` | `1*` | `2*` | `3*` | `4*` | `5*` | `6*` | `7*` |
-| ------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
-| `Curr`  | x0   | x1   | x2   | x3   | not0 | not1 | not2 | not3 | 
-
-| `Rot64` | `0*`   | `1*`   | `2!` | `3!` | `4!` | `5!` | `6!` | `7!` | `8!` | `9!` | `10!` | `11!` | `12!` | `13!` | 
-| ------- | ------ | ------ | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ----- | ----- | ----- | ----- |
-| `Curr`  | input  | output | quo0 | quo1 | quo2 | quo3 | rem0 | rem1 | rem2 | rem3 | bnd0  | bnd1  | bnd2  | bnd3  |
-
-with one coefficient set to `2^{offset}`.
-
-## Prior art
-
-The current Keccak PoC in SnarkyML was introduced to support Ethereum primitives in MINA zkApps. Due to this blockchain's design, the gadget needed to be compatible with Kimchi: a Plonk-like SNARK instantiated with Pasta curves for Pickles recursion and IPA commitents. This means that the design choices for that gadget were determined by some features of this proof system, such as: 15-column width witness, 7 permutable witness cells per row, access to the current and next rows, up to 4 lookups per row, access to 4-bit XOR lookup table, and less than $2^{16}$ rows. As a result, proving the Keccak hash of a message of 1 block length (up to 1080 bits) took ~15k rows.
-
-| Version  | Columns | Rows / block | Lookups / block | 
-|----------|---------|--------------|-----------------|
-| Old PoC  | 15      | $24\times(125+100+40+125+75+287.5+5)=18,180$ |$24\times(400+320+140+400+300+800+16)=57,024$ |   
-
-## Unresolved questions
-
-* During the review of this RFC:
-    * Resolve how to deal with input and output.
-
-* During the implementation of this RFC:
-    * obtain exact measurements of the number of rows, columns, constraints, lookups, seconds, required per block hash;
-    * if the endianness of the target input format is little endian, it will need to be transformed into big endian;
-    * pack the bytestring given in chunks of 4 bytes.
-
-* Future work: 
-    * support SHA3 (NIST variant of Keccak), different output lengths, and different state widths;
-    * improve the lookup argument to reuse the `Reset` table also for single-column lookups. Perhaps this can work adding some logic such as performing lookups modulo a constant ($2^{64}$ in this case), or shifting right by a given number of positions ($64$ in this case);
-    * optimize the `KeccakRound` to remove redundant intermediate states (some preliminar ideas have been performed);
-    * optimize range checks or think of a different approach towards rotation.
-
 
 ## Appendix
 
