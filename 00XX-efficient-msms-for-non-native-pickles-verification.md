@@ -129,9 +129,11 @@ In the rest of the section we describe the sub-MSM algorithm that efficiently co
 
 
 Recall that the coefficients we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
+
 $$
-h(X) = (1 + chal[-1] X)(1 + chal[-2] X^2)(1 + chal[-3] x^4) \ldots
+h(X) = (1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2)(1 + \mathsf{chal}_{-3} x^3) \ldots
 $$
+
 and can be easily computed using a standard circuit of size `domain_size` using the algorithm [here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L294).
 
 Once the coefficients $c_i$ of $h(X)$ have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`. Since the basis of the MSM is known and fixed, we can convert the 254-bit scalings into a series of `k`-bit scalings, by computing
