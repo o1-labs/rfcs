@@ -85,13 +85,13 @@ Verifying the 'opening proof':
 * resume using the 'pre-evaluation sponge', which operates over the base field of `C`;
 * absorb the combined inner product into the sponge;
 * for each of the `log2(domain_size)` rounds, absorb the 'left' and 'right' commitments, and squeeze a challenge for 'folding' the split commitments together;
-* compute the evaluation of `b_poly` (formed from the folding challenges) at each evaluation point, combined by powers of the evaluation combiner;
-* **compute the commitment to `b_poly` (formed from the folding challenges) using a large MSM**;
+* compute the evaluation of $h(X)$ (formed from the folding challenges) at each evaluation point, combined by powers of the evaluation combiner;
+* **compute the commitment to $h(X)$ (formed from the folding challenges) using a large MSM**;
   - this is the 'recursion polynomial commitment' that we use in the first stage of the protocol when we're using recursion
 * scale and add a small number of other commitments (details elided; [see here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L767));
-* check that the sum of the other scaled commitments equals the commitment to `b_poly`.
+* check that the sum of the other scaled commitments equals the commitment to $h(X)$.
 
-The focus of this RFC will on optimising the '**compute the commitment to `b_poly`**' step, which is the majority of computation required for verifying the proof.
+The focus of this RFC will on optimising the '**compute the commitment to $h(X)$**' step, which is the majority of computation required for verifying the proof.
 
 #### Pickles proofs
 
@@ -109,30 +109,32 @@ As inputs, we take a list of 'recursion challenges' $c_i$, which will have lengt
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16).
 
-Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our scalars in the following way $c_i = \sum c_{i,j} 2^{j * k}$.
-Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size.
+Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our scalars in the following way $c_i = \sum c_{i,j} 2^{j \cdot k}$.
+Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size $k$.
 
 Then our target computation can be expressed as follows:
 
+$$
 \begin{align*}
-\sum_{i=1}^n c_i G_i &= \sum_{i=1}^n (\sum_{j=1}^{l} c_{i,j} 2^{j * k}) G_i \\
-&= \sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (G_i 2^{j * k})) \\
+\sum_{i=1}^n c_i G_i &= \sum_{i=1}^n (\sum_{j=1}^{l} c_{i,j} 2^{j \cdot k}) G_i \\
+&= \sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i )) \\
 &=
 \sum_j B_j
 \end{align*}
+$$
 
-Call the inner sum computation ($\sum_{i=1}^n c_{i,j} (G_i 2^{j * k}$) the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $c_{i,j}$ and a different set of bases.
+Let us call the inner sum computation $\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i)$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $c_{i,j}$ and a different set of bases.
 
 In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
 
 
-For each of these, we have to compute the polynomial `b_poly`, which is defined by
-```
-b_poly(x) = (1 + chal[-1] x)(1 + chal[-2] x^2)(1 + chal[-3] x^4)...
-```
+Recall that the coefficients we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
+$$
+h(X) = (1 + chal[-1] X)(1 + chal[-2] X^2)(1 + chal[-3] x^4) \ldots
+$$
 and can be easily computed using a standard circuit of size `domain_size` using the algorithm [here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L294).
 
-Once the coefficients of `b_poly` have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`. Since the basis of the MSM is known and fixed, we can convert the 254-bit scalings into a series of `k`-bit scalings, by computing
+Once the coefficients $c_i$ of $h(X)$ have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`. Since the basis of the MSM is known and fixed, we can convert the 254-bit scalings into a series of `k`-bit scalings, by computing
 ```
 x = x_0 + 2^k x_1 + 2^(2k) x_2 + ...
 ```
