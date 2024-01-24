@@ -7,15 +7,9 @@ multiplications) over 'large' bases.
 
 ## Motivation
 
-We would like to support bridging the Mina state to EVM-compatible chains,
-creating an efficiently-verifiable proof that wraps Mina's blockchain proofs.
-In particular, to achieve this we need to verify the Pasta IPA proofs emitted
-by Pickles in a proof over a different backend.
+We would like to support bridging the Mina state to EVM-compatible chains,creating an efficiently-verifiable proof that wraps Mina's blockchain proofs. In particular, to achieve this we need to verify the Pasta IPA proofs emitted by Pickles in a proof over a different backend.
 
-The goal of this work is to complement the existing efforts by Lambdaclass to
-verify the proof using Kimchi with the provided Bn254 KZG backend, in such a
-way that the MSM part of verification can be offloaded to this protocol, but
-their existing code can be reused (mostly) as-is.
+The goal of this work is to complement the existing efforts by Lambdaclass to verify the proof using Kimchi with the provided Bn254 KZG backend, in such away that the MSM part of verification can be offloaded to this protocol, but their existing code can be reused (mostly) as-is.
 
 Hypotheses:
 * This RFC's proposal will be sufficiently performant to support a Mina -> EVM state bridge.
@@ -35,6 +29,28 @@ A verifier for the Mina blockchain is an algorithm comprising:
 * verification of a pickles proof, whose public input is derived from the protocol state and some additional, pickles-specific data.
 
 The details of the consensus algorithm are elided here, but can be found in the [consensus specification](https://github.com/MinaProtocol/mina/blob/develop/docs/specs/consensus/README.md) in the Mina repo. This RFC will only directly address the proof-system elements of the bridge project.
+
+
+#### Curves
+
+The three curves in question are BN254, Vesta, and Pallas. From the specification of BN254 and docs on [Pasta](https://o1-labs.github.io/proof-systems/specs/pasta.html), the parameters of the curves are as follows:
+- BN254:
+    - Base field ($\mathbb{F}_{base}$): 21888242871839275222246405745257275088696311157297823662689037894645226208583 (254 bits)
+    - Scalar field ($\mathbb{F}_{scalar}$): 21888242871839275222246405745257275088548364400416034343698204186575808495617 (254 bits)
+    - Equation: Weierstrass curve - $y^2 = x^3 + 3$
+- Vesta:
+    - Base field ($\mathbb{F}_{base}$): 28948022309329048855892746252171976963363056481941647379679742748393362948097 (255 bits)
+    - Scalar field ($\mathbb{F}_{scalar}$): 28948022309329048855892746252171976963363056481941560715954676764349967630337 (255 bits)
+    - Equation: Weierstrass curve - $y^2 = x^3 + 5$
+- Pallas:
+    - Base field ($\mathbb{F}_{base}$): 28948022309329048855892746252171976963363056481941560715954676764349967630337 (255 bits)
+      - (Equal to Vesta's scalar)
+    - Scalar field ($\mathbb{F}_{scalar}$): 28948022309329048855892746252171976963363056481941647379679742748393362948097 (255 bits)
+      - (Equal to Vesta's base)
+    - Equation: Weierstrass curve - $y^2 = x^3 + 5$
+
+The relationship between the fields is BN254($\mathbb{F}_{scalar}$) < BN254($\mathbb{F}_{base}$) < Vesta($\mathbb{F}_{scalar}$) < Vesta($\mathbb{F}_{base}$).
+
 
 #### Kimchi proofs
 
@@ -89,7 +105,24 @@ The values shared between the stages are exposed from the public inputs of the p
 
 ### High-level description of the algorithm
 
-As inputs, we take a list of 'recursion challenges', which will have length `log2(domain_size)` for each of the 2 groups.
+As inputs, we take a list of 'recursion challenges' $c_i$, which will have length `log2(domain_size)` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum_{i=1}^n c_i G_i$ within a kimchi circuit.
+
+Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our scalars in the following way $c_i = \sum c_{i,j} 2^{j * k}$.
+Let's say $l = 254/k$.
+
+Then
+
+\begin{align*}
+\sum_{i=1}^n c_i G_i &= \sum_{i=1}^n (\sum_{j=1}^{l} c_{i,j} 2^{j * k}) G_i \\
+&= \sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (G_i 2^{j * k})) \\
+&=
+\sum_j B_j
+\end{align*}
+
+The inner sum ($\sum_{i=1}^n c_{i,j} (G_i 2^{j * k}$) is called the "sub-MSM".
+This inner operation sub-MSM is what the pseudocode describes.
+
+The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16).
 
@@ -145,7 +178,7 @@ total = (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buck
 
 * Be specific. This document is meant to share intent to your colleagues. Share what you believe you will actually do.
 * Be decisive. No maybes. Any uncertainty can be captured in the unresolved questions section at the end.
-* Provide design contex so that we can align on and commit to a technical design. 
+* Provide design contex so that we can align on and commit to a technical design.
 
 Beyond the design of the change itself, also include details around:
 
@@ -182,15 +215,15 @@ For SnarkyJS and other zkApps-related projects:
 
 ## Test plan and functional requirements
 
-<!--1. Testing goals and objectives: 
+<!--1. Testing goals and objectives:
     * Specify the overall goals and objectives of testing for the proposed feature or project. This can help set the expectations for testing efforts once the implementation details are finalized.
-2. Testing approach: 
+2. Testing approach:
     * Outline the general approach or strategy for testing that will be followed. This can include mentioning the types of testing to be performed (e.g., unit testing, integration testing, performance testing) and any specific methodologies or tools that will be utilized.
-3. Testing scope: 
-    * Define the scope of testing by identifying the key areas or functionalities that will be covered by testing efforts. 
-4. Testing requirements: 
+3. Testing scope:
+    * Define the scope of testing by identifying the key areas or functionalities that will be covered by testing efforts.
+4. Testing requirements:
     * Specify any specific testing requirements that need to be considered, such as compliance requirements, security testing, or specific user scenarios to be tested.
-5. Testing resources: 
+5. Testing resources:
     * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.-->
 
 ## Drawbacks
@@ -225,9 +258,9 @@ It is not practical to build a Mina -> EVM state bridge without this or an simil
 
 ## Prior art
 
-<!--Discuss prior art, both the good and the bad, in relation to this proposal. 
+<!--Discuss prior art, both the good and the bad, in relation to this proposal.
 
-Prior art is any evidence that your feature (invention, change, proposal) is already known. 
+Prior art is any evidence that your feature (invention, change, proposal) is already known.
 
 Think about the lessons from other blockchain projects or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.-->
 
