@@ -105,12 +105,14 @@ The values shared between the stages are exposed from the public inputs of the p
 
 ### High-level description of the algorithm
 
-As inputs, we take a list of 'recursion challenges' $c_i$, which will have length `log2(domain_size)` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum_{i=1}^n c_i G_i$ within a kimchi circuit.
+As inputs, we take a list of 'recursion challenges' $c_i$, which will have length $n = $`log2(domain_size)` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum_{i=1}^n c_i G_i$ within a kimchi circuit.
+
+For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16).
 
 Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our scalars in the following way $c_i = \sum c_{i,j} 2^{j * k}$.
-Let's say $l = 254/k$.
+Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size.
 
-Then
+Then our target computation can be expressed as follows:
 
 \begin{align*}
 \sum_{i=1}^n c_i G_i &= \sum_{i=1}^n (\sum_{j=1}^{l} c_{i,j} 2^{j * k}) G_i \\
@@ -119,12 +121,10 @@ Then
 \sum_j B_j
 \end{align*}
 
-The inner sum ($\sum_{i=1}^n c_{i,j} (G_i 2^{j * k}$) is called the "sub-MSM".
-This inner operation sub-MSM is what the pseudocode describes.
+Call the inner sum computation ($\sum_{i=1}^n c_{i,j} (G_i 2^{j * k}$) the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $c_{i,j}$ and a different set of bases.
 
-The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
+In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
 
-For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16).
 
 For each of these, we have to compute the polynomial `b_poly`, which is defined by
 ```
