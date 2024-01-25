@@ -109,8 +109,18 @@ As inputs, we take a list of 'recursion challenges' $c_i$, which will have lengt
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16).
 
-Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our scalars in the following way $c_i = \sum c_{i,j} 2^{j \cdot k}$.
-Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size $k$.
+Recall that the coefficients we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
+
+$$
+h(X) = (1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2)(1 + \mathsf{chal}_{-3} x^3) \ldots
+$$
+
+and can be easily computed using a standard circuit of size `domain_size` using the algorithm [here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L294).
+
+Once the coefficients $c_i$ of $h(X)$ have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`.
+
+
+Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our 254-bit scalars into sums of smaller, $k$-bit scalars, in the following way $c_i = \sum c_{i,j} 2^{j \cdot k}$. Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size $k$.
 
 Then our target computation can be expressed as follows:
 
@@ -127,26 +137,7 @@ Let us call the inner sum computation $\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot
 
 In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
 
-
-Recall that the coefficients we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
-
-$$
-h(X) = (1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2)(1 + \mathsf{chal}_{-3} x^3) \ldots
-$$
-
-and can be easily computed using a standard circuit of size `domain_size` using the algorithm [here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L294).
-
-Once the coefficients $c_i$ of $h(X)$ have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`. Since the basis of the MSM is known and fixed, we can convert the 254-bit scalings into a series of `k`-bit scalings, by computing
-```
-x = x_0 + 2^k x_1 + 2^(2k) x_2 + ...
-```
-and computing the scaling `x G` in parts as
-```
-x_0 G + x_1 (2^k G) + x_2 (2^(2k) G) + ...
-```
-where each of the `2^i G` terms are known constants.
-
-From here, we can use a standard 'bucketing' trick with `2^k` buckets to avoid doing any doublings or scalings at all, requiring only `n*(254/k)+2^(2k)` curve point additions:
+The sub-MSM algorithm is implementing a standard 'bucketing' trick with `2^k` buckets to avoid doing any doublings or scalings at all, requiring only `n*(254/k)+2^(2k)` curve point additions:
 ```rust
 let mut buckets: [C; 2^k] = [H; 2^k]; /* Where `H` is the blinding generator. */
 for (coefficient, commitment) in to_scale_pairs {
@@ -229,6 +220,33 @@ For SnarkyJS and other zkApps-related projects:
     * Specify any specific testing requirements that need to be considered, such as compliance requirements, security testing, or specific user scenarios to be tested.
 5. Testing resources:
     * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.-->
+
+1. Investigate existing approaches to FFA (foreign field arithmetics) and FFEC (foreign field elliptic curves), including ones implemented for the standard Kimchi. The purpose is to get enough insight for deciding on the optimal algorithm for our particular case.
+    - Have a look at foreign field addition and multiplication gate in Kimchi
+        - Reading doc in the book + the code. Maybe starting without details (half a day), after that jump on the code to implement, and come back after that for a deeper understanding.
+    - Examine the existing
+    - If necessary (i.e. if existing implementation doesn not give enough insight the addition of points of (non-native) Vesta with (native) BN254(Fp) using the existing FFA library within Kimchi.
+        - The ECC addition operation must be implemented from scratch, but it relies on the foreign field additions/multiplications support which already exists in Kimchi.
+        - Try with jacobian, projective and affine.
+    - Important: we need to verify that the conditions are respected for the scalar field of BN254. Initially, it has been written for the scalar field of Vesta/Pallas.
+    - Check the number of constraints (2 days)
+    - Training with the current gate can help understanding how it works at the moment, and it can be useful to have ideas to create a new gate to perform Foreign EC addition on one row (which is supposed to be a goal?).
+1. Assemble the target proving system.
+    - We will use a variant (clone) of Kimchi with a different number of columns, folding, and additive lookups. These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
+    - The future plan is to generalize existing Kimchi so that we can just *use* it in this project. However at the moment customizability of Kimchi is still WIP, so it is more optimal to start with a clone of Kimchi, and unify them later. Same goes for folding and logups (unless it is easy to reuse them instead of cloning).
+    - Subtasks:
+        - Analyze the additive lookup (logup) protocol and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
+        - Analyze folding and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
+1. Decide on the optimal algorithm for FFA and FFEC.
+    - This can be done either just theoretically, based on estimations, or also practically, by designing and comparing several prototypes.
+    - In the second practical case:
+        - Comparisons must be implemented ideally for the modified target proving system (since it contains a different lookup argument and different number of columns).
+        - If possible, move the test implementations from the first part of the plan to the target proving system.
+1. Implement POC FFA library for the modified target proof system. Test and benchmark.
+1. Implement POC FFEC library for the modified target proof system. Test and benchmark.
+1. Implement the MSM algorithm suggested above. Test and benchmark.
+
+
 
 ## Drawbacks
 
