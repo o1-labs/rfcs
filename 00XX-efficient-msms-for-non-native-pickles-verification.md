@@ -373,16 +373,22 @@ Think about the lessons from other blockchain projects or similar updates and pr
 
 
 1. What are the available SRS sizes that LambdaClass want to use?
-   - (?) $2^16$?
+   - They're using $2^{15}$ which is the largest size SRS from Powers of Tau.
 1. What is the size of the single folded circuit? How many rounds of sub-MSM will it contain? How folding is going to be used?
     - (?) Let $\sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (G_i 2^{j * k}))$. We hope (@volhovm AFAIU from Matthew's words) to fit $\sum_{i=1}^n c_{i,j} (G_i 2^{j * k})$, the internal sum, in one Kimchi circuit.
     - However the sub-MSM algorithm seems to require $3 n$ additions, so unless each row does $4$ FF EC additions we seem to not be able to fit it.
+    - Matthew: We could split the sub-MSM algorithm into separate chunks (3 chunks for example, or 6), and each part of sub-MSM will look like an elliptic curve addition w.r.t. accumulator and local accumulator.
 1. Why do we need to have wide rows instead of making more folding repetitions?
+    - Either approach is fine, we need to decide which approach to use (either splitting sub-MSM or making rows contain 4 FF EC additions). We'll need to decide which one.
+    - Matthew: we can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration.  We use the zero bucket for communicating the accumulator between fold iterations. And constraining it outside of the fold cycle. This will solve the problem of fitting $2^15$ operations in exactly $2^15$ rows if one row = 1
+        - Our additive lookup constraint is like $1/(r + value)$, and we can use accumulator $acc += 1/(r + 0) - 1/(r + whatever_is_in_zero)$ embedded into the constraint.
+        - `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
 1. If LambdaClass uses o1js, we will need to expose the optimised MSM in o1js. Is it part of the project?
     - (? confirm) Absolutely not in the scope at the moment :) At least Matthew was explicitly limiting the scope to just MSM and saying not to worry about integration with anything that LambdaClass do.
-
+    - Confirmed. O1js out of scope.
 1. Is it right that we will need to support a BN254 / Grumpkin cycle for our folding implementation?
     - Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
+    - Matthew: for now it is true. But in the future we can potentially do FF arithmetic in IVC instead using a cycle of curves.
 
 <!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
 * What parts of the design do you expect to resolve through the implementation of this feature before merge?
