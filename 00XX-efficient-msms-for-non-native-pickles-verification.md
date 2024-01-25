@@ -111,6 +111,38 @@ For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/
 
 Recall that the coefficients we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
 
+DEBUGGING REMOVE THIS:
+
+$$
+h(X) = (1 + \mathsf{chal} X) \ldots
+$$
+
+DEBUGGING REMOVE THIS:
+
+$$
+h(X) = (1 + \mathsf{chal}_0 X) \ldots
+$$
+
+$$
+h(X) = (1 + \mathsf{chal}_{-1} X) \ldots
+$$
+
+$$
+h(X) = (1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2) \ldots
+$$
+
+$$
+(1 + \mathsf{chal}_{-2} X^2)
+$$
+
+$$
+(1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2)
+$$
+
+$$
+h(X) = (1 + \mathsf{chal}_{-3} x^3) \ldots
+$$
+
 $$
 h(X) = (1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2)(1 + \mathsf{chal}_{-3} x^3) \ldots
 $$
