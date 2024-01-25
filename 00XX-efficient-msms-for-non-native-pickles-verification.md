@@ -169,6 +169,57 @@ right_sum = buckets[2^k - 1] + ... + buckets[1]
 total = (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buckets[1]
 ```
 
+The `H` generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the sub-MSM algorithm.
+
+
+To reiterate: assuming we verify an MSM for a Step proof:
+- BN254($\mathbb{F}_{scalar}$) is the field the circuit has to be expressed in
+- Vesta($\mathbb{F}_{scalar}$) is the field for the scalar used in the MSM
+- Vesta($\mathbb{F}_{base}$) is the field for the coordinates of the curve
+
+Therefore, $\underbrace{\sum_{j=1}^{l} (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Vesta(Fp)} (\overbrace{G_i 2^{j * k}}^{\text{Coordinates in Vesta(Fq), computed externally}})}_{\text{Encoded in BN254(Fp)}})$
+
+The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i 2^{j * k}$. Therefore, the only operations that we need to encoded is the addition of Vesta(F_base) elements in BN254(F_scalar). Note that the elements $G_i 2^{j * k}$ will have coordinates in Vesta(F_base). Therefore, the table will require more than one limbs for each coordinates.
+
+
+### Algorithm Performance and Circuit Layout
+
+As we mentioned, the algorithm needs to be implemented on a variant of Kimchi which assumes existing lookups.
+
+Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $3n$ additions at most:
+- The cycle in the beginning populates the buckets and it takes $n$ additions because that's how much multiplications are there in `to_scale_pairs`.
+- The end loop does two additions per each iteration (and each iteration assumes a non-zero bucket, assume there are $n'$ of these buckets), so we have $2 \cdot n'$ additions. Since $n' < n$, the worst case is $2 n$ additions.
+
+In addition to $3n$ addition per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
+
+In total, the whole algorithm then requires $3n \cdot l$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way).
+- Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get about $2^{17}$ additions, which is still more than $2^{16}$ budget.
+   - But we will use folding.
+    - The only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum_{i=1}^j B_i$, (2) ram lookups. RAM lookups are not ZK and they don't need to be.
+
+
+### Implementing Foreign Field Gates
+
+Part of the project is implementing FFA (foreign field arithmetics, additions and multiplications) and FFEC (foreign field EC additions) libraries --- practically these will be gates within a kimchi circuit.
+
+The approach taken for their implementation will highly depend on the comparitive efficiency within our limitations (additive lookups, wide circuits).
+
+Regarding the foreign field additions and multiplications, native Kimchi already supports these:
+- https://o1-labs.github.io/proof-systems/kimchi/foreign_field_add.html
+- https://o1-labs.github.io/proof-systems/kimchi/foreign_field_mul.html
+
+Regarding ECC, kimchi also contains an implementation that is part of ECDSA library (**TODO** find the link!). Additionally, one will need to decide which coordinates would are better to use. Available options are:
+- [Affine](https://www.hyperelliptic.org/EFD/g1p/auto-shortw.html)
+- [Jacobian](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html#doubling-dbl-2007-bl)
+- [Projective](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html)
+
+
+We might find inspiration and decide which encoding is more efficient by looking at existing FF/ECC implementations:
+- https://github.com/privacy-scaling-explorations/halo2wrong
+- https://github.com/DelphinusLab/halo2ecc-s
+- https://hackmd.io/@arielg/B13JoihA8
+
+
 <!--In general:
 
 * Be specific. This document is meant to share intent to your colleagues. Share what you believe you will actually do.
@@ -287,6 +338,19 @@ Prior art is any evidence that your feature (invention, change, proposal) is alr
 Think about the lessons from other blockchain projects or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.-->
 
 ## Unresolved questions
+
+
+1. What are the available SRS sizes that LambdaClass want to use?
+   - (?) $2^16$?
+1. What is the size of the single folded circuit? How many rounds of sub-MSM will it contain? How folding is going to be used?
+    - (?) Let $\sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (G_i 2^{j * k}))$. We hope (@volhovm AFAIU from Matthew's words) to fit $\sum_{i=1}^n c_{i,j} (G_i 2^{j * k})$, the internal sum, in one Kimchi circuit.
+    - However the sub-MSM algorithm seems to require $3 n$ additions, so unless each row does $4$ FF EC additions we seem to not be able to fit it.
+1. Why do we need to have wide rows instead of making more folding repetitions?
+1. If LambdaClass uses o1js, we will need to expose the optimised MSM in o1js. Is it part of the project?
+    - (? confirm) Absolutely not in the scope at the moment :) At least Matthew was explicitly limiting the scope to just MSM and saying not to worry about integration with anything that LambdaClass do.
+
+1. Is it right that we will need to support a BN254 / Grumpkin cycle for our folding implementation?
+    - Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
 
 <!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
 * What parts of the design do you expect to resolve through the implementation of this feature before merge?
