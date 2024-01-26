@@ -105,9 +105,11 @@ The values shared between the stages are exposed from the public inputs of the p
 
 ### High-level description of the algorithm
 
-As inputs, we take a list of 'recursion challenges' $c_i$, which will have length $n = $`log2(domain_size)` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum_{i=1}^n c_i G_i$ within a kimchi circuit.
+As inputs, we take a list of 'recursion challenges' $c_i$, which will have length $n = $`domain_size` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum_{i=1}^n c_i G_i$ within a kimchi circuit.
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16).
+
+The size of the SRS over BN254 is $2^{15}$, which is so far the largest existing SRS that is available in this context.
 
 Recall that the coefficients we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
 
@@ -214,9 +216,9 @@ Therefore, $\underbrace{\sum_{j=1}^{l} (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Ve
 The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i 2^{j * k}$. Therefore, the only operations that we need to encoded is the addition of Vesta(F_base) elements in BN254(F_scalar). Note that the elements $G_i 2^{j * k}$ will have coordinates in Vesta(F_base). Therefore, the table will require more than one limbs for each coordinates.
 
 
-### Algorithm Performance and Circuit Layout
+### Algorithm Performance, Circuit Layout, and Folding
 
-As we mentioned, the algorithm needs to be implemented on a variant of Kimchi which assumes existing lookups.
+The circuit that we are implementing is big, and its layout should be carefully considered. However, we have some liberty in design decisions -- the algorithm needs to be implemented on a *variant* of Kimchi which can allow long rows, additive lookups, and support for folding.
 
 Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $3n$ additions at most:
 - The cycle in the beginning populates the buckets and it takes $n$ additions because that's how much multiplications are there in `to_scale_pairs`.
@@ -228,6 +230,14 @@ In total, the whole algorithm then requires $3n \cdot l$ additions because we ne
 - Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get about $2^{17}$ additions, which is still more than $2^{16}$ budget.
    - But we will use folding.
     - The only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum_{i=1}^j B_i$, (2) ram lookups. RAM lookups are not ZK and they don't need to be.
+
+
+For folding to work correctly "in its full recursive power", additionally to merely instance folding itself, we will need an IVC (interactive verifiable computation) part that will verify the previous folding iteration within the circuit.
+- We consider two approaches regarding folding IVC: either supporting a cycle of curves (BN254 / Grumpkin cycle) or non-native emulation.
+    - The cycle of curves approach relies on switching between two curves on every folding iteration. Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
+    - The non-native emulation uses foreign field arithmetics to proceed. This foreign field emulation is (probably) what Aztec call "goblin plonk" technique. Link: https://hackmd.io/@aztec-network/B19AA8812 (see CF Istanbul talks from Zac).
+    - To start with, the curves approach seems more immediately available, however the second approach is strongly preferred in the long run.
+- It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $2^15$ available rows (SRS size limit) without worrying about size of the IVC.
 
 
 ### Implementing Foreign Field Gates
@@ -372,23 +382,20 @@ Think about the lessons from other blockchain projects or similar updates and pr
 ## Unresolved questions
 
 
-1. What are the available SRS sizes that LambdaClass want to use?
-   - They're using $2^{15}$ which is the largest size SRS from Powers of Tau.
 1. What is the size of the single folded circuit? How many rounds of sub-MSM will it contain? How folding is going to be used?
     - (?) Let $\sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (G_i 2^{j * k}))$. We hope (@volhovm AFAIU from Matthew's words) to fit $\sum_{i=1}^n c_{i,j} (G_i 2^{j * k})$, the internal sum, in one Kimchi circuit.
     - However the sub-MSM algorithm seems to require $3 n$ additions, so unless each row does $4$ FF EC additions we seem to not be able to fit it.
     - Matthew: We could split the sub-MSM algorithm into separate chunks (3 chunks for example, or 6), and each part of sub-MSM will look like an elliptic curve addition w.r.t. accumulator and local accumulator.
-1. Why do we need to have wide rows instead of making more folding repetitions?
+1. Why do we need to have wide rows instead of making more folding repetitions? Alternatively, we could make rows contain 4 FF EC additions -- how does this approach evaluate in terms of efficiency?
     - Either approach is fine, we need to decide which approach to use (either splitting sub-MSM or making rows contain 4 FF EC additions). We'll need to decide which one.
     - Matthew: we can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration.  We use the zero bucket for communicating the accumulator between fold iterations. And constraining it outside of the fold cycle. This will solve the problem of fitting $2^15$ operations in exactly $2^15$ rows if one row = 1
-        - Our additive lookup constraint is like $1/(r + value)$, and we can use accumulator $acc += 1/(r + 0) - 1/(r + whatever_is_in_zero)$ embedded into the constraint.
+        - Our additive lookup constraint is like $1/(r + value)$, and we can use accumulator $acc += 1/(r + 0) - 1/(r + whatever_is_in_zero)$ embedded into the constraint -- we enforce at the address zero we write `whatever_is_in_zero`. This is what we already use in zkVM.
         - `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
+    - @volhovm: what about 4 ZK rows? 3 for plonk, 1 for lookup? is it different in folding? The fact the circuit design is so tight is unnerving.
+      - We don't need ZK in this case most likely.
 1. If LambdaClass uses o1js, we will need to expose the optimised MSM in o1js. Is it part of the project?
     - (? confirm) Absolutely not in the scope at the moment :) At least Matthew was explicitly limiting the scope to just MSM and saying not to worry about integration with anything that LambdaClass do.
     - Confirmed. O1js out of scope.
-1. Is it right that we will need to support a BN254 / Grumpkin cycle for our folding implementation?
-    - Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
-    - Matthew: for now it is true. But in the future we can potentially do FF arithmetic in IVC instead using a cycle of curves.
 
 <!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
 * What parts of the design do you expect to resolve through the implementation of this feature before merge?
