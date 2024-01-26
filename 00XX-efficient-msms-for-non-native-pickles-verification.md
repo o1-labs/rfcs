@@ -18,6 +18,7 @@ Hypotheses:
 
 This RFC focuses explicitly on minimising the size of the circuit used for this expensive part of the protocol. Happily, this also forces us to use a relatively simple algorithm.
 
+
 *Product motivation for a Mina -> EVM state bridge deliberately elided.*
 
 ## Detailed design
@@ -29,6 +30,8 @@ A verifier for the Mina blockchain is an algorithm comprising:
 * verification of a pickles proof, whose public input is derived from the protocol state and some additional, pickles-specific data.
 
 The details of the consensus algorithm are elided here, but can be found in the [consensus specification](https://github.com/MinaProtocol/mina/blob/develop/docs/specs/consensus/README.md) in the Mina repo. This RFC will only directly address the proof-system elements of the bridge project.
+
+All the work needs to be done on the kimchi / `proof-systems` level. In particular, o1js is out of scope, and we do not need to expose the optimised MSM circuit or any parts of it to o1js.
 
 
 #### Curves
@@ -167,6 +170,8 @@ $$
 \end{align*}
 $$
 
+Where each $B_j$ is the result of the individual inner step --- we will accumulate $\sum_{j=1}^i B_j$ after each iteration.
+
 Let us call the inner sum computation $\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i)$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $c_{i,j}$ and a different set of bases.
 
 In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
@@ -216,30 +221,6 @@ Therefore, $\underbrace{\sum_{j=1}^{l} (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Ve
 The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i 2^{j * k}$. Therefore, the only operations that we need to encoded is the addition of Vesta(F_base) elements in BN254(F_scalar). Note that the elements $G_i 2^{j * k}$ will have coordinates in Vesta(F_base). Therefore, the table will require more than one limbs for each coordinates.
 
 
-### Algorithm Performance, Circuit Layout, and Folding
-
-The circuit that we are implementing is big, and its layout should be carefully considered. However, we have some liberty in design decisions -- the algorithm needs to be implemented on a *variant* of Kimchi which can allow long rows, additive lookups, and support for folding.
-
-Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $3n$ additions at most:
-- The cycle in the beginning populates the buckets and it takes $n$ additions because that's how much multiplications are there in `to_scale_pairs`.
-- The end loop does two additions per each iteration (and each iteration assumes a non-zero bucket, assume there are $n'$ of these buckets), so we have $2 \cdot n'$ additions. Since $n' < n$, the worst case is $2 n$ additions.
-
-In addition to $3n$ addition per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
-
-In total, the whole algorithm then requires $3n \cdot l$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way).
-- Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get about $2^{17}$ additions, which is still more than $2^{16}$ budget.
-   - But we will use folding.
-    - The only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum_{i=1}^j B_i$, (2) ram lookups. RAM lookups are not ZK and they don't need to be.
-
-
-For folding to work correctly "in its full recursive power", additionally to merely instance folding itself, we will need an IVC (interactive verifiable computation) part that will verify the previous folding iteration within the circuit.
-- We consider two approaches regarding folding IVC: either supporting a cycle of curves (BN254 / Grumpkin cycle) or non-native emulation.
-    - The cycle of curves approach relies on switching between two curves on every folding iteration. Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
-    - The non-native emulation uses foreign field arithmetics to proceed. This foreign field emulation is (probably) what Aztec call "goblin plonk" technique. Link: https://hackmd.io/@aztec-network/B19AA8812 (see CF Istanbul talks from Zac).
-    - To start with, the curves approach seems more immediately available, however the second approach is strongly preferred in the long run.
-- It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $2^15$ available rows (SRS size limit) without worrying about size of the IVC.
-
-
 ### Implementing Foreign Field Gates
 
 Part of the project is implementing FFA (foreign field arithmetics, additions and multiplications) and FFEC (foreign field EC additions) libraries --- practically these will be gates within a kimchi circuit.
@@ -260,6 +241,63 @@ We might find inspiration and decide which encoding is more efficient by looking
 - https://github.com/privacy-scaling-explorations/halo2wrong
 - https://github.com/DelphinusLab/halo2ecc-s
 - https://hackmd.io/@arielg/B13JoihA8
+
+
+### Algorithm Performance, Circuit Layout, and Multi-Circuit Folding
+
+The circuit that we are implementing is large, and its layout should be carefully considered. Luckily, we have some liberty in design decisions -- the algorithm needs to be implemented on a *variant* of Kimchi which can allow long rows, additive lookups (memory access), and support for folding. Two last features are (being) developed in the zkVM project.
+
+Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $3n$ additions at most:
+- The cycle in the beginning populates the buckets and it takes $n$ additions because that's how much multiplications are there in `to_scale_pairs`.
+- The end loop does two additions per each iteration (and each iteration assumes a non-zero bucket, assume there are $n'$ of these buckets), so we have $2 \cdot n'$ additions. Since $n' < n$, the worst case is $2 n$ additions.
+
+In addition to $3n$ addition per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
+
+In total, the whole algorithm then requires $3n \cdot l$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way). Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get about $2^{17}$ additions, which is still more than $2^{16}$ budget. But even with the easier $n = 2^15$ we still have to fit $3$ times more FF EC additions than there are rows available.
+
+
+With that in mind, we will use folding to split the total computation into chunks that fit into our $n$-element SRS. Each folding repetition will externally look like an elliptic curve addition w.r.t. the total accumulator. We will elaborate on the design of a concrete circuit later, but so far we can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum_{j=1}^i B_j$, (2) RAM lookups. Note that the RAM lookups are not ZK and they don't need to be.
+
+
+Now, there are several approach that can be taken in terms of a concrete circuit design, and deciding on the approach is part of the implementation effort itself since it is (arguably) too complicated for the RFC. The approaches are as follows:
+1. Making the circuit wide enough to fit the whole inner-MSM algorithm in one circuit.
+1. Splitting the inner-MSM algorithm into sub-algorithms.
+
+Let us elaborate on the two approaches. For simplicity, let us first consider the case of $n=2^15$.
+
+Starting with the first one --- it is possible to fit the whole inner-MSM algorithm into one circuit, assuming that each row will contain multiple FF EC additions. For example, given $n = 2^15$ and the same number of rows, we will need to fit about $3n$ additions into the circuit. Assuming that we fit $3$ additions per row, the whole inner MSM product will most likely fit --- the concerns related to the "tightness" of the fit (that is, maybe we will need an extra addition for aggregation, or we will need to have 3 or 4 rows for ZK) we will discuss later separately.
+- The advantage of the first approach is that each circuit is exactly the same. Note that it seems to be a matter of convenience and not theoretical limitation --- as far as the current implementation goes, it does not seem problematic though to have different circuits in different iterations of the folding algorithm.
+- The disadvantage of this approach is that longer rows mean bigger IVC circuit, plus bigger end verification --- in the very end after the whole folded scheme is proven secure, the resulting proof will still have as much columns as our circuits. So using less columns results in a smaller final proof.
+
+The second approach suggests to instead split the inner-MSM algorithm into several sections to then prove them progressively in the right order. For example, one can imagine one chunk proving just the initial sub-MSM bucket initialisation, the next chunk doing half of the main loop, and another chunk the other half of that loop.
+- Certain things are more unclear about this approach:
+    - Is it unproblematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
+    - Lack of circuit space concerns still apply.
+
+
+Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the inner MSM algorithm into exactly $2^15$ gates.
+
+We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
+- Our additive lookup constraint has a form of like $1/(r + v)$, and we can use an alternative accumulator boundary condition $\mathsf{acc}' = \mathsf{acc} + 1/(r + 0) - 1/(r + v_{0})$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
+- `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
+- @volhovm @dw: This needs to be explained a bit better, it's important and very technical.
+
+
+Regarding the algorithm in the harder case of $n = 2^16$, the two approaches can be still applied, but need to be modified.
+- In the first one, the circuit width needs to grow two times.
+- In the second one, the inner-MSM algorithm needs to be split into 6 sections.
+- A hybrid approach is possible where width is traded-off with the number of folds -- e.g. we can make the circuit twice as long (each row containing 2 additions) and still have 3 sections of the inner MSM algorithm.
+
+
+### Folding's IVC
+
+For folding to work correctly "in its full recursive power", additionally to merely instance folding itself, we will need an IVC (interactive verifiable computation) part that will verify the previous folding iteration within the circuit.
+- We consider two approaches regarding folding IVC: either supporting a cycle of curves (BN254 / Grumpkin cycle) or non-native emulation.
+    - The cycle of curves approach relies on switching between two curves on every folding iteration. Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
+    - The non-native emulation uses foreign field arithmetics to proceed. This foreign field emulation is (probably) what Aztec call "goblin plonk" technique. Link: https://hackmd.io/@aztec-network/B19AA8812 (see CF Istanbul talks from Zac).
+    - To start with, the curves approach seems more immediately available, however the second approach is strongly preferred in the long run.
+- It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $2^15$ available rows (SRS size limit) without worrying about size of the IVC.
+
 
 
 <!--In general:
@@ -382,20 +420,9 @@ Think about the lessons from other blockchain projects or similar updates and pr
 ## Unresolved questions
 
 
-1. What is the size of the single folded circuit? How many rounds of sub-MSM will it contain? How folding is going to be used?
-    - (?) Let $\sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (G_i 2^{j * k}))$. We hope (@volhovm AFAIU from Matthew's words) to fit $\sum_{i=1}^n c_{i,j} (G_i 2^{j * k})$, the internal sum, in one Kimchi circuit.
-    - However the sub-MSM algorithm seems to require $3 n$ additions, so unless each row does $4$ FF EC additions we seem to not be able to fit it.
-    - Matthew: We could split the sub-MSM algorithm into separate chunks (3 chunks for example, or 6), and each part of sub-MSM will look like an elliptic curve addition w.r.t. accumulator and local accumulator.
-1. Why do we need to have wide rows instead of making more folding repetitions? Alternatively, we could make rows contain 4 FF EC additions -- how does this approach evaluate in terms of efficiency?
-    - Either approach is fine, we need to decide which approach to use (either splitting sub-MSM or making rows contain 4 FF EC additions). We'll need to decide which one.
-    - Matthew: we can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration.  We use the zero bucket for communicating the accumulator between fold iterations. And constraining it outside of the fold cycle. This will solve the problem of fitting $2^15$ operations in exactly $2^15$ rows if one row = 1
-        - Our additive lookup constraint is like $1/(r + value)$, and we can use accumulator $acc += 1/(r + 0) - 1/(r + whatever_is_in_zero)$ embedded into the constraint -- we enforce at the address zero we write `whatever_is_in_zero`. This is what we already use in zkVM.
-        - `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
-    - @volhovm: what about 4 ZK rows? 3 for plonk, 1 for lookup? is it different in folding? The fact the circuit design is so tight is unnerving.
-      - We don't need ZK in this case most likely.
-1. If LambdaClass uses o1js, we will need to expose the optimised MSM in o1js. Is it part of the project?
-    - (? confirm) Absolutely not in the scope at the moment :) At least Matthew was explicitly limiting the scope to just MSM and saying not to worry about integration with anything that LambdaClass do.
-    - Confirmed. O1js out of scope.
+1. Engineering problem: how exactly does the trick with the lookup tables work?
+   - If we go with the circuit layout that fits $2^15$ additions into $2^15$ rows having exactly one addition per row, we need to make sure the total joint accumulator (between folding iterations) is being updated properly. This requires altering the folding protocol checks.
+
 
 <!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
 * What parts of the design do you expect to resolve through the implementation of this feature before merge?
