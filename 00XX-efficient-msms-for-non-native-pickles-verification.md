@@ -108,14 +108,14 @@ The values shared between the stages are exposed from the public inputs of the p
 
 ### High-level description of the algorithm
 
-As inputs, we take a list of 'recursion challenges' $c_i$, which will have length $n = $`domain_size` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum_{i=1}^n c_i G_i$ within a kimchi circuit.
+As inputs, we take a list of 'recursion challenges' $c_i$, which will have length $n$ equal to `domain_size` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum_{i=1}^n c_i G_i$ within a kimchi circuit.
 
-For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16).
-
-The size of the SRS over BN254 is $2^{15}$, which is so far the largest existing SRS that is available in this context.
+For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $2^{15}$, which is so far the largest existing SRS that is available in this context.
 
 Recall that the coefficients we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
 
+
+<!--
 DEBUGGING REMOVE THIS:
 
 $$
@@ -146,7 +146,7 @@ $$
 
 $$
 h(X) = (1 + \mathsf{chal}_{-3} x^3) \ldots
-$$
+$$ -->
 
 $$
 h(X) = (1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2)(1 + \mathsf{chal}_{-3} x^3) \ldots
@@ -176,7 +176,7 @@ Let us call the inner sum computation $\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot
 
 In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
 
-The sub-MSM algorithm is implementing a standard 'bucketing' trick with `2^k` buckets to avoid doing any doublings or scalings at all, requiring only `n*(254/k)+2^(2k)` curve point additions:
+The sub-MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $3 n$ curve point additions:
 ```rust
 let mut buckets: [C; 2^k] = [H; 2^k]; /* Where `H` is the blinding generator. */
 for (coefficient, commitment) in to_scale_pairs {
@@ -190,7 +190,7 @@ for i in 1..buckets.length() {
 }
 ```
 
-Notice that this works because after successive iterations we have (ignoring the `H` terms for now):
+Notice that this works because after successive iterations we have (ignoring the $H$ terms for now):
 ```
 // First iteration
 right_sum = buckets[2^k - 1]
@@ -208,17 +208,17 @@ right_sum = buckets[2^k - 1] + ... + buckets[1]
 total = (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buckets[1]
 ```
 
-The `H` generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the sub-MSM algorithm.
+The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the sub-MSM algorithm.
 
 
-To reiterate: assuming we verify an MSM for a Step proof:
+To reiterate on the curve choices: assuming we verify an MSM for a Step proof:
 - BN254($\mathbb{F}_{scalar}$) is the field the circuit has to be expressed in
 - Vesta($\mathbb{F}_{scalar}$) is the field for the scalar used in the MSM
 - Vesta($\mathbb{F}_{base}$) is the field for the coordinates of the curve
 
 Therefore, $\underbrace{\sum_{j=1}^{l} (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Vesta(Fp)} (\overbrace{G_i 2^{j * k}}^{\text{Coordinates in Vesta(Fq), computed externally}})}_{\text{Encoded in BN254(Fp)}})$
 
-The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i 2^{j * k}$. Therefore, the only operations that we need to encoded is the addition of Vesta(F_base) elements in BN254(F_scalar). Note that the elements $G_i 2^{j * k}$ will have coordinates in Vesta(F_base). Therefore, the table will require more than one limbs for each coordinates.
+The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i 2^{j * k}$. Therefore, the only operations that we need to encoded is the addition of Vesta($\mathbb{F}_{base}$) elements in BN254(\mathbb{F}_{scalar}). Note that the elements $G_i 2^{j * k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
 
 
 ### Implementing Foreign Field Gates
@@ -253,7 +253,7 @@ Note that each iteration (one run) of the sub-MSM algorithm with limited buckets
 
 In addition to $3n$ addition per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
 
-In total, the whole algorithm then requires $3n \cdot l$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way). Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get about $2^{17}$ additions, which is still more than $2^{16}$ budget. But even with the easier $n = 2^15$ we still have to fit $3$ times more FF EC additions than there are rows available.
+In total, the whole algorithm then requires $3n \cdot l$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way). Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get about $2^{17}$ additions, which is still more than $2^{16}$ budget. But even with the easier $n = 2^{15}$ we still have to fit $3$ times more FF EC additions than there are rows available.
 
 
 With that in mind, we will use folding to split the total computation into chunks that fit into our $n$-element SRS. Each folding repetition will externally look like an elliptic curve addition w.r.t. the total accumulator. We will elaborate on the design of a concrete circuit later, but so far we can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum_{j=1}^i B_j$, (2) RAM lookups. Note that the RAM lookups are not ZK and they don't need to be.
@@ -263,9 +263,9 @@ Now, there are several approach that can be taken in terms of a concrete circuit
 1. Making the circuit wide enough to fit the whole inner-MSM algorithm in one circuit.
 1. Splitting the inner-MSM algorithm into sub-algorithms.
 
-Let us elaborate on the two approaches. For simplicity, let us first consider the case of $n=2^15$.
+Let us elaborate on the two approaches. For simplicity, let us first consider the case of $n=2^{15}$.
 
-Starting with the first one --- it is possible to fit the whole inner-MSM algorithm into one circuit, assuming that each row will contain multiple FF EC additions. For example, given $n = 2^15$ and the same number of rows, we will need to fit about $3n$ additions into the circuit. Assuming that we fit $3$ additions per row, the whole inner MSM product will most likely fit --- the concerns related to the "tightness" of the fit (that is, maybe we will need an extra addition for aggregation, or we will need to have 3 or 4 rows for ZK) we will discuss later separately.
+Starting with the first one --- it is possible to fit the whole inner-MSM algorithm into one circuit, assuming that each row will contain multiple FF EC additions. For example, given $n = 2^{15}$ and the same number of rows, we will need to fit about $3n$ additions into the circuit. Assuming that we fit $3$ additions per row, the whole inner MSM product will most likely fit --- the concerns related to the "tightness" of the fit (that is, maybe we will need an extra addition for aggregation, or we will need to have 3 or 4 rows for ZK) we will discuss later separately.
 - The advantage of the first approach is that each circuit is exactly the same. Note that it seems to be a matter of convenience and not theoretical limitation --- as far as the current implementation goes, it does not seem problematic though to have different circuits in different iterations of the folding algorithm.
 - The disadvantage of this approach is that longer rows mean bigger IVC circuit, plus bigger end verification --- in the very end after the whole folded scheme is proven secure, the resulting proof will still have as much columns as our circuits. So using less columns results in a smaller final proof.
 
@@ -275,15 +275,16 @@ The second approach suggests to instead split the inner-MSM algorithm into sever
     - Lack of circuit space concerns still apply.
 
 
-Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the inner MSM algorithm into exactly $2^15$ gates.
+Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the inner MSM algorithm into exactly $2^{15}$ gates.
 
 We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
-- Our additive lookup constraint has a form of like $1/(r + v)$, and we can use an alternative accumulator boundary condition $\mathsf{acc}' = \mathsf{acc} + 1/(r + 0) - 1/(r + v_{0})$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
+- Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $\mathsf{acc}' = \mathsf{acc} +
+\frac{1}/{r + 0} - \frac{1}{r + v_{0}}$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
 - `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
 - @volhovm @dw: This needs to be explained a bit better, it's important and very technical.
 
 
-Regarding the algorithm in the harder case of $n = 2^16$, the two approaches can be still applied, but need to be modified.
+Regarding the algorithm in the harder case of $n = 2^{16}$, the two approaches can be still applied, but need to be modified.
 - In the first one, the circuit width needs to grow two times.
 - In the second one, the inner-MSM algorithm needs to be split into 6 sections.
 - A hybrid approach is possible where width is traded-off with the number of folds -- e.g. we can make the circuit twice as long (each row containing 2 additions) and still have 3 sections of the inner MSM algorithm.
@@ -296,7 +297,7 @@ For folding to work correctly "in its full recursive power", additionally to mer
     - The cycle of curves approach relies on switching between two curves on every folding iteration. Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
     - The non-native emulation uses foreign field arithmetics to proceed. This foreign field emulation is (probably) what Aztec call "goblin plonk" technique. Link: https://hackmd.io/@aztec-network/B19AA8812 (see CF Istanbul talks from Zac).
     - To start with, the curves approach seems more immediately available, however the second approach is strongly preferred in the long run.
-- It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $2^15$ available rows (SRS size limit) without worrying about size of the IVC.
+- It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $n = 2^{15}$ available rows (SRS size limit) without worrying about size of the IVC.
 
 
 
@@ -394,10 +395,10 @@ This design is optimised to minimise the number of rows, memory accesses, and no
 The MSMs can be implemented using the existing primitives exposed to o1js. However, the efficiency of these operations is unacceptable for the current goals.
 
 The large MSMs required for pickles are
-* a Vesta MSM of size 2^16, and
-* a Pallas MSM of size 2^15.
+* a Vesta MSM of size $2^{16}$, and
+* a Pallas MSM of size $2^{15}$.
 
-The most naive way to implement these is to do each of these `2^15+2^16` scalings in o1js. Each of these scalings requires approximately 254 double-and-add elliptic curve operations, of which each takes ~50 rows (guesstimate, actual numbers not immediately available). This means that we require
+The most naive way to implement these is to do each of these `2^{15}+2^{16}` scalings in o1js. Each of these scalings requires approximately 254 double-and-add elliptic curve operations, of which each takes ~50 rows (guesstimate, actual numbers not immediately available). This means that we require
 ```
 (2^15 + 2^16) * 254 * 50 = 1,248,460,800
 ```
@@ -421,7 +422,7 @@ Think about the lessons from other blockchain projects or similar updates and pr
 
 
 1. Engineering problem: how exactly does the trick with the lookup tables work?
-   - If we go with the circuit layout that fits $2^15$ additions into $2^15$ rows having exactly one addition per row, we need to make sure the total joint accumulator (between folding iterations) is being updated properly. This requires altering the folding protocol checks.
+   - If we go with the circuit layout that fits $2^{15}$ additions into $2^{15}$ rows having exactly one addition per row, we need to make sure the total joint accumulator (between folding iterations) is being updated properly. This requires altering the folding protocol checks.
 
 
 <!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
