@@ -228,7 +228,10 @@ Regarding the foreign field additions and multiplications, native Kimchi already
 - https://o1-labs.github.io/proof-systems/kimchi/foreign_field_add.html
 - https://o1-labs.github.io/proof-systems/kimchi/foreign_field_mul.html
 
-Regarding ECC, kimchi also contains an implementation that is part of ECDSA library (**TODO** find the link!). Additionally, one will need to decide which coordinates would are better to use. Available options are:
+Regarding ECC, o1js also contains an implementation that is part of ECDSA library. It is unclear though whether this can be useful in the kimchi context, as this library is written in o1js/typescript --- probably it can be used as an inspiration.
+- https://github.com/o1-labs/o1js/blob/main/src/lib/gadgets/elliptic-curve.ts#L99
+
+Additionally, one will need to decide which coordinates would are better to use. Available options are:
 - [Affine](https://www.hyperelliptic.org/EFD/g1p/auto-shortw.html)
 - [Jacobian](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html#doubling-dbl-2007-bl)
 - [Projective](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html)
@@ -286,6 +289,11 @@ Regarding the algorithm in the harder case of $n = 2^{16}$, the two approaches c
 - In the second one, the inner-MSM algorithm needs to be split into 6 sections.
 - A hybrid approach is possible where width is traded-off with the number of folds -- e.g. we can make the circuit twice as long (each row containing 2 additions) and still have 3 sections of the inner MSM algorithm.
 
+### Additive Lookups
+
+In the zkVM project there is already an implementation of an additive lookup algorithm.
+- We must make sure, when moving it into our project, that it does not rely heavily on pairings -- even though BN254 supports a pairing, it is better (for future compatibility with IPA Kimchi) to ignore this.
+- We must make sure that the lookup argument supports lookups of the $k$ bit size, so the parameter must align well with the lookup protocol.
 
 ### Folding's IVC
 
@@ -353,12 +361,12 @@ For SnarkyJS and other zkApps-related projects:
 1. Investigate existing approaches to FFA (foreign field arithmetics) and FFEC (foreign field elliptic curves), including ones implemented for the standard Kimchi. The purpose is to get enough insight for deciding on the optimal algorithm for our particular case.
     - Have a look at foreign field addition and multiplication gate in Kimchi
         - Reading doc in the book + the code. Maybe starting without details (half a day), after that jump on the code to implement, and come back after that for a deeper understanding.
-    - Examine the existing
-    - If necessary (i.e. if existing implementation doesn not give enough insight the addition of points of (non-native) Vesta with (native) BN254(Fp) using the existing FFA library within Kimchi.
+    - Examine the existing implementation of ECDSA / FFEC in o1js and see if it can be used as a comparison for our implementation -- e.g. as a baseline, if it's performant enough.
+    - Implement the addition of points of (non-native) Vesta with (native) BN254(Fp) using the existing FFA library within Kimchi.
         - The ECC addition operation must be implemented from scratch, but it relies on the foreign field additions/multiplications support which already exists in Kimchi.
         - Try with jacobian, projective and affine.
     - Important: we need to verify that the conditions are respected for the scalar field of BN254. Initially, it has been written for the scalar field of Vesta/Pallas.
-    - Check the number of constraints (2 days)
+    - Evaluate the complexity of the implementation: check the number of constraints, proof size, verifier time, etc. Write benchmarks.
     - Training with the current gate can help understanding how it works at the moment, and it can be useful to have ideas to create a new gate to perform Foreign EC addition on one row (which is supposed to be a goal?).
 1. Assemble the target proving system.
     - We will use a variant (clone) of Kimchi with a different number of columns, folding, and additive lookups. These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
@@ -409,6 +417,10 @@ It is not practical to build a Mina -> EVM state bridge without this or an simil
 
 ## Prior art
 
+We mentioned before the implementations of FFA and FFEC.
+
+**TODO** research if anyone actually already implemented MSM verification inside a SNARK. Scroll? Aztec?
+
 <!--Discuss prior art, both the good and the bad, in relation to this proposal.
 
 Prior art is any evidence that your feature (invention, change, proposal) is already known.
@@ -416,7 +428,6 @@ Prior art is any evidence that your feature (invention, change, proposal) is alr
 Think about the lessons from other blockchain projects or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.-->
 
 ## Unresolved questions
-
 
 1. Engineering problem: how exactly does the trick with the lookup tables work?
    - If we go with the circuit layout that fits $2^{15}$ additions into $2^{15}$ rows having exactly one addition per row, we need to make sure the total joint accumulator (between folding iterations) is being updated properly. This requires altering the folding protocol checks.
