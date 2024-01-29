@@ -110,7 +110,7 @@ As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i} \}`$, 
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $2^{15}$, which is so far the largest existing SRS that is available in this context.
 
-Recall that the coefficients $\{c_i\}$ we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
+Recall that the coefficients $`\{c_i\}`$ we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
 
 
 <!--
