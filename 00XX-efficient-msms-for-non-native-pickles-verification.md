@@ -167,9 +167,9 @@ $$
 \end{align*}
 $$
 
-Where each $B_j$ is the result of the individual inner step --- we will accumulate $\sum_{j=1}^i B_j$ after each iteration.
+Where each $B_j$ is the result of the individual inner step --- we will accumulate $\sum\limits_{j=1}^i B_j$ after each iteration.
 
-Let us call the inner sum computation $\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i)$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $c_{i,j}$ and a different set of bases.
+Let us call the inner sum computation $\sum\limits_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i)$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $c_{i,j}$ and a different set of bases.
 
 In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
 
