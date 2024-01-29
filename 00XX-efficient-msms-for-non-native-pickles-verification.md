@@ -233,6 +233,7 @@ Regarding ECC, o1js also contains an implementation that is part of ECDSA librar
 
 Additionally, one will need to decide which coordinates would are better to use. Available options are:
 - [Affine](https://www.hyperelliptic.org/EFD/g1p/auto-shortw.html)
+  - Matthew: it probably will be our choice, it's probably the most efficient one.
 - [Jacobian](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html#doubling-dbl-2007-bl)
 - [Projective](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html)
 
@@ -300,11 +301,12 @@ In the zkVM project there is already an implementation of an additive lookup alg
 For folding to work correctly "in its full recursive power", additionally to merely instance folding itself, we will need an IVC (interactive verifiable computation) part that will verify the previous folding iteration within the circuit.
 - We consider two approaches regarding folding IVC: either supporting a cycle of curves (BN254 / Grumpkin cycle) or non-native emulation.
     - The cycle of curves approach relies on switching between two curves on every folding iteration. Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
-    - The non-native emulation uses foreign field arithmetics to proceed. This foreign field emulation is (probably) what Aztec call "goblin plonk" technique. Link: https://hackmd.io/@aztec-network/B19AA8812 (see CF Istanbul talks from Zac).
+    - The non-native emulation uses foreign field arithmetics to proceed.
     - To start with, the curves approach seems more immediately available, however the second approach is strongly preferred in the long run.
 - It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $n = 2^{15}$ available rows (SRS size limit) without worrying about size of the IVC.
 
 
+<!-- This foreign field emulation is (probably) what Aztec call "goblin plonk" technique. Link: https://hackmd.io/@aztec-network/B19AA8812 (see CF Istanbul talks from Zac). -->
 
 <!--In general:
 
@@ -375,6 +377,7 @@ For SnarkyJS and other zkApps-related projects:
         - Analyze the additive lookup (logup) protocol and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
         - Analyze folding and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
 1. Decide on the optimal algorithm for FFA and FFEC.
+    - Just reusing current Kimchi FFA/FFEC we will pay a lot of data passing overhead price.
     - This can be done either just theoretically, based on estimations, or also practically, by designing and comparing several prototypes.
     - In the second practical case:
         - Comparisons must be implemented ideally for the modified target proving system (since it contains a different lookup argument and different number of columns).
