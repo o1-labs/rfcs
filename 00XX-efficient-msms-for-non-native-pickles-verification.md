@@ -2,8 +2,7 @@
 
 ## Summary
 
-This RFC describes a protocol for computing elliptic curve MSMs (multi-scalar
-multiplications) over 'large' bases.
+This RFC describes a protocol for computing elliptic curve MSMs (multi-scalar multiplications) over 'large' bases.
 
 ## Motivation
 
@@ -17,7 +16,6 @@ Hypotheses:
 * The cryptography and protocol details are sufficiently similar to existing work done by the crypto team that it will be possible to implement this in a reasonable about of time.
 
 This RFC focuses explicitly on minimising the size of the circuit used for this expensive part of the protocol. Happily, this also forces us to use a relatively simple algorithm.
-
 
 *Product motivation for a Mina -> EVM state bridge deliberately elided.*
 
@@ -108,11 +106,11 @@ The values shared between the stages are exposed from the public inputs of the p
 
 ### High-level description of the algorithm
 
-As inputs, we take a list of 'recursion challenges' $c_i$, which will have length $n$ equal to `domain_size` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum_{i=1}^n c_i G_i$ within a kimchi circuit.
+As inputs for the MSM algorithm, we take a list of coefficients $\{c_i\}$, which will have length $n$ equal to `domain_size` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum_{i=1}^n c_i G_i$ within a kimchi circuit.
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $2^{15}$, which is so far the largest existing SRS that is available in this context.
 
-Recall that the coefficients we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
+Recall that the coefficients $\{c_i\}$ we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
 
 
 <!--
@@ -155,7 +153,6 @@ $$
 and can be easily computed using a standard circuit of size `domain_size` using the algorithm [here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L294).
 
 Once the coefficients $c_i$ of $h(X)$ have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`.
-
 
 Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our 254-bit scalars into sums of smaller, $k$-bit scalars, in the following way $c_i = \sum c_{i,j} 2^{j \cdot k}$. Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size $k$.
 
@@ -279,7 +276,7 @@ Regarding the concerns about potential lack of space in the circuit implementati
 
 We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
 - Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $\mathsf{acc}' = \mathsf{acc} +
-\frac{1}/{r + 0} - \frac{1}{r + v_{0}}$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
+\frac{1}{r + 0} - \frac{1}{r + v_{0}}$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
 - `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
 - @volhovm @dw: This needs to be explained a bit better, it's important and very technical.
 
