@@ -169,10 +169,13 @@ Then our target computation can be expressed as follows:
 
 $$
 \begin{align*}
-\sum_{i=1}^n c_i G_i &= \underbrace{\sum_{j=1}^{l} (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Vesta(Fp)} (\overbrace{G_i 2^{j \cdot k}}^{\text{Coordinates in Vesta(Fq), computed externally}})}_{\text{Encoded in BN254(Fp)}}) \\
+\sum_{i=1}^n c_i G_i &=
+  \underbrace{\sum_{j=1}^{l}
+    (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Vesta(Fp)}
+        (\overbrace{G_i 2^{j \cdot k}}^{\text{Coordinates in Vesta(Fq), computed externally}}
+        )}_{\text{Encoded in BN254(Fp)}}} \\
 &= \sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i )) \\
-&=
-\sum_j B_j
+&= \sum_j B_j
 \end{align*}
 $$
 
@@ -192,11 +195,12 @@ The sub-MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ bu
 fn sub_msm(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
     // Initialize the buckets with the blinding factor H
     let mut buckets: [C; 2^k] = [H; 2^k];
-    // Zero bucket is unused. In practice it can be just not initialized
+    // Zero bucket is unused. In practice it can
     buckets[0] = 0;
     for (coefficient, commitment) in to_scale_pairs {
         buckets[coefficient] += commitment;
     }
+    // Instead of being a variable, `total` can be "stored" in buckets[0] for efficiency
     let mut total = -H.scale(2^k * (2^k - 1) / 2);
     let mut right_sum = 0;
     for i in 1..buckets.length() {
