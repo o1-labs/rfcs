@@ -20,6 +20,8 @@ In the TypeScript layer, [compiling circuits](https://github.com/o1-labs/o1js/bl
 
 In order to make chunking work in o1js, we have to modify the `Pickles.compile` to accept the number of chunks that are required in order to construct the proof. The Pickles [test](https://github.com/MinaProtocol/mina/blob/develop/src/lib/pickles/test/chunked_circuits/test_chunked_circuits.ml) serves as an example on how to modify the `Pickles.compile` function to prove larger circuits and specify the amount of chunks.
 
+Calculating how many chunks are needed to prove a circuit depends on the amount of constraints used in circuit. Before passing the parameter to the function and compiling the circuit, we have to calculate the amount of chunks needed. Luckily, o1js already has a function that can inspect methods and count the amount of constraints, we get this information by calling `.analyzeMethods()` on the `ZkProgram` or `SmartContract`.
+
 ---
 
 In general:
