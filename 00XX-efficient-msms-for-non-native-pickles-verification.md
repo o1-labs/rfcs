@@ -421,7 +421,6 @@ For SnarkyJS and other zkApps-related projects:
         - If possible, move the test implementations from the first part of the plan to the target proving system.
 1. Assemble the /core/ target proving system (parallel with everything before), without lookups.
     - Build a variant (clone) of Kimchi with a higher number of columns, and additive lookups (but no folding). These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
-      - The future plan is to generalize existing Kimchi so that we can just *use* it in this project. However at the moment customizability of Kimchi is still WIP, so it is more optimal to start with a clone of Kimchi, and unify them later. Same goes for folding and logups (unless it is easy to reuse them instead of cloning).
     - Analyze the additive lookup (logup) protocol and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
 1. Implement POC FFA library for the modified target proof system. Test and benchmark.
    - This requires
@@ -443,6 +442,15 @@ For SnarkyJS and other zkApps-related projects:
 
 
 ## Drawbacks
+
+1. Cloned Kimchi might diverge with the main variant.
+    - Implementing the whole project in a clone of Kimchi can be problematic to unify with the main version if two diverge significantnly.
+    - Alternatively, one could modify the original Kimchi to support arbitrary number of columns first, support additive lookups, and implement folding. Or, perhaps, at least any of the three. This leads to a more elegant and unified solution and contributes to the main proof system that the company implements.
+    - However this approach becomes a bottleneck for delivering the results, since Kimchi needs to be integrated with Pickles and support backwards compatibility.
+    - The future plan is to generalize existing Kimchi so that we can just *use* it in this project. However at the moment customizability of Kimchi is still WIP, so it is more optimal to start with a clone of Kimchi, and unify them later. Same goes for folding and logups (unless it is easy to reuse them instead of cloning).
+1. Current plan does not seem to imply releasing sub-algorithms as independent libraries that might be of value. The whole project is quite complex but at the same highly tailored to one task.
+   - Again, perhaps time constraints are inevitable, and perhaps the code can be later reused and generalised for public use.
+   - The MSM verification task is arguably very important, and even though it's highly tailored to Pickles it might be of big value not just practically, but also as a proof-of-feasibility.
 
 <!--Why should we *not* do this?-->
 
