@@ -266,6 +266,8 @@ Regarding the foreign field additions and multiplications, native Kimchi already
 - https://o1-labs.github.io/proof-systems/kimchi/foreign_field_add.html
 - https://o1-labs.github.io/proof-systems/kimchi/foreign_field_mul.html
 
+However, merely reusing these will most likely be quite suboptimal due to the high data passing overhead, which we can avoid by exploiting wider rows.
+
 Regarding ECC, o1js also contains an implementation that is part of ECDSA library. It is unclear though whether this can be useful in the kimchi context, as this library is written in o1js/typescript --- probably it can be used as an inspiration.
 - https://github.com/o1-labs/o1js/blob/main/src/lib/gadgets/elliptic-curve.ts#L99
 
@@ -397,32 +399,47 @@ For SnarkyJS and other zkApps-related projects:
 5. Testing resources:
     * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.-->
 
-1. Investigate existing approaches to FFA (foreign field arithmetics) and FFEC (foreign field elliptic curves), including ones implemented for the standard Kimchi. The purpose is to get enough insight for deciding on the optimal algorithm for our particular case.
+1. Investigate existing approaches to FFA (foreign field arithmetics) and FFEC (foreign field elliptic curves), including ones implemented for the standard Kimchi. Get enough insight for deciding on the optimal algorithm for our particular case.
     - Have a look at foreign field addition and multiplication gate in Kimchi
         - Reading doc in the book + the code. Maybe starting without details (half a day), after that jump on the code to implement, and come back after that for a deeper understanding.
-    - Examine the existing implementation of ECDSA / FFEC in o1js and see if it can be used as a comparison for our implementation -- e.g. as a baseline, if it's performant enough.
+    - Examine the avaliable FFEC implementations / algorithms.
+      - This includes the existing implementation of ECDSA / FFEC in o1js. See if it can be used as a comparison for our implementation -- e.g. as a baseline, if it's performant enough.
+      - But also other implemen
     - Implement the addition of points of (non-native) Vesta with (native) BN254(Fp) using the existing FFA library within Kimchi.
-        - The ECC addition operation must be implemented from scratch, but it relies on the foreign field additions/multiplications support which already exists in Kimchi.
-        - Try with jacobian, projective and affine.
-    - Important: we need to verify that the conditions are respected for the scalar field of BN254. Initially, it has been written for the scalar field of Vesta/Pallas.
-    - Evaluate the complexity of the implementation: check the number of constraints, proof size, verifier time, etc. Write benchmarks.
-    - Training with the current gate can help understanding how it works at the moment, and it can be useful to have ideas to create a new gate to perform Foreign EC addition on one row (which is supposed to be a goal?).
-1. Assemble the target proving system.
-    - We will use a variant (clone) of Kimchi with a different number of columns, folding, and additive lookups. These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
-    - The future plan is to generalize existing Kimchi so that we can just *use* it in this project. However at the moment customizability of Kimchi is still WIP, so it is more optimal to start with a clone of Kimchi, and unify them later. Same goes for folding and logups (unless it is easy to reuse them instead of cloning).
-    - Subtasks:
-        - Analyze the additive lookup (logup) protocol and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
-        - Analyze folding and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
-1. Decide on the optimal algorithm for FFA and FFEC.
-    - Just reusing current Kimchi FFA/FFEC we will pay a lot of data passing overhead price.
+      - The ECC addition operation must be implemented from scratch, but it relies on the foreign field additions/multiplications support which already exists in Kimchi.
+      - Start with the affine coordinates. If time allows, see if projective or Jacobian can be more performant.
+      - Important: we need to verify that the conditions are respected for the scalar field of BN254. Initially, it has been written for the scalar field of Vesta/Pallas.
+    - Evaluate the complexity of the implementation
+       - Check the number of constraints, proof size, verifier time, etc. Write benchmarks.
+1. Decide on the optimal algorithm for primarily FFA (and FFEC).
     - This can be done either just theoretically, based on estimations, or also practically, by designing and comparing several prototypes.
-    - In the second practical case:
+    - It is probably better to judge this theoretically to save time.
+      - E.g. in terms of FFEC we can probably just go forward with affine coordinates.
+      - In terms of FFA it is not clear which parameter and algorithm selection is optimal.
+    - In the second (practical comparison) case:
         - Comparisons must be implemented ideally for the modified target proving system (since it contains a different lookup argument and different number of columns).
         - If possible, move the test implementations from the first part of the plan to the target proving system.
+1. Assemble the /core/ target proving system (parallel with everything before), without lookups.
+    - Build a variant (clone) of Kimchi with a higher number of columns, and additive lookups (but no folding). These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
+      - The future plan is to generalize existing Kimchi so that we can just *use* it in this project. However at the moment customizability of Kimchi is still WIP, so it is more optimal to start with a clone of Kimchi, and unify them later. Same goes for folding and logups (unless it is easy to reuse them instead of cloning).
+    - Analyze the additive lookup (logup) protocol and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
 1. Implement POC FFA library for the modified target proof system. Test and benchmark.
+   - This requires
 1. Implement POC FFEC library for the modified target proof system. Test and benchmark.
-1. Implement the MSM algorithm suggested above. Test and benchmark.
-
+   - This will probably be just standard affine addition. Should be less problematic than the previous FFA step.
+1. Implement the MSM algorithm in the circuit suggested above. Test and benchmark.
+   - The MSM algorithm for now can be implemented without folding in mind. That is, the circuit can be wider, and maybe it can pass more data through inputs, and verify only parts of the MSM of smaller MSM sizes. The point is to have the algorithm working.
+1. Fallback task: Releasing a reduced many-proofs version of MSM algorithm.
+   - In case it is necessary to release a working product in *some* form, a simpler but significantly worse-performing version of the algorithm can be built.
+   - This task suggests implementing our MSM algorithm without folding. Instead, we can release $l$ (or more) independent proofs that will verify *parts* of the MSM.
+   - The estimate is that this contingency plan should not be
+1. Bring folding with IVC into our variant of Kimchi.
+   - If available, use FF IVC, otherwise the BN254/Grumpkin cycle.
+   - Analyze folding and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
+1. Implement the MSM algorithm with folding and IVC.
+   - The MSM circuit from the previous step should be now properly split into sections and folded.
+1. Evaluate the system and potentially optimise the algorithms.
+   - It is perhaps more wise to not spend too much time at the earlier stages choosing the most optimal approach. This task is for revisit their performance now when the whole proving system is in place. Swapping an FFA or FFEC algorithm for another (if more optimal one is found) should be much easier at this step.
 
 
 ## Drawbacks
