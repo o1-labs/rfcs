@@ -177,25 +177,31 @@ Let us call the inner sum computation $\sum\limits_{i=1}^n c_{i,j} (2^{j \cdot k
 
 In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
 
-The sub-MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $3 n$ curve point additions:
+The sub-MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $3 n$ curve point additions. Assuming the additive notation for the group:
 ```rust
-let mut buckets: [C; 2^k] = [H; 2^k]; /* Where `H` is the blinding generator. */
-for (coefficient, commitment) in to_scale_pairs {
-    buckets[coefficient] += commitment;
-}
-let mut total = -H.scale(2^k * (2^k + 1) / 2); /* TODO(mrmr1993): Check that this is correct. */
-let mut right_sum = H;
-for i in 1..buckets.length() {
-    right_sum += buckets[buckets.length() - i];
-    total += right_sum;
+fn sub_msm(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
+    // Initialize the buckets with the blinding factor H
+    let mut buckets: [C; 2^k] = [H; 2^k];
+    // Zero bucket is unused. In practice it can be just not initialized
+    buckets[0] = 0;
+    for (coefficient, commitment) in to_scale_pairs {
+        buckets[coefficient] += commitment;
+    }
+    let mut total = -H.scale(2^k * (2^k - 1) / 2);
+    let mut right_sum = 0;
+    for i in 1..buckets.length() {
+        right_sum += buckets[buckets.length() - i];
+        total += right_sum;
+    }
 }
 ```
 
-Notice that this works because after successive iterations we have (ignoring the $H$ terms for now):
+For now assuming the blinding factor is $0$, notice that this works because after successive iterations we have:
 ```
 // First iteration
 right_sum = buckets[2^k - 1]
 total = buckets[2^k - 1]
+
 // Second iteration
 right_sum = buckets[2^k - 1] + buckets[2^k - 2]
 total = 2*buckets[2^k - 1] + buckets[2^k - 2]
@@ -209,7 +215,27 @@ right_sum = buckets[2^k - 1] + ... + buckets[1]
 total = (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buckets[1]
 ```
 
-The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the sub-MSM algorithm.
+The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the sub-MSM algorithm. The correctness still holds. Let `total_0 = - H.scale(2^k * (2^k - 1) / 2)`:
+
+```
+// First iteration
+right_sum =  buckets[2^k - 1]
+total = total_0 + buckets[2^k - 1]
+
+// Second iteration
+right_sum = H + buckets[2^k - 1] + buckets[2^k - 2]
+total = total_0 + 2*buckets[2^k - 1] + buckets[2^k - 2]
+...
+// `i`th iteration
+right_sum = H + buckets[2^k - 1] + buckets[2^k - 2] + ... + buckets[2^k - i]
+total = total_0 + i*buckets[2^k - 1] + (i-1)*buckets[2^k - 2] + ... + buckets[2^k - i]
+...
+// `2^k-1`th iteration
+right_sum = buckets[2^k - 1] + ... + buckets[1]
+total = total_0 + (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buckets[1]
+```
+
+Given that each `buckets[i]` contains an `H`, the terms except for `total_0` will contain $\sum\limits_{i=1}^{2^k-1} i \cdot H$ of blinding terms, which is exactly the (negated) amount in `total_0`.
 
 
 To reiterate on the curve choices: assuming we verify an MSM for a Step proof:
@@ -269,22 +295,22 @@ With that in mind, we will use folding to split the total computation into chunk
 
 
 Now, there are several approach that can be taken in terms of a concrete circuit design, and deciding on the approach is part of the implementation effort itself since it is (arguably) too complicated for the RFC. The approaches are as follows:
-1. Making the circuit wide enough to fit the whole inner-MSM algorithm in one circuit.
-1. Splitting the inner-MSM algorithm into sub-algorithms.
+1. Making the circuit wide enough to fit the whole sub-MSM algorithm in one circuit.
+1. Splitting the sub-MSM algorithm into sub-algorithms.
 
 Let us elaborate on the two approaches. For simplicity, let us first consider the case of $n=2^{15}$.
 
-Starting with the first one --- it is possible to fit the whole inner-MSM algorithm into one circuit, assuming that each row will contain multiple FF EC additions. For example, given $n = 2^{15}$ and the same number of rows, we will need to fit about $3n$ additions into the circuit. Assuming that we fit $3$ additions per row, the whole inner MSM product will most likely fit --- the concerns related to the "tightness" of the fit (that is, maybe we will need an extra addition for aggregation, or we will need to have 3 or 4 rows for ZK) we will discuss later separately.
+Starting with the first one --- it is possible to fit the whole sub-MSM algorithm into one circuit, assuming that each row will contain multiple FF EC additions. For example, given $n = 2^{15}$ and the same number of rows, we will need to fit about $3n$ additions into the circuit. Assuming that we fit $3$ additions per row, the whole sub-MSM product will most likely fit --- the concerns related to the "tightness" of the fit (that is, maybe we will need an extra addition for aggregation, or we will need to have 3 or 4 rows for ZK) we will discuss later separately.
 - The advantage of the first approach is that each circuit is exactly the same. Note that it seems to be a matter of convenience and not theoretical limitation --- as far as the current implementation goes, it does not seem problematic though to have different circuits in different iterations of the folding algorithm.
 - The disadvantage of this approach is that longer rows mean bigger IVC circuit, plus bigger end verification --- in the very end after the whole folded scheme is proven secure, the resulting proof will still have as much columns as our circuits. So using less columns results in a smaller final proof.
 
-The second approach suggests to instead split the inner-MSM algorithm into several sections to then prove them progressively in the right order. For example, one can imagine one chunk proving just the initial sub-MSM bucket initialisation, the next chunk doing half of the main loop, and another chunk the other half of that loop.
+The second approach suggests to instead split the sub-MSM algorithm into several sections to then prove them progressively in the right order. For example, one can imagine one chunk proving just the initial sub-MSM bucket initialisation, the next chunk doing half of the main loop, and another chunk the other half of that loop.
 - Certain things are more unclear about this approach:
     - Is it unproblematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
     - Lack of circuit space concerns still apply.
 
 
-Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the inner MSM algorithm into exactly $2^{15}$ gates.
+Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the sub-MSM algorithm into exactly $2^{15}$ gates.
 
 We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
 - Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $\mathsf{acc}' = \mathsf{acc} +
@@ -295,8 +321,8 @@ We can adjust the additive lookup argument to externally (by modifying lookup bo
 
 Regarding the algorithm in the harder case of $n = 2^{16}$, the two approaches can be still applied, but need to be modified.
 - In the first one, the circuit width needs to grow two times.
-- In the second one, the inner-MSM algorithm needs to be split into 6 sections.
-- A hybrid approach is possible where width is traded-off with the number of folds -- e.g. we can make the circuit twice as long (each row containing 2 additions) and still have 3 sections of the inner MSM algorithm.
+- In the second one, the sub-MSM algorithm needs to be split into 6 sections.
+- A hybrid approach is possible where width is traded-off with the number of folds -- e.g. we can make the circuit twice as long (each row containing 2 additions) and still have 3 sections of the sub-MSM algorithm.
 
 ### Additive Lookups
 
