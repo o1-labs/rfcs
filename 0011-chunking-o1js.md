@@ -1,23 +1,26 @@
 # Chunking in o1js
 
-This RFC describes how we plan to integrate chunking, which has been described in detail in [RFC0002](./0002-chunking.md), into o1js and expose it to developers.
+This RFC describes how we plan to integrate chunking in o1js, making it accessible to developers. The original chunking implementation has been described in detail in [RFC0002](./0002-chunking.md).
 
 ## Summary
 
-One paragraph explanation of the feature. Describe the "why" and feature benefit.
+Chunking in our proof system enhances its capacity, allowing it to handle circuits with a significantly higher number of constraints — the previous limit of 2^16 constraints is expanded to 2^32. This advancement empowers developers using o1js to create and prove more complex computations, paving the way for a broader spectrum of innovative applications and use cases. For instance, consider the process of hashing a single data blob using SHA256, which demands approximately 5000 constraints. Under the old constraint limit, a user could perform about 13 SHA256 hashes within a single circuit. The enhanced limit greatly reduces such restrictions, offering far more flexibility and potential in the types of computations that can be executed in a single operation.
 
 ## Motivation
 
-Reflect the will of the PRD (product requirements document). If the PRD is a linkable artifact, include the link here. If not, summarize the product requirement in your own words. Describe the delta of this change.
+The motivation, assessment criteria, and exit criteria can be found in the original [Chunking PRD](https://www.notion.so/o1labs/Chunked-Commitments-PRD-890c836529c545f082a3eeecd3d4f510).
 
-Be sure to include:
-
-- What are the hypotheses behind how this change meets the needs of a PRD?
-- What is the expected outcome or outcomes and what are the exit conditions along the way? Include assessment criteria and ideally measurements that will either verify this hypothesis or yield opportunities to halt and abandon the implementation.
-- What are we optimizing for in this particular solution? Reflect on alternatives in a later section.
-- What use cases does it support?
+This RFC describes the process of exposing and implementing chunking in o1js, making it available to o1js developers. Chunking itself has already been implemented in Kimchi and Pickles, the remaining work only requires exposing the new functionality to o1js via the bindings layer.
 
 ## Detailed design
+
+Currently, the circuit writing API in o1js is exposed via the `SmartContract` and `ZkProgram` API. Under the hood, we use the OCaml bindings (js_of_ocaml) as an [interface to Pickles](https://github.com/o1-labs/o1js-bindings/blob/43fa328c4ef4a225e1343a7f26fc3d85adf67b21/ocaml/lib/pickles_bindings.ml#L577-L624).
+
+In the TypeScript layer, [compiling circuits](https://github.com/o1-labs/o1js/blob/16e66f9fba51ac4832691c3fc7a52bae60a08fd7/src/lib/proof_system.ts#L683-L688) calls into the bindings layer via `Pickles.compile`, passing in the individual branches (rules or methods) of the smart contract or ZkProgram and returning prover artifacts.
+
+In order to make chunking work in o1js, we have to modify the `Pickles.compile` to accept the number of chunks that are required in order to construct the proof. The Pickles [test](https://github.com/MinaProtocol/mina/blob/develop/src/lib/pickles/test/chunked_circuits/test_chunked_circuits.ml) serves as an example on how to modify the `Pickles.compile` function to prove larger circuits and specify the amount of chunks.
+
+---
 
 In general:
 
