@@ -38,19 +38,23 @@ The three curves in question are BN254, Vesta, and Pallas. From the specificatio
 - BN254:
     - Base field ($\mathbb{F}_{base}$): 21888242871839275222246405745257275088696311157297823662689037894645226208583 (254 bits)
     - Scalar field ($\mathbb{F}_{scalar}$): 21888242871839275222246405745257275088548364400416034343698204186575808495617 (254 bits)
-    - Equation: Weierstrass curve - $y^2 = x^3 + 3$
+    - Equation: Weierstrass curve -- $y^2 = x^3 + 3$
 - Vesta:
     - Base field ($\mathbb{F}_{base}$): 28948022309329048855892746252171976963363056481941647379679742748393362948097 (255 bits)
     - Scalar field ($\mathbb{F}_{scalar}$): 28948022309329048855892746252171976963363056481941560715954676764349967630337 (255 bits)
-    - Equation: Weierstrass curve - $y^2 = x^3 + 5$
+    - Equation: Weierstrass curve -- $y^2 = x^3 + 5$
 - Pallas:
     - Base field ($\mathbb{F}_{base}$): 28948022309329048855892746252171976963363056481941560715954676764349967630337 (255 bits)
       - (Equal to Vesta's scalar)
     - Scalar field ($\mathbb{F}_{scalar}$): 28948022309329048855892746252171976963363056481941647379679742748393362948097 (255 bits)
       - (Equal to Vesta's base)
-    - Equation: Weierstrass curve - $y^2 = x^3 + 5$
+    - Equation: Weierstrass curve -- $y^2 = x^3 + 5$
 
-The relationship between the fields is BN254($\mathbb{F}_{scalar}$) < BN254($\mathbb{F}_{base}$) < Vesta($\mathbb{F}_{scalar}$) < Vesta($\mathbb{F}_{base}$).
+The relationship between the fields is:
+
+$$
+\mathbb{F}_{scalar}(\mathrm{BN254}) < \mathbb{F}_{base}(\mathrm{BN254}) < \mathbb{F}_{scalar}(\mathrm{Vesta}) < \mathbb{F}_{base}(\mathrm{Vesta})
+$$
 
 
 #### Kimchi proofs
@@ -213,7 +217,11 @@ To reiterate on the curve choices: assuming we verify an MSM for a Step proof:
 - Vesta($\mathbb{F}_{scalar}$) is the field for the scalar used in the MSM
 - Vesta($\mathbb{F}_{base}$) is the field for the coordinates of the curve
 
-Therefore, $\underbrace{\sum_{j=1}^{l} (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Vesta(Fp)} (\overbrace{G_i 2^{j * k}}^{\text{Coordinates in Vesta(Fq), computed externally}})}_{\text{Encoded in BN254(Fp)}})$
+Our computation looks as follows:
+
+$$
+\underbrace{\sum_{j=1}^{l} (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Vesta(Fp)} (\overbrace{G_i 2^{j * k}}^{\text{Coordinates in Vesta(Fq), computed externally}})}_{\text{Encoded in BN254(Fp)}})
+$$
 
 The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i 2^{j * k}$. Therefore, the only operations that we need to encoded is the addition of Vesta($\mathbb{F}_{base}$) elements in BN254(\mathbb{F}_{scalar}). Note that the elements $G_i 2^{j * k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
 
@@ -257,7 +265,7 @@ In addition to $3n$ addition per sub-MSM run, we will need to sum all the result
 In total, the whole algorithm then requires $3n \cdot l$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way). Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get about $2^{17}$ additions, which is still more than $2^{16}$ budget. But even with the easier $n = 2^{15}$ we still have to fit $3$ times more FF EC additions than there are rows available.
 
 
-With that in mind, we will use folding to split the total computation into chunks that fit into our $n$-element SRS. Each folding repetition will externally look like an elliptic curve addition w.r.t. the total accumulator. We will elaborate on the design of a concrete circuit later, but so far we can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum_{j=1}^i B_j$, (2) RAM lookups. Note that the RAM lookups are not ZK and they don't need to be.
+With that in mind, we will use folding to split the total computation into chunks that fit into our $n$-element SRS. Each folding repetition will externally look like an elliptic curve addition w.r.t. the total accumulator. We will elaborate on the design of a concrete circuit later, but so far we can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i B_j$, (2) RAM lookups. Note that the RAM lookups are not ZK and they don't need to be.
 
 
 Now, there are several approach that can be taken in terms of a concrete circuit design, and deciding on the approach is part of the implementation effort itself since it is (arguably) too complicated for the RFC. The approaches are as follows:
