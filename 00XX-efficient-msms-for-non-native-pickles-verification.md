@@ -114,6 +114,11 @@ As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i} \}`$, 
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $2^{15}$, which is so far the largest existing SRS that is available in this context.
 
+To reiterate on the curve choices: assuming we verify an MSM for a Step proof:
+- BN254($\mathbb{F}_{scalar}$) is the field the circuit has to be expressed in
+- Vesta($\mathbb{F}_{scalar}$) is the field for the scalar used in the MSM
+- Vesta($\mathbb{F}_{base}$) is the field for the coordinates of the curve
+
 Recall that the coefficients $`\{c_i\}`$ we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
 
 
@@ -164,7 +169,7 @@ Then our target computation can be expressed as follows:
 
 $$
 \begin{align*}
-\sum_{i=1}^n c_i G_i &= \sum_{i=1}^n (\sum_{j=1}^{l} c_{i,j} 2^{j \cdot k}) G_i \\
+\sum_{i=1}^n c_i G_i &= \underbrace{\sum_{j=1}^{l} (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Vesta(Fp)} (\overbrace{G_i 2^{j \cdot k}}^{\text{Coordinates in Vesta(Fq), computed externally}})}_{\text{Encoded in BN254(Fp)}}) \\
 &= \sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i )) \\
 &=
 \sum_j B_j
@@ -172,6 +177,11 @@ $$
 $$
 
 Where each $B_j$ is the result of the individual inner step --- we will accumulate $\sum\limits_{j=1}^i B_j$ after each iteration.
+
+
+
+The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i 2^{j * k}$. Therefore, the only operations that we need to encoded is the addition of Vesta($\mathbb{F}_{base}$) elements in BN254(\mathbb{F}_{scalar}). Note that the elements $G_i 2^{j * k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
+
 
 Let us call the inner sum computation $\sum\limits_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i)$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $c_{i,j}$ and a different set of bases.
 
@@ -238,18 +248,6 @@ total = total_0 + (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + 
 Given that each `buckets[i]` contains an `H`, the terms except for `total_0` will contain $\sum\limits_{i=1}^{2^k-1} i \cdot H$ of blinding terms, which is exactly the (negated) amount in `total_0`.
 
 
-To reiterate on the curve choices: assuming we verify an MSM for a Step proof:
-- BN254($\mathbb{F}_{scalar}$) is the field the circuit has to be expressed in
-- Vesta($\mathbb{F}_{scalar}$) is the field for the scalar used in the MSM
-- Vesta($\mathbb{F}_{base}$) is the field for the coordinates of the curve
-
-Our computation looks as follows:
-
-$$
-\underbrace{\sum_{j=1}^{l} (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Vesta(Fp)} (\overbrace{G_i 2^{j * k}}^{\text{Coordinates in Vesta(Fq), computed externally}})}_{\text{Encoded in BN254(Fp)}})
-$$
-
-The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i 2^{j * k}$. Therefore, the only operations that we need to encoded is the addition of Vesta($\mathbb{F}_{base}$) elements in BN254(\mathbb{F}_{scalar}). Note that the elements $G_i 2^{j * k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
 
 
 ### Implementing Foreign Field Gates
