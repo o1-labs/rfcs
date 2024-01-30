@@ -59,6 +59,8 @@ $$
 
 #### Kimchi proofs
 
+We describe how Kimchi (and later Pickles) proof is structured to give the context in which the MSM verification task is located.
+
 When we verify a kimchi proof, all of the required information is included in either the *verification key* or the *proof*. We describe the contents of the verification key as 'fixed' -- they define the circuit / statement to be proved -- and the contents of the proof represent the specific instance that satisfies that circuit / statement.
 
 At a high-level, the kimchi verification protocol runs through 3 distinct stages of the protocol. The full algorithm in the reference implementation can be found [here](https://github.com/o1-labs/proof-systems/blob/master/kimchi/src/verifier.rs). This algorithm operates over a curve `C` (Pallas or Vesta in the context of pickles).
@@ -311,8 +313,7 @@ The second approach suggests to instead split the sub-MSM algorithm into several
     - Is it unproblematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
     - Lack of circuit space concerns still apply.
 
-
-Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the sub-MSM algorithm into exactly $2^{15}$ gates.
+Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the sub-MSM algorithm (each taking $2^15$ rows with one FFEC addition per row) into /exactly/ $2^{15}$ gates.
 
 We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
 - Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $\mathsf{acc}' = \mathsf{acc} +
@@ -337,8 +338,8 @@ In the zkVM project there is already an implementation of an additive lookup alg
 For folding to work correctly "in its full recursive power", additionally to merely instance folding itself, we will need an IVC (interactive verifiable computation) part that will verify the previous folding iteration within the circuit.
 - We consider two approaches regarding folding IVC: either supporting a cycle of curves (BN254 / Grumpkin cycle) or non-native emulation.
     - The cycle of curves approach relies on switching between two curves on every folding iteration. Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
-    - The non-native emulation uses foreign field arithmetics to proceed.
-    - To start with, the curves approach seems more immediately available, however the second approach is strongly preferred in the long run.
+    - The non-native emulation uses foreign field arithmetics to proceed. (Note that this is /not/ the Goblin Plonk approach)
+    - We expect to start the project by implementing the FFA/FFEC circuit first. When it is time to start implementing folding with IVC, if only the curves approach is available, it will be our first choice. However the second approach is strongly preferred in the long run.
 - It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $n = 2^{15}$ available rows (SRS size limit) without worrying about size of the IVC.
 
 
