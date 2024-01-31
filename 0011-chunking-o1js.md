@@ -24,7 +24,7 @@ Calculating how many chunks are needed to prove a circuit depends on the amount 
 
 ### Technical Implementation
 
-The implementation should not require and API changes for the developer, all changes happen internally and hidden from the public facing API. A naive overview of the changes:
+The implementation should not require any API changes for the developer, all changes happen internally and are hidden from the public-facing API. A naive overview of the changes:
 
 1. Adjusting OCaml bindings to Pickles - [pickles_bindings.ml](https://github.com/o1-labs/o1js-bindings/blob/1db0524c5c7c93f0df9db3fb3bdfa0414bdaf90b/ocaml/lib/pickles_bindings.ml#L563)
 
@@ -39,17 +39,15 @@ The implementation should not require and API changes for the developer, all cha
    - For `ZkProgram`, this change can be done in `proof_systems.ts` and the `ZkProgram` function
    - For `SmartContract`, the change is needed in [zkapp.ts](https://github.com/o1-labs/o1js/blob/0d82ad1d67417c72b06fc8456a0a2b54bcc46652/src/lib/zkapp.ts) - in the `SmartContract.compile` method.
 
-- ## Changing the type definitions of the bindings to represent the change in the `pickles_compile` function
-
 ## Test plan and functional requirements
 
 1. Testing Goals and Objectives:
 
 - o1js can compile and prove circuits that are bigger than 2^16 constraints, up to ideally 2^32 (the new limit introduced by chunking)
-- A proof using a larger circuit limit can be deployed to and verified on a testnet
+- A proof using a larger circuit limit (between 2^16 and 2^32 constraints) can be deployed to and verified on a testnet
 - Circuits that exceed the old limit of 2^16 constraints can be recursively verified in each other
 
-2. Testing Approach:
+1. Testing Approach:
 
 - multiple tests in o1js that test the new limits of the circuits. Tests in Kimchi and Pickles already exists, they can be used as [examples](https://github.com/MinaProtocol/mina/blob/develop/src/lib/pickles/test/chunked_circuits/test_chunked_circuits.ml)
 
