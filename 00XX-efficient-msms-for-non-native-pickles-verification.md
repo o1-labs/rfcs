@@ -1,4 +1,4 @@
-# Efficient MSMs in kimchi circuits
+# Efficient MSMs in Kimchi Circuits
 
 ## Summary
 
@@ -52,9 +52,9 @@ The three curves in question are BN254, Vesta, and Pallas. From the specificatio
 
 The relationship between the fields is:
 
-$$
+```math
 \mathbb{F}_{scalar}(\mathrm{BN254}) < \mathbb{F}_{base}(\mathrm{BN254}) < \mathbb{F}_{scalar}(\mathrm{Vesta}) < \mathbb{F}_{base}(\mathrm{Vesta})
-$$
+```
 
 
 #### Kimchi proofs
@@ -112,87 +112,54 @@ The values shared between the stages are exposed from the public inputs of the p
 
 ### High-level description of the algorithm
 
-As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i} \}`$, which will have length $n$ equal to `domain_size` for each of the 2 groups, and the set of (SRS) bases $\{G_i\}$. The goal is to compute $\sum\limits_{i=1}^n c_i G_i$ within a kimchi circuit.
+As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i} \}`$, which will have length $n$ equal to `domain_size` for each of the 2 groups, and the set of (SRS) bases $`\{G_i\}`$. The goal is to compute $`\sum\limits_{i=1}^n c_i G_i`$ within a kimchi circuit.
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $2^{15}$, which is so far the largest existing SRS that is available in this context.
 
 To reiterate on the curve choices: assuming we verify an MSM for a Step proof:
-- BN254($\mathbb{F}_{scalar}$) is the field the circuit has to be expressed in
-- Vesta($\mathbb{F}_{scalar}$) is the field for the scalar used in the MSM
-- Vesta($\mathbb{F}_{base}$) is the field for the coordinates of the curve
+- $\mathbb{F}_{scalar}(\mathrm{BN254})$ is the field the circuit has to be expressed in
+- $\mathbb{F}_{scalar}(\mathrm{Vesta})$ is the field for the scalar used in the MSM
+- $\mathbb{F}_{base}(\mathrm{Vesta})$ is the field for the coordinates of the curve
 
-Recall that the coefficients $`\{c_i\}`$ we perform MSM on are coming from the IPA polynomial commitment. Assuming $\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
+Recall that the coefficients $`\{c_i\}`$ we perform MSM on are coming from the IPA polynomial commitment. Assuming $`\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}`$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
 
 
-<!--
-DEBUGGING REMOVE THIS:
-
-$$
-h(X) = (1 + \mathsf{chal} X) \ldots
-$$
-
-DEBUGGING REMOVE THIS:
-
-$$
-h(X) = (1 + \mathsf{chal}_0 X) \ldots
-$$
-
-$$
-h(X) = (1 + \mathsf{chal}_{-1} X) \ldots
-$$
-
-$$
-h(X) = (1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2) \ldots
-$$
-
-$$
-(1 + \mathsf{chal}_{-2} X^2)
-$$
-
-$$
-(1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2)
-$$
-
-$$
-h(X) = (1 + \mathsf{chal}_{-3} x^3) \ldots
-$$ -->
-
-$$
-h(X) = (1 + \mathsf{chal}_{-1} X)(1 + \mathsf{chal}_{-2} X^2)(1 + \mathsf{chal}_{-3} x^3) \ldots
-$$
+```math
+h(X) = (1 + \mathsf{chal}_{-1} X) \cdot (1 + \mathsf{chal}_{-2} X^2) \cdot (1 + \mathsf{chal}_{-3} x^3) \ldots
+```
 
 and can be easily computed using a standard circuit of size `domain_size` using the algorithm [here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L294).
 
 Once the coefficients $c_i$ of $h(X)$ have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`.
 
-Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our 254-bit scalars into sums of smaller, $k$-bit scalars, in the following way $c_i = \sum c_{i,j} 2^{j \cdot k}$. Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size $k$.
+Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our 254-bit scalars into sums of smaller, $k$-bit scalars, in the following way $`c_i = \sum c_{i,j} 2^{j \cdot k}`$. Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size $k$.
 
 Then our target computation can be expressed as follows:
 
-$$
+```math
 \begin{align*}
 \sum_{i=1}^n c_i G_i &=
   \underbrace{\sum_{j=1}^{l}
-    (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in Vesta(Fp)}
-        (\overbrace{G_i 2^{j \cdot k}}^{\text{Coordinates in Vesta(Fq), computed externally}}
-        )}_{\text{Encoded in BN254(Fp)}}} \\
+    (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in\ \mathbb{F}_{scalar}(\text{Vesta})}
+        (\overbrace{G_i 2^{j \cdot k}}^{\text{Coordinates in $\mathbb{F}_{base}(\mathrm{Vesta})$, computed externally}}
+        )}_{\text{Encoded in $\mathbb{F}_{scalar}(\textrm{BN254})$}} \\
 &= \sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i )) \\
-&= \sum_j B_j
+&= \sum_j \mathsf{subres}_j
 \end{align*}
-$$
+```
 
-Where each $B_j$ is the result of the individual inner step --- we will accumulate $\sum\limits_{j=1}^i B_j$ after each iteration.
-
-
-
-The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i 2^{j * k}$. Therefore, the only operations that we need to encoded is the addition of Vesta($\mathbb{F}_{base}$) elements in BN254(\mathbb{F}_{scalar}). Note that the elements $G_i 2^{j * k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
+Where each $\mathsf{subres}_j$ is the result of the individual inner step --- we will accumulate $`\sum\limits_{j=1}^i \mathsf{subres}_j`$ after each iteration.
 
 
-Let us call the inner sum computation $\sum\limits_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i)$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $c_{i,j}$ and a different set of bases.
+The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$ elements in $`\mathbb{F}_{scalar}(\mathrm{BN254})`$. Note that the elements $G_i \cdot 2^{j \cdot k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
+
+
+Let us call the inner sum computation $`\sum\limits_{i=1}^n c_{i,j} (G_i \cdot 2^{j \cdot k})`$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $`\{c_{i,j}\}`$ and a different set of bases.
 
 In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use (non-ZK) RAM lookups on `buckets` which speeds up things quite a bit.
 
 The sub-MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $3 n$ curve point additions. Assuming the additive notation for the group:
+
 ```rust
 fn sub_msm(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
     // Initialize the buckets with the blinding factor H
@@ -251,7 +218,7 @@ right_sum = buckets[2^k - 1] + ... + buckets[1]
 total = total_0 + (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buckets[1]
 ```
 
-Given that each `buckets[i]` contains an `H`, the terms except for `total_0` will contain $\sum\limits_{i=1}^{2^k-1} i \cdot H$ of blinding terms, which is exactly the (negated) amount in `total_0`.
+Given that each `buckets[i]` contains an `H`, the terms except for `total_0` will contain $`\sum\limits_{i=1}^{2^k-1} i \cdot H`$ of blinding terms, which is exactly the (negated) amount in `total_0`.
 
 
 
@@ -297,7 +264,7 @@ In addition to $3n$ addition per sub-MSM run, we will need to sum all the result
 In total, the whole algorithm then requires $3n \cdot l$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way). Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get about $2^{17}$ additions, which is still more than $2^{16}$ budget. But even with the easier $n = 2^{15}$ we still have to fit $3$ times more FF EC additions than there are rows available.
 
 
-With that in mind, we will use folding to split the total computation into chunks that fit into our $n$-element SRS. Each folding repetition will externally look like an elliptic curve addition w.r.t. the total accumulator. We will elaborate on the design of a concrete circuit later, but so far we can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i B_j$, (2) RAM lookups. Note that the RAM lookups are not ZK and they don't need to be.
+With that in mind, we will use folding to split the total computation into chunks that fit into our $n$-element SRS. Each folding repetition will externally look like an elliptic curve addition w.r.t. the total accumulator. We will elaborate on the design of a concrete circuit later, but so far we can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i \mathsf{subres}_j$, (2) RAM lookups. Note that the RAM lookups are not ZK and they don't need to be.
 
 
 Now, there are several approach that can be taken in terms of a concrete circuit design, and deciding on the approach is part of the implementation effort itself since it is (arguably) too complicated for the RFC. The approaches are as follows:
@@ -318,8 +285,8 @@ The second approach suggests to instead split the sub-MSM algorithm into several
 Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the sub-MSM algorithm (each taking $2^15$ rows with one FFEC addition per row) into /exactly/ $2^{15}$ gates.
 
 We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
-- Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $\mathsf{acc}' = \mathsf{acc} +
-\frac{1}{r + 0} - \frac{1}{r + v_{0}}$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
+- Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
+\frac{1}{r + 0} - \frac{1}{r + v_{0}}`$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
 - `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
 - @volhovm @dw: This needs to be explained a bit better, it's important and very technical.
 
@@ -468,9 +435,9 @@ The large MSMs required for pickles are
 * a Vesta MSM of size $2^{16}$, and
 * a Pallas MSM of size $2^{15}$.
 
-The most naive way to implement these is to do each of these `2^{15}+2^{16}` scalings in o1js. Each of these scalings requires approximately 254 double-and-add elliptic curve operations, of which each takes ~50 rows (guesstimate, actual numbers not immediately available). This means that we require
-```
-(2^15 + 2^16) * 254 * 50 = 1,248,460,800
+The most naive way to implement these is to do each of these $`2^{15}+2^{16}`$ scalings in o1js. Each of these scalings requires approximately 254 double-and-add elliptic curve operations, of which each takes ~50 rows (guesstimate, actual numbers not immediately available). This means that we require
+```math
+(2^{15} + 2^{16}) \times 254 \times 50 = 1,248,460,800
 ```
 rows based on this estimate. It isn't practical to prove a witness this large using o1js, since we will massively exceed the 4GB WASM memory limit, and because the proof will take multiple days (in the best case).
 
