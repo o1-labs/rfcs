@@ -59,7 +59,7 @@ The implementation should not require and API changes for the developer, all cha
 
 ## Drawbacks
 
-Proving larger circuits will increase proving time and memory consumption. Given the memory limit in most browsers and WASM, this could cause problems for users trying to prove large circuits in a browser.
+Proving larger circuits will increase proving time and memory consumption. Given the memory limit in most browsers and WASM, this could cause problems for users trying to prove very large circuits.
 
 ## Rationale and alternatives
 
@@ -71,7 +71,7 @@ Chunking working in [OCaml and Pickles](https://github.com/MinaProtocol/mina/blo
 
 ## Unresolved questions
 
-While trying to prototype Chunking in o1js, I came up with the following unresolved questions. The tests can be found in [this](https://github.com/MinaProtocol/mina/tree/chunking_rfc_unresolved) branch.
+While trying to prototype Chunking in o1js, I came up with the following unresolved questions. The tests can be found in [this](https://github.com/MinaProtocol/mina/tree/chunking_rfc_unresolved/src/lib/pickles/test/chunked_circuits) branch.
 
 1 Changing the loop that constructs the circuit from `2^17` (roughly `2^16` constraints) iterations to `2^18` iterations (or `2^17` constraints) and also adjusting `num_chunks: 4` and `override_wrap_domain:N1` compiles the program correctly, generates a proof _but_ doesn't verify the proof:
 
@@ -89,8 +89,9 @@ This can be reproduced by running `dune exec ./invalid_proof.exe` inside of the 
 
 Is this behaviors expected? If so, why and how can we prevent the construction of invalid circuits and proofs in o1js? Changing `num_chunks` and `override_wrap_domain` results in an (expected) compilation error - so the chosen values seem to be logical and correct.
 
-On the other hand, setting `num_chunks:8` and the loop iteration to `2^19` compiles the circuit and yields a valid proof. (see `valid_proof.ml`)
+On the other hand, setting `num_chunks:8`,`override_wrap_domain:N2` and the loop iteration to `2^19` compiles the circuit and yields a valid proof. (see `valid_proof.ml`)
 
-2 What is the maximum allowed number chunks? From my understanding, setting iteration to `2^20` and `num_chunks:16` requires that the wrap domain must be `N3`, but it only accepts `N0 | N1 | N2`. Setting the wrap domain to anything `<= N2` yields an error. How do we deal with large number chunks and constraints? See `large_wrap_domain.ml` for this case.
+2 What is the maximum allowed number chunks? From my understanding, setting iteration to `2^20` and `num_chunks:16` requires that the wrap domain must be `16`, but it only accepts `N0 | N1 | N2`. Setting the wrap domain to anything `<= N2` yields an error. How do we deal with large number chunks and constraints? `override_wrap_domain` is of type `Pickles_base.Proofs_verified.t` which only accepts `N0 | N1 | N2`.
+See `large_wrap_domain.ml` for this case. `This circuit was compiled for proofs using the wrap domain of size 15, but the actual wrap domain size for the circuit has size 16`
 
 3 Running a small MVP of Chunking in o1js through the bindings yields the following error: `there are not enough random rows to achieve zero-knowledge (expected: 3, got: 2)`. It seems like some values aren't passed correctly. This also needs to be resolved during implementation.
