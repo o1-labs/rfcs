@@ -375,6 +375,7 @@ For SnarkyJS and other zkApps-related projects:
 5. Testing resources:
     * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.-->
 
+Phase 1:
 1. Investigate existing approaches to FFA (foreign field arithmetics) and FFEC (foreign field elliptic curves), including ones implemented for the standard Kimchi. Get enough insight for deciding on the optimal algorithm for our particular case.
     - Have a look at foreign field addition and multiplication gate in Kimchi
         - Reading doc in the book + the code. Maybe starting without details (half a day), after that jump on the code to implement, and come back after that for a deeper understanding.
@@ -404,10 +405,13 @@ For SnarkyJS and other zkApps-related projects:
    - This will probably be just standard affine addition. Should be less problematic than the previous FFA step.
 1. Implement the MSM algorithm in the circuit suggested above. Test and benchmark.
    - The MSM algorithm for now can be implemented without folding in mind. That is, the circuit can be wider, and maybe it can pass more data through inputs, and verify only parts of the MSM of smaller MSM sizes. The point is to have the algorithm working.
-1. Fallback task: Releasing a reduced many-proofs version of MSM algorithm.
+1. First milestone: Releasing a reduced many-proofs version of MSM algorithm.
    - In case it is necessary to release a working product in *some* form, a simpler but significantly worse-performing version of the algorithm can be built.
    - This task suggests implementing our MSM algorithm without folding. Instead, we can release $l$ (or $3l$, e.g. 32 or more) independent proofs that will verify *parts* of the MSM.
    - The estimate is that this contingency plan should not be not too hard to implement.
+
+
+Phase 2:
 1. Bring folding with IVC into our variant of Kimchi.
    - If available, use FF IVC, otherwise the BN254/Grumpkin cycle.
    - Analyze folding and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
