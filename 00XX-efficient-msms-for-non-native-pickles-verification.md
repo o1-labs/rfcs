@@ -389,9 +389,9 @@ For SnarkyJS and other zkApps-related projects:
 1. Assemble the /core/ target proving system (parallel with everything before), without lookups.
     - Build a variant (clone) of Kimchi with a higher number of columns, and additive lookups (but no folding). These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
     - Analyze the additive lookup (logup) protocol and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
-1. Implement POC FFA library for the modified target proof system. Test and benchmark.
-   - This requires
-1. Implement POC FFEC library for the modified target proof system. Test and benchmark.
+1. Implement POC FFA sub-circuit for the modified target proof system. Test and benchmark.
+   - A single wide row implementation according to the (hopefully optimal) algorithm chosen in the previous step.
+1. Implement POC FFEC sub-circuit for the modified target proof system. Test and benchmark.
    - This will probably be just standard affine addition. Should be less problematic than the previous FFA step.
 1. Implement the MSM algorithm in the circuit suggested above. Test and benchmark.
    - The MSM algorithm for now can be implemented without folding in mind. That is, the circuit can be wider, and maybe it can pass more data through inputs, and verify only parts of the MSM of smaller MSM sizes. The point is to have the algorithm working.
