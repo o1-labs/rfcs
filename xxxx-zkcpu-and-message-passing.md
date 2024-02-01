@@ -35,16 +35,22 @@ machine $M_{1}$ did.
 
 The execution of both specialised zkCPU can happen in parallel, and the
 verification of both executions can be done succintly, in addition to the
-verification of the messages shared by the machines.
+verification of the messages shared by the machines. The message-passing
+accumulator must be equal to zero, meaning that all messages written have been
+read.
 
 ### Example between MIPS and Keccak zkCPU
 
 ## Open questions
 
-How can we represent a communication channel where more than one messages are
+- How can we represent a communication channel where more than one messages are
 written by $M_{1}$ and later read by $M_{2}$?
 At the moment, we could simply use different shared tapes. The shared tapes
 would be "one-time" use.
+- How to extend to more than 2 machines?
+- Can we add permissions to the shared tape? For instance, we would like to
+  forbid that M_{1} write into the tape or also that M_{2} can only read
+messages from M_{1}.
 
 ## Implementation
 
