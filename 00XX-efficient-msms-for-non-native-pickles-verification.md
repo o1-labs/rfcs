@@ -377,6 +377,7 @@ For SnarkyJS and other zkApps-related projects:
 
 Phase 1:
 1. Investigate existing approaches to FFA (foreign field arithmetics) and FFEC (foreign field elliptic curves), including ones implemented for the standard Kimchi. Get enough insight for deciding on the optimal algorithm for our particular case.
+    - Probably just go with the most intuitive and simple bignum implementation, use $16$ bits per limb.
     - Have a look at foreign field addition and multiplication gate in Kimchi
         - Reading doc in the book + the code. Maybe starting without details (half a day), after that jump on the code to implement, and come back after that for a deeper understanding.
     - Examine the avaliable FFEC implementations / algorithms.
@@ -391,6 +392,7 @@ Phase 1:
 1. Decide on the optimal algorithm for primarily FFA (and FFEC).
     - This can be done either just theoretically, based on estimations, or also practically, by designing and comparing several prototypes.
     - It is probably better to judge this theoretically to save time.
+      - Just go with the simplest bignum possible.
       - E.g. in terms of FFEC we can probably just go forward with affine coordinates.
       - In terms of FFA it is not clear which parameter and algorithm selection is optimal.
     - In the second (practical comparison) case:
