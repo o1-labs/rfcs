@@ -380,7 +380,7 @@ For SnarkyJS and other zkApps-related projects:
         - Reading doc in the book + the code. Maybe starting without details (half a day), after that jump on the code to implement, and come back after that for a deeper understanding.
     - Examine the avaliable FFEC implementations / algorithms.
       - This includes the existing implementation of ECDSA / FFEC in o1js. See if it can be used as a comparison for our implementation -- e.g. as a baseline, if it's performant enough.
-      - But also other implemen
+      - But also other implementations (not part of Kimchi/o1js).
     - Implement the addition of points of (non-native) Vesta with (native) BN254(Fp) using the existing FFA library within Kimchi.
       - The ECC addition operation must be implemented from scratch, but it relies on the foreign field additions/multiplications support which already exists in Kimchi.
       - Start with the affine coordinates. If time allows, see if projective or Jacobian can be more performant.
@@ -395,7 +395,7 @@ For SnarkyJS and other zkApps-related projects:
     - In the second (practical comparison) case:
         - Comparisons must be implemented ideally for the modified target proving system (since it contains a different lookup argument and different number of columns).
         - If possible, move the test implementations from the first part of the plan to the target proving system.
-1. Assemble the /core/ target proving system (parallel with everything before), without lookups.
+1. Assemble the /core/ target proving system (parallel with everything before), without folding.
     - Build a variant (clone) of Kimchi with a higher number of columns, and additive lookups (but no folding). These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
     - Analyze the additive lookup (logup) protocol and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
 1. Implement POC FFA sub-circuit for the modified target proof system. Test and benchmark.
@@ -406,8 +406,8 @@ For SnarkyJS and other zkApps-related projects:
    - The MSM algorithm for now can be implemented without folding in mind. That is, the circuit can be wider, and maybe it can pass more data through inputs, and verify only parts of the MSM of smaller MSM sizes. The point is to have the algorithm working.
 1. Fallback task: Releasing a reduced many-proofs version of MSM algorithm.
    - In case it is necessary to release a working product in *some* form, a simpler but significantly worse-performing version of the algorithm can be built.
-   - This task suggests implementing our MSM algorithm without folding. Instead, we can release $l$ (or more) independent proofs that will verify *parts* of the MSM.
-   - The estimate is that this contingency plan should not be
+   - This task suggests implementing our MSM algorithm without folding. Instead, we can release $l$ (or $3l$, e.g. 32 or more) independent proofs that will verify *parts* of the MSM.
+   - The estimate is that this contingency plan should not be not too hard to implement.
 1. Bring folding with IVC into our variant of Kimchi.
    - If available, use FF IVC, otherwise the BN254/Grumpkin cycle.
    - Analyze folding and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
