@@ -153,7 +153,14 @@ Then our target computation can be expressed as follows:
 Where each $\mathsf{subres}_j$ is the result of the individual inner step --- we will accumulate $`\sum\limits_{j=1}^i \mathsf{subres}_j`$ after each iteration.
 
 
-The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). A lookup table will be used to fetch the corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$ elements in $`\mathbb{F}_{scalar}(\mathrm{BN254})`$. Note that the elements $G_i \cdot 2^{j \cdot k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
+The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small
+compared to the field size (around 15). The base elements $2^{k j} G_{i}$ can be
+pre-computed outside of the circuit. A lookup table will be used to fetch the
+corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we
+need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$
+elements in $`\mathbb{F}_{scalar}(\mathrm{BN254})`$. Note that the elements $G_i
+\cdot 2^{j \cdot k}$ will have coordinates in Vesta($\mathbb{F}_{base}$).
+Therefore, the table will require more than one limbs for each coordinates.
 
 
 Let us call the inner sum computation $`\sum\limits_{i=1}^n c_{i,j} (G_i \cdot 2^{j \cdot k})`$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $`\{c_{i,j}\}`$ and a different set of bases.
