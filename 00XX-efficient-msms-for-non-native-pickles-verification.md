@@ -148,6 +148,8 @@ Then our target computation can be expressed as follows:
 \end{align*}
 ```
 
+<!-- Note that we have now N * l base elements, not only N -->
+
 Where each $\mathsf{subres}_j$ is the result of the individual inner step --- we will accumulate $`\sum\limits_{j=1}^i \mathsf{subres}_j`$ after each iteration.
 
 
