@@ -376,9 +376,8 @@ For SnarkyJS and other zkApps-related projects:
     * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.-->
 
 Phase 1:
-1. Investigate existing approaches to FFA (foreign field arithmetics) and FFEC (foreign field elliptic curves), including ones implemented for the standard Kimchi. Get enough insight for deciding on the optimal algorithm for our particular case.
-    - Probably just go with the most intuitive and simple bignum implementation, use $16$ bits per limb.
-    - Have a look at foreign field addition and multiplication gate in Kimchi
+1. Investigate existing approaches to FFA (foreign field arithmetics) and FFEC (foreign field elliptic curves), including ones implemented for the standard Kimchi. Get basic insight.
+    - Have a high level look at foreign field addition and multiplication gate in Kimchi
         - Reading doc in the book + the code. Maybe starting without details (half a day), after that jump on the code to implement, and come back after that for a deeper understanding.
     - Examine the avaliable FFEC implementations / algorithms.
       - This includes the existing implementation of ECDSA / FFEC in o1js. See if it can be used as a comparison for our implementation -- e.g. as a baseline, if it's performant enough.
@@ -389,18 +388,14 @@ Phase 1:
       - Important: we need to verify that the conditions are respected for the scalar field of BN254. Initially, it has been written for the scalar field of Vesta/Pallas.
     - Evaluate the complexity of the implementation
        - Check the number of constraints, proof size, verifier time, etc. Write benchmarks.
-1. Decide on the optimal algorithm for primarily FFA (and FFEC).
-    - This can be done either just theoretically, based on estimations, or also practically, by designing and comparing several prototypes.
-    - It is probably better to judge this theoretically to save time.
-      - Just go with the simplest bignum possible.
-      - E.g. in terms of FFEC we can probably just go forward with affine coordinates.
-      - In terms of FFA it is not clear which parameter and algorithm selection is optimal.
-    - In the second (practical comparison) case:
-        - Comparisons must be implemented ideally for the modified target proving system (since it contains a different lookup argument and different number of columns).
-        - If possible, move the test implementations from the first part of the plan to the target proving system.
+1. Decide on the optimal algorithm for (primarily) FFA, and FFEC.
+    - Probably just go with the most intuitive and simple bignum implementation using $16$ bits per limb.
+    - In terms of FFEC we can probably just go forward with affine coordinates.
 1. Assemble the /core/ target proving system (parallel with everything before), without folding.
-    - Build a variant (clone) of Kimchi with a higher number of columns, and additive lookups (but no folding). These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
-    - Analyze the additive lookup (logup) protocol and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
+    - Build a variant (clone) of Kimchi with a higher number of columns, and additive lookups (but no folding).
+      - These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
+      - A MIPS demo repository (https://github.com/o1-labs/mips-demo) contains a variant that we can start from: a kimchi with additive lookups and wide rows.
+    - Make sure the proving system works on some simple examples (at least).
 1. Implement POC FFA sub-circuit for the modified target proof system. Test and benchmark.
    - A single wide row implementation according to the (hopefully optimal) algorithm chosen in the previous step.
 1. Implement POC FFEC sub-circuit for the modified target proof system. Test and benchmark.
@@ -408,14 +403,13 @@ Phase 1:
 1. Implement the MSM algorithm in the circuit suggested above. Test and benchmark.
    - The MSM algorithm for now can be implemented without folding in mind. That is, the circuit can be wider, and maybe it can pass more data through inputs, and verify only parts of the MSM of smaller MSM sizes. The point is to have the algorithm working.
 1. First milestone: Releasing a reduced many-proofs version of MSM algorithm.
-   - In case it is necessary to release a working product in *some* form, a simpler but significantly worse-performing version of the algorithm can be built.
-   - This task suggests implementing our MSM algorithm without folding. Instead, we can release $l$ (or $3l$, e.g. 32 or more) independent proofs that will verify *parts* of the MSM.
-   - The estimate is that this contingency plan should not be not too hard to implement.
+   - This task suggests implementing our MSM algorithm /without/ folding.
+   - Instead, we try to verify "small MSM" where everything fits within one circuit. Then we can release $l$ (or $3l$, e.g. 32 or more) independent proofs that will verify *parts* of the MSM.
 
 
 Phase 2:
 1. Bring folding with IVC into our variant of Kimchi.
-   - If available, use FF IVC, otherwise the BN254/Grumpkin cycle.
+   - If available, use FF IVC (preferred), otherwise the BN254/Grumpkin cycle (temporary fallback).
    - Analyze folding and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
 1. Implement the MSM algorithm with folding and IVC.
    - The MSM circuit from the previous step should be now properly split into sections and folded.
