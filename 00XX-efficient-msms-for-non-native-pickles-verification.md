@@ -154,7 +154,7 @@ Where each $\mathsf{subres}_j$ is the result of the individual inner step --- we
 
 
 The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small
-compared to the field size (around 15). The base elements $2^{k j} G_{i}$ can be
+compared to the field size (around 15). The scaled base elements $2^{k j} G_{i}$ can be
 pre-computed outside of the circuit. A lookup table will be used to fetch the
 corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we
 need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$
