@@ -236,22 +236,24 @@ Given that each `buckets[i]` contains an `H`, the terms except for `total_0` wil
 
 Part of the project is implementing FFA (foreign field arithmetics, additions and multiplications) and FFEC (foreign field EC additions) libraries --- practically these will be gates within a kimchi circuit.
 
-The approach taken for their implementation will highly depend on the comparitive efficiency within our limitations (additive lookups, wide circuits).
-
 Regarding the foreign field additions and multiplications, native Kimchi already supports these:
 - https://o1-labs.github.io/proof-systems/kimchi/foreign_field_add.html
 - https://o1-labs.github.io/proof-systems/kimchi/foreign_field_mul.html
 
-However, merely reusing these will most likely be quite suboptimal due to the high data passing overhead, which we can avoid by exploiting wider rows.
+However, merely reusing these will most likely be quite suboptimal due to the high data passing overhead, which we can avoid by exploiting wider rows. Also, understanding the existing codebase and techniques might take considerable time at first.
+
+Ideally, the approach taken for their implementation should highly depend on the comparitive efficiency within our limitations (additive lookups, wide circuits). **In practice though** we might want to start right away with a naive solution --- by using big integers arithmetics, taking limb size to be 16 bits and range checking these. We can revisit the technique and optimise the circuit aftert the first working prototype is done.
+
 
 Regarding ECC, o1js also contains an implementation that is part of ECDSA library. It is unclear though whether this can be useful in the kimchi context, as this library is written in o1js/typescript --- probably it can be used as an inspiration.
 - https://github.com/o1-labs/o1js/blob/main/src/lib/gadgets/elliptic-curve.ts#L99
 
 Additionally, one will need to decide which coordinates would are better to use. Available options are:
 - [Affine](https://www.hyperelliptic.org/EFD/g1p/auto-shortw.html)
-  - Matthew: it probably will be our choice, it's probably the most efficient one.
 - [Jacobian](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html#doubling-dbl-2007-bl)
 - [Projective](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html)
+
+Again, **in practice** affine coordinates will be most likely the most efficient, and also easy to implement, so the suggested path is to start by implementing those, and revisiting the technique much later in the project timeline.
 
 
 We might find inspiration and decide which encoding is more efficient by looking at existing FF/ECC implementations:
