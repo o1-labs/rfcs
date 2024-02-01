@@ -125,7 +125,7 @@ Recall that the coefficients $`\{c_i\}`$ we perform MSM on are coming from the I
 
 
 ```math
-h(X) = (1 + \mathsf{chal}_{-1} X) \cdot (1 + \mathsf{chal}_{-2} X^2) \cdot (1 + \mathsf{chal}_{-3} x^3) \ldots
+h(X) = (1 + \mathsf{chal}_{-1} X) \cdot (1 + \mathsf{chal}_{-2} X^2) \cdot (1 + \mathsf{chal}_{-3} X^3) \ldots
 ```
 
 and can be easily computed using a standard circuit of size `domain_size` using the algorithm [here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L294).
