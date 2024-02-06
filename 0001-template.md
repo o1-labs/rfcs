@@ -23,12 +23,12 @@ In general:
 
 * Be specific. This document is meant to share intent to your colleagues. Share what you believe you will actually do.
 * Be decisive. No maybes. Any uncertainty can be captured in the unresolved questions section at the end.
-* Provide design contex so that we can align on and commit to a technical design. 
+* Provide design contex so that we can align on and commit to a technical design.
 
 Beyond the design of the change itself, also include details around:
 
 * Security implications
-* Performance
+* Peformance
 * The impact of this change on other components or systems
 * Dissect edge cases with examples
 
@@ -60,15 +60,15 @@ For SnarkyJS and other zkApps-related projects:
 
 ## Test plan and functional requirements
 
-1. Testing goals and objectives: 
+1. Testing goals and objectives:
     * Specify the overall goals and objectives of testing for the proposed feature or project. This can help set the expectations for testing efforts once the implementation details are finalized.
-2. Testing approach: 
+2. Testing approach:
     * Outline the general approach or strategy for testing that will be followed. This can include mentioning the types of testing to be performed (e.g., unit testing, integration testing, performance testing) and any specific methodologies or tools that will be utilized.
-3. Testing scope: 
-    * Define the scope of testing by identifying the key areas or functionalities that will be covered by testing efforts. 
-4. Testing requirements: 
+3. Testing scope:
+    * Define the scope of testing by identifying the key areas or functionalities that will be covered by testing efforts.
+4. Testing requirements:
     * Specify any specific testing requirements that need to be considered, such as compliance requirements, security testing, or specific user scenarios to be tested.
-5. Testing resources: 
+5. Testing resources:
     * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.
 
 ## Drawbacks
@@ -83,9 +83,9 @@ Why should we *not* do this?
 
 ## Prior art
 
-Discuss prior art, both the good and the bad, in relation to this proposal. 
+Discuss prior art, both the good and the bad, in relation to this proposal.
 
-Prior art is any evidence that your feature (invention, change, proposal) is already known. 
+Prior art is any evidence that your feature (invention, change, proposal) is already known.
 
 Think about the lessons from other blockchain projects or similar updates and provide readers of your RFC with a fuller picture. If there is no prior art, that is fine. Your ideas are interesting whether they are new or adapted from another source.
 
