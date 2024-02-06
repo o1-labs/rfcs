@@ -267,20 +267,9 @@ In total, the whole algorithm then requires $3n \cdot l$ additions because we ne
 With that in mind, we will use folding to split the total computation into chunks that fit into our $n$-element SRS. Each folding repetition will externally look like an elliptic curve addition w.r.t. the total accumulator. We will elaborate on the design of a concrete circuit later, but so far we can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i \mathsf{subres}_j$, (2) RAM lookups. Note that the RAM lookups are not ZK and they don't need to be.
 
 
-Now, there are several approach that can be taken in terms of a concrete circuit design, and deciding on the approach is part of the implementation effort itself since it is (arguably) too complicated for the RFC. The approaches are as follows:
-1. Making the circuit wide enough to fit the whole sub-MSM algorithm in one circuit.
-1. Splitting the sub-MSM algorithm into sub-algorithms.
-
-Let us elaborate on the two approaches. For simplicity, let us first consider the case of $n=2^{15}$.
-
-Starting with the first one --- it is possible to fit the whole sub-MSM algorithm into one circuit, assuming that each row will contain multiple FF EC additions. For example, given $n = 2^{15}$ and the same number of rows, we will need to fit about $3n$ additions into the circuit. Assuming that we fit $3$ additions per row, the whole sub-MSM product will most likely fit --- the concerns related to the "tightness" of the fit (that is, maybe we will need an extra addition for aggregation, or we will need to have 3 or 4 rows for ZK) we will discuss later separately.
-- The advantage of the first approach is that each circuit is exactly the same. Note that it seems to be a matter of convenience and not theoretical limitation --- as far as the current implementation goes, it does not seem problematic though to have different circuits in different iterations of the folding algorithm.
-- The disadvantage of this approach is that longer rows mean bigger IVC circuit, plus bigger end verification --- in the very end after the whole folded scheme is proven secure, the resulting proof will still have as much columns as our circuits. So using less columns results in a smaller final proof.
-
-The second approach suggests to instead split the sub-MSM algorithm into several sections to then prove them progressively in the right order. For example, one can imagine one chunk proving just the initial sub-MSM bucket initialisation, the next chunk doing half of the main loop, and another chunk the other half of that loop.
+In terms of a concrete circuit design, the sub-MSM has more additions than the rows in the circuit. For simplicity of exposition, let us first consider the case of $n=2^{15}$. Instead of scaling the circuit horizontally, we will split the sub-MSM algorithm into several sections to then prove them progressively in the right order. For example, one can imagine one chunk proving just the initial sub-MSM bucket initialisation, the next chunk doing half of the main loop, and another chunk the other half of that loop.
 - Certain things are more unclear about this approach:
     - Is it unproblematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
-    - Lack of circuit space concerns still apply.
 
 Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the sub-MSM algorithm (each taking $2^15$ rows with one FFEC addition per row) into /exactly/ $2^{15}$ gates.
 
