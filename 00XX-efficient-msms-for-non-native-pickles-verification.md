@@ -2,7 +2,7 @@
 
 ## Summary
 
-This RFC describes a protocol for computing elliptic curve MSMs (multi-scalar multiplications) over 'large' bases.
+This RFC describes a protocol for computing elliptic curve MSMs (multi-scalar multiplications) over 'large' bases in an arithmetized zk circuit.
 
 ## Motivation
 
