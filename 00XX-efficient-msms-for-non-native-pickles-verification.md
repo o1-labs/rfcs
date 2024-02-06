@@ -6,7 +6,7 @@ This RFC describes a protocol for computing elliptic curve MSMs (multi-scalar mu
 
 ## Motivation
 
-We would like to support bridging the Mina state to EVM-compatible chains,creating an efficiently-verifiable proof that wraps Mina's blockchain proofs. In particular, to achieve this we need to verify the Pasta IPA proofs emitted by Pickles in a proof over a different backend.
+We would like to support bridging the Mina state to EVM-compatible chains, creating an efficiently-verifiable proof that wraps Mina's blockchain proofs. In particular, to achieve this we need to verify the Pasta IPA proofs emitted by Pickles in a proof over a different backend.
 
 The goal of this work is to complement the existing efforts by Lambdaclass to verify the proof using Kimchi with the provided Bn254 KZG backend, in such away that the MSM part of verification can be offloaded to this protocol, but their existing code can be reused (mostly) as-is.
 
@@ -240,12 +240,12 @@ Regarding the foreign field additions and multiplications, native Kimchi already
 - https://o1-labs.github.io/proof-systems/kimchi/foreign_field_add.html
 - https://o1-labs.github.io/proof-systems/kimchi/foreign_field_mul.html
 
-However, merely reusing these will most likely be quite suboptimal due to the high data passing overhead, which we can avoid by exploiting wider rows. Also, understanding the existing codebase and techniques might take considerable time at first.
+However, these were designed with very different constraints in mind, and their performance is wholly unsuitable for our needs.
 
-Ideally, the approach taken for their implementation should highly depend on the comparitive efficiency within our limitations (additive lookups, wide circuits). **In practice though** we might want to start right away with a naive solution --- by using big integers arithmetics, taking limb size to be 16 bits and range checking these. We can revisit the technique and optimise the circuit aftert the first working prototype is done.
+Instead, we start right away with a naive solution --- by using big integers arithmetic, taking limb size to be 16 bits and range checking these. We can revisit the technique and optimise the circuit if required later.
 
 
-Regarding ECC, o1js also contains an implementation that is part of ECDSA library. It is unclear though whether this can be useful in the kimchi context, as this library is written in o1js/typescript --- probably it can be used as an inspiration.
+o1js also contains an implementation of ECDSA some relevant ECDSA gadgets. These are based on the existing, unsuitable gates, but still serve as useful reference:
 - https://github.com/o1-labs/o1js/blob/main/src/lib/gadgets/elliptic-curve.ts#L99
 
 Additionally, one will need to decide which coordinates would are better to use. Available options are:
@@ -264,7 +264,7 @@ We might find inspiration and decide which encoding is more efficient by looking
 
 ### Algorithm Performance, Circuit Layout, and Multi-Circuit Folding
 
-The circuit that we are implementing is large, and its layout should be carefully considered. Luckily, we have some liberty in design decisions -- the algorithm needs to be implemented on a *variant* of Kimchi which can allow long rows, additive lookups (memory access), and support for folding. Two last features are (being) developed in the zkVM project.
+The circuit that we are implementing is large, and its layout should be carefully considered. Luckily, we have some liberty in design decisions -- the algorithm needs to be implemented on a *variant* of Kimchi which can allow long rows, additive lookups (random memory access), and support for folding. Two last features are (being) developed in the zkVM project.
 
 Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $3n$ additions at most:
 - The cycle in the beginning populates the buckets and it takes $n$ additions because that's how much multiplications are there in `to_scale_pairs`.
