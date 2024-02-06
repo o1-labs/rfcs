@@ -4,7 +4,11 @@ Vinegar is a compatibility layer that allows "importing" target proofs that are 
 
 ## Kimchi and Pickles overview
 
-The kimchi verifier receives a proof in the form of mainly commitments, evaluations, and challenges; this comes together with a public input the proof is verified against. Fix a curve $\mathcal{E}$, it has two fields: the base field (for $(x,y) \in \mathcal{E}$, both $x$ and $y$ are base field elements) and the scalar field (for $G$ the generator and group elements $r G \in \mathcal{E}$, $r$ is a scalar field element).
+The kimchi verifier receives a proof in the form of mainly commitments, evaluations, and challenges; this comes together with a public input the proof is verified against.
+
+Fix a curve $\mathcal{E}$, it has two fields: the base field (for $(x,y) \in \mathcal{E}$, both $x$ and $y$ are base field elements) and the scalar field (for $G$ the generator and group elements $r G \in \mathcal{E}$, $r$ is a scalar field element).
+
+### Proof verification algorithm
 
 The verification procedure can broadly be broken down into the following stages:
 1. Absorb commitments to the polynomials and squeeze challenges, over several rounds as needed. Sample an evaluation point for the polynomials.
@@ -17,18 +21,28 @@ The verification procedure can broadly be broken down into the following stages:
 1. Verify that the polynomial commitments and their evaluations  are consistent by checking the 'opening proof' of the polynomial commitment scheme.
     - This corresponds to `OpeningProof::verify` call in the end of `batch_verify`. Internally, this will combine all the evaluations together, and check that they are consistent with the commitments, jointly.
 
-In order to *recursively* verify a kimchi proof in pickles, we need to be able to efficiently run these steps inside a circuit. However, some of the operations are run on elliptic curve points -- represented as tuples in the *base field* -- and others are run against the *scalar field*, that is the field $F_q$ of scalars for elliptic curve points that form a group. To handle both without an expensive simulation of foreign field arithmetic in the verifier circuit, instead we generate a pair of circuits, where each shares some of the work.
+### Verifying a proof recursively
 
-Pickles is our current implementation of a recursive verifier for the kimchi proof system, implemented as a pair of circuits Step and Wrap implemented on top of kimchi.
+In order to *recursively* verify a kimchi proof in pickles, we need to be able to efficiently run these steps inside a circuit. However, some of the verification operations are run on base field, and some on scalar. To handle both without an expensive simulation of foreign field arithmetic in the verifier circuit, instead we split verification into a pair of circuits, each sharing the "native" part of the work.
 
-The Step circuit is a kimchi proof over the Vesta curve (its commitments are Vesta curve points); the Wrap circuit is a kimchi proof over the Pallas curve.
+Pickles is our current implementation of a recursive verifier for the kimchi proof system.
+
+Pickles uses a pair of curves called Pallas and Vesta. Their base and scalar fields form a cycle:
+- The base field of Pallas is equal to Vesta's scalar field, and Vesta's base field is equal to the scalar field of Pallas.
+
+Pickles is implemented using a pair of circuits Step and Wrap, instantiating two "parallel" variants of kimchi.
+- The Step circuit is a kimchi proof over the Vesta curve.
+    - Its commitments are Vesta curve points, and its witness values are Vesta scalar field elements.
+    - Thus it can "reason natively" about Vesta scalar field = Pallas base field.
+- The Wrap circuit is a kimchi proof over the Pallas curve.
+    - Can "reason natively" about Pallas scalar field = Vesta base field.
 
 ### Verifying a proof in a circuit
 
-Assume that we are verifying a Pallas (wrap) proof, but the below applies equivalently to Vesta. Here is how the list in the previous section maps on our curves:
+Assume that we are verifying a Pallas (wrap) proof, but the below applies equivalently to Vesta (with step and wrap swapped below). Here is how the list in the previous section maps on our curves:
 
 1. The logic for absorbing the commitments is run inside a Vesta proof.
-    - Wrap commitments are Pallas points made of two Pallas base field elements. These are Vesta scalar field elements, which makes them easy to reason about in the Vesta proof -- the next Step proof that verifies a Wrap.
+    - The commitments are pairs of Vesta scalar field elements, so we can use native arithmetics.
     - See the first half of `wrap_verifier.ml/incrementally_verify_proof`: in several rounds we absorb `sg_old`, `x_hat`, `w_comm`, lookup data, `z_comm`, `t_comm`; while in parallel squeezing out `index_digest`, `joint_combiner`, `beta`, `gamma`, `alpha`, `zeta`.
 1. The 'combined constraint polynomial' is checked inside a Pallas proof.
     - This is deferred to the *next wrap proof*, that is the one that follows Step that verifies the target Wrap proof.
@@ -38,7 +52,7 @@ Assume that we are verifying a Pallas (wrap) proof, but the below applies equiva
 
 Since we have 2 proofs in parallel (one for each curve), we need to *communicate state* between them. We use the public input as the communication mechanism. For example, the Pallas proof will expose the challenges from the first step, as well as the random oracle's state imported into the opening proof.
 
-### Verification structure
+### Composing pickles circuits
 
 Pickles verifies proofs as a DAG, at every stage emitting a 'partially verified proof' and an 'unverified proof'. This structure looks roughly like:
 ```
@@ -82,20 +96,3 @@ The responsibilities of VinegarWrap will then be to:
 * Expose a public input compatible with the pickles format, so that pickles recursion can operate over the proof.
 
 The operations needed are conceptually very similar to the operations in the existing pickles circuits. However, because we want to avoid hard-coding the particular details of the target kimchi proof into the circuit, we will need to be careful to construct 'VinegarStep' and 'VinegarWrap' in a generic way, with some mechanism to describe the verification steps required for a particular target kimchi-style proof.
-
-#### Scratch space; incomplete/draft notes
-
-* In a loop, as many times as required:
-  - Absorb (into the random oracle sponge) any polynomial commitments to columns that can be computed using the information available so far.
-  - Squeeze (from the random oracle sponge) any challenges required to compute further columns (e.g. challenges for the lookup / permutation arguments)
-* Generate a commitment representing the 'constraints' that the proof satisfies:
-  - Squeeze a 'constraint combiner' challenge (we call this alpha in kimchi).
-  - Compute the
-
-The kimchi verifier runs the following sequence of operations:
-* absorb the commitments to the fixed columns (aka the 'verifier index' or 'verifier key') into a random oracle
-* absorb the commitments to any 'witness' columns in the proof (including the public input, which the verifier explicitly computes) into the same random oracle
-* squeeze one or more challenges for use in the constraints
-* absorb the commitments that depend on those commitments
-
-The [Halo2-style IPA](src/lib/crypto/proof-systems/poly-commitment/src/commitment.rs:667) used by the kimchi proof system (and by pickles for recursion) is
