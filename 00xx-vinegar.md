@@ -1,8 +1,16 @@
 # Vinegar
 
-Vinegar is a compatibility layer that allows "importing" target proofs that are not directly pickles-compatible, into pickles. This is achieved by designing two circuits, similar to pickles's Step and Wrap, that act like as a compatibility layer, hiding the mismatches between the target proof system and kimchi.
+Vinegar, the compatibility layer for pickles.
 
-## Kimchi and Pickles overview
+## Summary
+
+Vinegar is a compatibility layer that allows "importing" target proofs that are not directly pickles-compatible, into pickles, which is immensely useful for integrating pickles with other not immediately compatible proof systems.
+
+## Motivation
+
+Presently, the pickles verifier is hard-coded to use the 'berkeley' configuration. However, as we create new proof systems on top of kimchi (e.g. the MIPS zkVM), we would like to have a way to 'import' those proofs into the pickles recursion system. Also, since the proof systems will not necessarily have a 'public input' feature -- and almost certainly will not have the public input structured as pickles would expect -- we need to take a different approach towards importing them.
+
+## Background: Kimchi and Pickles overview
 
 The kimchi verifier receives a proof in the form of mainly commitments, evaluations, and challenges; this comes together with a public input the proof is verified against.
 
@@ -62,11 +70,11 @@ step -> wrap -/
 ```
 where every step proof may have 0, 1, or 2 previous wrap proofs, and each wrap proof has exactly 1 previous step proof. Only step proofs contain actual "application logic", but a 'pickles proof' is conventionally assumed to be one of the wrap proofs, since we wrap a step proof immediately after producing it.
 
-## Vinegar: goals and circuit structure
+## Detailed Design
 
-Presently, the pickles verifier is hard-coded to use the 'berkeley' configuration. However, as we create new proof systems on top of kimchi (e.g. the MIPS zkVM), we would like to have a way to 'import' those proofs into the pickles recursion system. Also, since the proof systems will not necessarily have a 'public input' feature -- and almost certainly will not have the public input structured as pickles would expect -- we need to take a different approach towards importing them.
+The goal of vinegar is to create compatibility layer to "absorb" other non-kimchi proofs.
 
-Broadly then, the goal of vinegar is to create 2 new 'generic' circuits, which we will call VinegarStep and VinegarWrap. Let us call the external proof we are consuming "target proof" --- we assume that it is a Step-like proof over Vesta. The structure of two new circuits will then look like:
+This is achieved by designing two circuits, similar to pickles's Step and Wrap, that mimic hiding the mismatches between the target proof system and kimchi. The 2 new 'generic' circuits we will call VinegarStep and VinegarWrap. Let us call the external proof we are consuming "target proof" --- we assume that it is a Step-like proof over Vesta. The structure of two new circuits will then look like:
 
 ```
 target proof -------------+
@@ -96,3 +104,24 @@ The responsibilities of VinegarWrap will then be to:
 * Expose a public input compatible with the pickles format, so that pickles recursion can operate over the proof.
 
 The operations needed are conceptually very similar to the operations in the existing pickles circuits. However, because we want to avoid hard-coding the particular details of the target kimchi proof into the circuit, we will need to be careful to construct 'VinegarStep' and 'VinegarWrap' in a generic way, with some mechanism to describe the verification steps required for a particular target kimchi-style proof.
+
+## Drawbacks
+
+## Test plan and functional requirements
+
+<!--
+1. Testing goals and objectives:
+    * Specify the overall goals and objectives of testing for the proposed feature or project. This can help set the expectations for testing efforts once the implementation details are finalized.
+2. Testing approach:
+    * Outline the general approach or strategy for testing that will be followed. This can include mentioning the types of testing to be performed (e.g., unit testing, integration testing, performance testing) and any specific methodologies or tools that will be utilized.
+3. Testing scope:
+    * Define the scope of testing by identifying the key areas or functionalities that will be covered by testing efforts.
+4. Testing requirements:
+    * Specify any specific testing requirements that need to be considered, such as compliance requirements, security testing, or specific user scenarios to be tested.
+5. Testing resources:
+    * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.
+-->
+
+## Prior Art
+
+## Unresolved questions
