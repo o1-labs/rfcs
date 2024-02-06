@@ -248,26 +248,15 @@ Instead, we start right away with a naive solution --- by using big integers ari
 o1js also contains an implementation of ECDSA some relevant ECDSA gadgets. These are based on the existing, unsuitable gates, but still serve as useful reference:
 - https://github.com/o1-labs/o1js/blob/main/src/lib/gadgets/elliptic-curve.ts#L99
 
-Additionally, one will need to decide which coordinates would are better to use. Available options are:
-- [Affine](https://www.hyperelliptic.org/EFD/g1p/auto-shortw.html)
-- [Jacobian](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html#doubling-dbl-2007-bl)
-- [Projective](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html)
-
-Again, **in practice** affine coordinates will be most likely the most efficient, and also easy to implement, so the suggested path is to start by implementing those, and revisiting the technique much later in the project timeline.
-
-
-We might find inspiration and decide which encoding is more efficient by looking at existing FF/ECC implementations:
-- https://github.com/privacy-scaling-explorations/halo2wrong
-- https://github.com/DelphinusLab/halo2ecc-s
-- https://hackmd.io/@arielg/B13JoihA8
+Non-zero elliptic curve points are most succinctly represented in [affine coordinates](https://www.hyperelliptic.org/EFD/g1p/auto-shortw.html); we will do so here.
 
 
 ### Algorithm Performance, Circuit Layout, and Multi-Circuit Folding
 
 The circuit that we are implementing is large, and its layout should be carefully considered. Luckily, we have some liberty in design decisions -- the algorithm needs to be implemented on a *variant* of Kimchi which can allow long rows, additive lookups (random memory access), and support for folding. Two last features are (being) developed in the zkVM project.
 
-Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $3n$ additions at most:
-- The cycle in the beginning populates the buckets and it takes $n$ additions because that's how much multiplications are there in `to_scale_pairs`.
+Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $3n$ elliptic curve additions at most:
+- The cycle that fills buckets using `to_scale_pairs` takes $n$ additions.
 - The end loop does two additions per each iteration (and each iteration assumes a non-zero bucket, assume there are $n'$ of these buckets), so we have $2 \cdot n'$ additions. Since $n' < n$, the worst case is $2 n$ additions.
 
 In addition to $3n$ addition per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
@@ -458,11 +447,20 @@ There are alternative MSM algorithms that have better performance on native hard
 
 It is not practical to build a Mina -> EVM state bridge without this or an similar alternative, given the practicalities of creating a proof using a more naive method.
 
+### Considerations regarding foreign field algorithm
+
+The RFC suggests going forward with [affine](https://www.hyperelliptic.org/EFD/g1p/auto-shortw.html) coordinates. However, [Jacobian](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html#doubling-dbl-2007-bl) and [Projective](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html) representations are also widely used in cryptography. Again, in practice affine coordinates will be most likely the most efficient for our scenario, and also easy to implement, so the suggested path is to start by implementing those, and revisiting the technique much later in the project timeline.
+
+
 ## Prior art
 
-We mentioned before the implementations of FFA and FFEC.
+Regarding FF arithmetics and elliptic curve libraries, we might find inspiration looking at the following existing implementations (however, they are optimised for different scenarios, and generally quite complicated):
+- https://github.com/privacy-scaling-explorations/halo2wrong
+- https://github.com/DelphinusLab/halo2ecc-s
+- https://hackmd.io/@arielg/B13JoihA8
 
-**TODO** research if anyone actually already implemented MSM verification inside a SNARK. Scroll? Aztec?
+
+To the best of our knowledge, our main task -- implementing a large MSM verification inside a SNARK -- has not been realised yet by anyone. Even though MSM algorithm exist in the aforementioned libraries, they are usually prohibitively expensive for our MSM size.
 
 <!--Discuss prior art, both the good and the bad, in relation to this proposal.
 
