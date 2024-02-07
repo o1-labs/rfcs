@@ -112,9 +112,9 @@ The values shared between the stages are exposed from the public inputs of the p
 
 ### High-level description of the algorithm
 
-As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i} \}`$, which will have length $n$ equal to `domain_size` for each of the 2 groups, and the set of (SRS) bases $`\{G_i\}`$. The goal is to compute $`\sum\limits_{i=1}^n c_i G_i`$ within a kimchi circuit.
+As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i} \}`$, which will have length $n = \mathttt{domain_size}$ for each of the 2 groups, and the set of (SRS) bases $`\{G_i\}`$. The goal is to compute $`\sum\limits_{i=1}^n c_i G_i`$ within a kimchi circuit.
 
-For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $2^{15}$, which is so far the largest existing SRS that is available in this context.
+For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $N = 2^{15}$, which is so far the largest existing SRS that is available in this context.
 
 To reiterate on the curve choices: assuming we verify an MSM for a Step proof:
 - $\mathbb{F}_{scalar}(\mathrm{BN254})$ is the field the circuit has to be expressed in
@@ -153,14 +153,8 @@ Then our target computation can be expressed as follows:
 Where each $\mathsf{subres}_j$ is the result of the individual inner step --- we will accumulate $`\sum\limits_{j=1}^i \mathsf{subres}_j`$ after each iteration.
 
 
-The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small
-compared to the field size (around 15). The scaled base elements $2^{k j} G_{i}$ can be
-pre-computed outside of the circuit. A lookup table will be used to fetch the
-corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we
-need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$
-elements in $`\mathbb{F}_{scalar}(\mathrm{BN254})`$. Note that the elements $G_i
-\cdot 2^{j \cdot k}$ will have coordinates in Vesta($\mathbb{F}_{base}$).
-Therefore, the table will require more than one limbs for each coordinates.
+The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). The scaled base elements $2^{k j} G_{i}$ can be pre-computed outside of the circuit. A lookup table will be used to fetch the
+corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$ elements in $`\mathbb{F}_{scalar}(\mathrm{BN254})`$. Note that the elements $G_i \cdot 2^{j \cdot k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
 
 
 Let us call the inner sum computation $`\sum\limits_{i=1}^n c_{i,j} (G_i \cdot 2^{j \cdot k})`$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $`\{c_{i,j}\}`$ and a different set of bases.
@@ -173,8 +167,8 @@ The sub-MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ bu
 fn sub_msm(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
     // Initialize the buckets with the blinding factor H
     let mut buckets: [C; 2^k] = [H; 2^k];
-    // Zero bucket is unused. In practice it can
-    buckets[0] = 0;
+    // Zero bucket can be instead unused.
+    // buckets[0] = 0;
     for (coefficient, commitment) in to_scale_pairs {
         buckets[coefficient] += commitment;
     }
@@ -255,35 +249,27 @@ Non-zero elliptic curve points are most succinctly represented in [affine coordi
 
 The circuit that we are implementing is large, and its layout should be carefully considered. Luckily, we have some liberty in design decisions -- the algorithm needs to be implemented on a *variant* of Kimchi which can allow long rows, additive lookups (random memory access), and support for folding. Two last features are (being) developed in the zkVM project.
 
-Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $3n$ elliptic curve additions at most:
+Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $C_{\mathsf{sub}} = n + 2^{k+1} - 2$ elliptic curve additions at most:
 - The cycle that fills buckets using `to_scale_pairs` takes $n$ additions.
-- The end loop does two additions per each iteration (and each iteration assumes a non-zero bucket, assume there are $n'$ of these buckets), so we have $2 \cdot n'$ additions. Since $n' < n$, the worst case is $2 n$ additions.
+- The end loop does two additions per each iteration. All our buckets are non-zero with overwhelming probability (remember they are initialized by a non-zero $H$), so we have $2 \cdot 2^{k}$ additions. If we not use the zero bucket, however, then we have $2 \cdot 2^{k} - 2$ additions.
 
-In addition to $3n$ addition per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
+In addition to $n + 2^{k+1} - 2$ addition per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
 
-In total, the whole algorithm then requires $3n \cdot l$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way). Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get about $2^{17}$ additions, which is still more than $2^{16}$ budget. But even with the easier $n = 2^{15}$ we still have to fit $3$ times more FF EC additions than there are rows available.
+In total, the whole algorithm then requires $C_{\mathsf{msm}} = (n + 2^{k+1} - 2) \cdot l$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way). Assuming worst (of the two) case of $n = 2^{16}$ and $k = 15$, we get $C_{\mathsf{sub}} = 2^{17} - 2$ additions and $C_{\mathsf{msm}} = 2^{17} \cdot 17$, which is still more than $N = 2^{15}$ budget. Even with the easier $n = 2^{15}$ we still have $C_{\mathsf{sub}} = 2^{16}$, so the sub-MSM has two times more FF EC additions than there are rows available ($n$).
 
+With that in mind, we will use folding to split the total computation into chunks that fit into our $n$-element SRS. We can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i \mathsf{subres}_j$, (2) the state of the RAM lookups.
 
-With that in mind, we will use folding to split the total computation into chunks that fit into our $n$-element SRS. Each folding repetition will externally look like an elliptic curve addition w.r.t. the total accumulator. We will elaborate on the design of a concrete circuit later, but so far we can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i \mathsf{subres}_j$, (2) RAM lookups. Note that the RAM lookups are not ZK and they don't need to be.
+In terms of a concrete circuit design, as we discussed, the sub-MSM has more additions than the rows in the circuit. For simplicity of exposition, let us first consider the case of $n=2^{15}$. Instead of scaling the circuit horizontally, we will split the sub-MSM algorithm into several sections to then prove them progressively in the right order. For example, one can imagine one chunk proving just the initial sub-MSM bucket initialisation ($C_{\mathsf{sub}}/2$ additions), and the next chunk doing the main going-over-the-buckets loop (another $C_{\mathsf{sub}}/2$ additions).
 
-
-In terms of a concrete circuit design, the sub-MSM has more additions than the rows in the circuit. For simplicity of exposition, let us first consider the case of $n=2^{15}$. Instead of scaling the circuit horizontally, we will split the sub-MSM algorithm into several sections to then prove them progressively in the right order. For example, one can imagine one chunk proving just the initial sub-MSM bucket initialisation, the next chunk doing half of the main loop, and another chunk the other half of that loop.
-- Certain things are more unclear about this approach:
-    - Is it unproblematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
-
-Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the three sections of the sub-MSM algorithm (each taking $2^15$ rows with one FFEC addition per row) into /exactly/ $2^{15}$ gates.
+Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the two sections of the sub-MSM algorithm (each taking $C_{\mathsf{sub}}/2 \approx 2^{15$} rows with one FFEC addition per row) into /exactly/ $n = 2^{15}$ rows.
 
 We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
 - Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
 \frac{1}{r + 0} - \frac{1}{r + v_{0}}`$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
 - `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
-- @volhovm @dw: This needs to be explained a bit better, it's important and very technical.
 
 
-Regarding the algorithm in the harder case of $n = 2^{16}$, the two approaches can be still applied, but need to be modified.
-- In the first one, the circuit width needs to grow two times.
-- In the second one, the sub-MSM algorithm needs to be split into 6 sections.
-- A hybrid approach is possible where width is traded-off with the number of folds -- e.g. we can make the circuit twice as long (each row containing 2 additions) and still have 3 sections of the sub-MSM algorithm.
+Regarding the algorithm in the harder case of larger $n = 2^{16}$ MSM, we will have to split our sub-MSM algorithm with $C_{\mathsf{sub}} = 2^{17}-2$ into 4 sections to fit into $N = 2^{15}$ rows with one addition per row.
 
 ### Additive Lookups
 
@@ -298,7 +284,7 @@ For folding to work correctly "in its full recursive power", additionally to mer
     - The cycle of curves approach relies on switching between two curves on every folding iteration. Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
     - The non-native emulation uses foreign field arithmetics to proceed. (Note that this is /not/ the Goblin Plonk approach)
     - We expect to start the project by implementing the FFA/FFEC circuit first. When it is time to start implementing folding with IVC, if only the curves approach is available, it will be our first choice. However the second approach is strongly preferred in the long run.
-- It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $n = 2^{15}$ available rows (SRS size limit) without worrying about size of the IVC.
+- It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $N = 2^{15}$ available rows (SRS size limit) without worrying about size of the IVC.
 
 
 <!-- This foreign field emulation is (probably) what Aztec call "goblin plonk" technique. Link: https://hackmd.io/@aztec-network/B19AA8812 (see CF Istanbul talks from Zac). -->
@@ -459,8 +445,9 @@ Think about the lessons from other blockchain projects or similar updates and pr
 
 ## Unresolved questions
 
-1. Engineering problem: how exactly does the trick with the lookup tables work?
+1. Engineering problem: how exactly does the accumulation trick with the additive lookup tables work?
    - If we go with the circuit layout that fits $2^{15}$ additions into $2^{15}$ rows having exactly one addition per row, we need to make sure the total joint accumulator (between folding iterations) is being updated properly. This requires altering the folding protocol checks.
+2. When splitting sub-MSM into chunks --- is it not problematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
 
 
 <!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
