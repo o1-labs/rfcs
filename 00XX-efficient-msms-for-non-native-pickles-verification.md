@@ -245,20 +245,28 @@ Non-zero elliptic curve points are most succinctly represented in [affine coordi
 
 The circuit that we are implementing is large, and its layout should be carefully considered. Luckily, we have some liberty in design decisions -- the algorithm needs to be implemented on a *variant* of Kimchi which can allow long rows, additive lookups (random memory access), and support for folding. Two last features are (being) developed in the zkVM project.
 
+#### Estimating circuit size
+
 Recall $n$ is the size of the MSM, and $N = 2^{15}$ is the number of rows available. Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $C_{\mathsf{sub}} = n + 2^{k+1} - 2$ elliptic curve additions at most:
 - The cycle that fills buckets using `to_scale_pairs` takes $n$ additions.
-- The end loop does two additions per each iteration. All our buckets are non-zero with overwhelming probability (remember they are initialized by a non-zero $H$), so the loop takes $2 \cdot 2^{k}$ additions. Being completely precise, we dont iterate over the zero bucket, so we have $2 \cdot 2^{k} - 2$ additions.
+- The end loop does two additions per each iteration. All our buckets are non-zero with overwhelming probability (remember they are initialized by a non-zero $H$), so the loop takes $2 \cdot 2^{k} - 2$ additions (we dont iterate over the zero bucket).
 
-In addition to $C_{\mathsf{sub}}$ addition per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
+In addition to $C_{\mathsf{sub}}$ additions per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
 
-In total, the whole algorithm then requires $C_{\mathsf{msm}} \approx l \times (n + 2^{k+1})$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way). For the bigger $n = 2^{16}$ MSM and $k = 15$, we get $C_{\mathsf{sub}} = 2^{17} - 2$ and $C_{\mathsf{msm}} = 2^{17} \cdot 17$ additions, which is still more than the $N = 2^{15}$ budget. Even with the easier $n = 2^{15}$ MSM we still have $C_{\mathsf{sub}} = 2^{16}$, so the sub-MSM has two times more FF EC additions than there are rows available ($N$).
+In total, the whole algorithm then requires $C_{\mathsf{msm}} \approx l \times (n + 2^{k+1})$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way).
+- For the bigger $n = 2^{16}$ MSM and $k = 15$, we get $C_{\mathsf{sub}} = 2^{17} - 2$ and $C_{\mathsf{msm}} = 2^{17} \cdot 17$ additions, which is still more than the $N = 2^{15}$ budget.
+- Even with the easier $n = 2^{15}$ MSM we still have $C_{\mathsf{sub}} = 2^{16}$, so the sub-MSM has two times more FF EC additions than there are rows available ($N$).
+
+#### Splitting the circuit
 
 With that in mind, we will use folding to split the total $C_{\mathsf{msm}}$ computation into chunks that fit into our $N$-element SRS. We can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i \mathsf{subres}_j$, (2) the state of the RAM lookups.
 
 In terms of a concrete circuit design, as we discussed, the sub-MSM has more additions than the rows in the circuit. Instead of scaling the circuit horizontally, we will split the sub-MSM algorithm into several sections to then prove them progressively in the right order. For $n=2^{15}$ one can imagine one chunk proving just the initial sub-MSM bucket initialisation ($C_{\mathsf{sub}}/2$ additions), and the next chunk doing the main going-over-the-buckets loop (another $C_{\mathsf{sub}}/2$ additions). In the larger $n = 2^{16}$ MSM case, we will have to split our sub-MSM algorithm with $C_{\mathsf{sub}} = 2^{17}-2$ into 4 sections to fit into $N = 2^{15}$ rows with one addition per row.
 
 
-Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the two sections of the sub-MSM algorithm (each taking $`C_{\mathsf{sub}}/2 \approx 2^{15}`$ rows with one FFEC addition per row) into /exactly/ $N = 2^{15}$ rows.
+#### Using all the circuits rows
+
+Our circuit uses all or almost all the available rows. However, it is likely we will be able to fit any of the two sections of the sub-MSM algorithm (each taking $`C_{\mathsf{sub}}/2 \approx 2^{15}`$ rows with one FFEC addition per row) into *exactly* $N = 2^{15}$ rows.
 
 We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
 - Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
@@ -267,6 +275,7 @@ We can adjust the additive lookup argument to externally (by modifying lookup bo
 
 Note that we don't have to use `total` and `right_sum` as variables. Instead we can implement the algorithm as follows:
 ```rust
+// Equivalent to sub_msm
 fn sub_msm_in_place(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
     // Initialize the buckets with the blinding factor H
     let mut buckets: [C; 2^k] = [H; 2^k];
@@ -285,7 +294,6 @@ fn sub_msm_in_place(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
     }
 }
 ```
-
 
 ### Additive Lookups
 
