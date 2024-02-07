@@ -2,15 +2,15 @@
 
 ## Summary
 
-Vinegar is a compatibility layer that allows "importing" target proofs that are not directly pickles-compatible, into pickles, which is immensely useful for integrating pickles with other not immediately compatible proof systems.
+Vinegar is a compatibility layer that allows "importing" target proofs that are not directly Pickles-compatible, into Pickles, which is immensely useful for integrating Pickles with other not immediately compatible proof systems.
 
 ## Motivation
 
-Presently, the pickles verifier is hard-coded to use the 'berkeley' configuration. However, as we create new proof systems on top of kimchi (e.g. the MIPS zkVM), we would like to have a way to 'import' those proofs into the pickles recursion system. Same may apply to some other kimchi-like plonk-compatible systems that users might want to integrate into mina ecosystem. These proof systems will not necessarily have a 'public input' feature, and almost certainly will not have the public input structured as pickles would expect. This means need to take a different approach towards importing them. Vinegar suggests creating a proof systems that can "absorb" external profs and make them pickles-compatible.
+Presently, the Pickles verifier is hard-coded to use the 'berkeley' configuration. However, as we create new proof systems on top of Kimchi (e.g. the MIPS zkVM), we would like to have a way to 'import' those proofs into the Pickles recursion system. Same may apply to some other Kimchi-like plonk-compatible systems that users might want to integrate into mina ecosystem. These proof systems will not necessarily have a 'public input' feature, and almost certainly will not have the public input structured as Pickles would expect. This means need to take a different approach towards importing them. Vinegar suggests creating a proof systems that can "absorb" external profs and make them Pickles-compatible.
 
 ## Background: Kimchi and Pickles overview
 
-The kimchi verifier receives a proof in the form of mainly commitments, evaluations, and challenges; this comes together with a public input the proof is verified against.
+The Kimchi verifier receives a proof in the form of mainly commitments, evaluations, and challenges; this comes together with a public input the proof is verified against.
 
 Fix a curve $\mathcal{E}$, it has two fields: the base field (for $(x,y) \in \mathcal{E}$, both $x$ and $y$ are base field elements) and the scalar field (for $G$ the generator and group elements $r G \in \mathcal{E}$, $r$ is a scalar field element).
 
@@ -29,18 +29,19 @@ The verification procedure can broadly be broken down into the following stages:
 
 ### Verifying a proof recursively
 
-In order to *recursively* verify a kimchi proof in pickles, we need to be able to efficiently run these steps inside a circuit. However, some of the verification operations are run on base field, and some on scalar. To handle both without an expensive simulation of foreign field arithmetic in the verifier circuit, instead we split verification into a pair of circuits, each sharing the "native" part of the work.
+In order to *recursively* verify a Kimchi proof in Pickles, we need to be able to efficiently run these steps inside a circuit. However, some of the verification operations are run on base field, and some on scalar. To handle both without an expensive simulation of foreign field arithmetic in the verifier circuit, instead we split verification into a pair of circuits, each sharing the "native" part of the work.
 
-Pickles is our current implementation of a recursive verifier for the kimchi proof system.
+Pickles is our current implementation of a recursive verifier for the Kimchi proof system.
 
-Pickles uses a pair of curves called Pallas and Vesta. Their base and scalar fields form a cycle:
-- The base field of Pallas is equal to Vesta's scalar field, and Vesta's base field is equal to the scalar field of Pallas.
+Pickles uses a pair of curves called Pallas and Vesta, referred to as a pair as [Pasta](https://o1-labs.github.io/proof-systems/specs/pasta.html). Their base and scalar fields form a cycle:
+- The base field of Pallas is equal to the scalar field of Vesta.
+- And the base field of Vesta is equal to the scalar field of Pallas.
 
-Pickles is implemented using a pair of circuits Step and Wrap, instantiating two "parallel" variants of kimchi.
-- The Step circuit is a kimchi proof over the Vesta curve.
+Pickles is implemented using a pair of circuits Step and Wrap, instantiating two "parallel" variants of Kimchi.
+- The Step circuit is a Kimchi proof over the Vesta curve.
     - Its commitments are Vesta curve points, and its witness values are Vesta scalar field elements.
     - Thus it can "reason natively" about Vesta scalar field = Pallas base field.
-- The Wrap circuit is a kimchi proof over the Pallas curve.
+- The Wrap circuit is a Kimchi proof over the Pallas curve.
     - Can "reason natively" about Pallas scalar field = Vesta base field.
 
 ### Verifying a proof in a circuit
@@ -58,7 +59,7 @@ Assume that we are verifying a Pallas (wrap) proof, but the below applies equiva
 
 Since we have 2 proofs in parallel (one for each curve), we need to *communicate state* between them. We use the public input as the communication mechanism. For example, the Pallas proof will expose the challenges from the first step, as well as the random oracle's state imported into the opening proof.
 
-### Composing pickles circuits
+### Composing Pickles circuits
 
 Pickles verifies proofs as a DAG, at every stage emitting a 'partially verified proof' and an 'unverified proof'. This structure looks roughly like:
 ```
@@ -66,15 +67,15 @@ step -> wrap -\
                +-> step -> wrap
 step -> wrap -/
 ```
-where every step proof may have 0, 1, or 2 previous wrap proofs, and each wrap proof has exactly 1 previous step proof. Only step proofs contain actual "application logic", but a 'pickles proof' is conventionally assumed to be one of the wrap proofs, since we wrap a step proof immediately after producing it.
+where every step proof may have 0, 1, or 2 previous wrap proofs, and each wrap proof has exactly 1 previous step proof. Only step proofs contain actual "application logic", but a 'Pickles proof' is conventionally assumed to be one of the wrap proofs, since we wrap a step proof immediately after producing it.
 
 ## Detailed Design
 
-The goal of vinegar is to create compatibility layer to "absorb" other non-kimchi proofs.
+The goal of vinegar is to create compatibility layer to "absorb" other non-Kimchi proofs.
 
 ### Vinegar circuits
 
-This is achieved by designing two circuits, similar to pickles's Step and Wrap, that mimic hiding the mismatches between the target proof system and kimchi. The 2 new 'generic' circuits we will call VinegarStep and VinegarWrap. Let us call the external proof we are consuming "target proof" --- we assume that it is a Step-like proof over Vesta. The structure of two new circuits will then look like:
+This is achieved by designing two circuits, similar to Pickles's Step and Wrap, that mimic hiding the mismatches between the target proof system and Kimchi. The 2 new 'generic' circuits we will call VinegarStep and VinegarWrap. Let us call the external proof we are consuming "target proof" --- we assume that it is a Step-like proof over Vesta. The structure of two new circuits will then look like:
 
 ```
 target proof -------------+
@@ -85,7 +86,7 @@ target proof -------------+
 ```
 
 The responsibilities of VinegarStep will be to:
-* Run the 'scalar field' checks for the target kimchi proof
+* Run the 'scalar field' checks for the target Kimchi proof
   - What is currently `step_verifier.ml/finalize_other_proof`
 * Ingest the 'recursion bulletproof challenges' generated by the target proof
   - Similar to how `prev_challenges` are currently absorbed in `prover.rs/create_recursive`.
@@ -99,18 +100,18 @@ The responsibilities of VinegarWrap will then be to:
   - What is currently `wrap_verifier/incrementally_verify_proof`.
 * Perform initial verification of the 'VinegarStep' proof over the 'base field'
   - Also `wrap_verifier/incrementally_verify_proof`, but now again for the VinegarStep. Our VinegarWrap, unlike Wrap, wraps two proofs at a time.
-* Expose the remaining unverified information from 'VinegarStep' in the public input, so that it can be finalized by a pickles step proof
+* Expose the remaining unverified information from 'VinegarStep' in the public input, so that it can be finalized by a Pickles step proof
     - During 'VinegarWrap', the VinegarStep's `challenge_poly_commitments` and `old_bulletproof_challenges` will create `MessageForNextWrap` that will be a part of the VinegarWrap statement. Then they will be passed to the Step proof, and from there consumed in `step_verifier/finalize_other_proof`.
-* Expose a public input compatible with the pickles format, so that pickles recursion can operate over the proof.
+* Expose a public input compatible with the Pickles format, so that Pickles recursion can operate over the proof.
 
-The operations needed are conceptually very similar to the operations in the existing pickles circuits. However, because we want to avoid hard-coding the particular details of the target kimchi proof into the circuit, we will need to be careful to construct 'VinegarStep' and 'VinegarWrap' in a generic way, with some mechanism to describe the verification steps required for a particular target kimchi-style proof.
+The operations needed are conceptually very similar to the operations in the existing Pickles circuits. However, because we want to avoid hard-coding the particular details of the target Kimchi proof into the circuit, we will need to be careful to construct 'VinegarStep' and 'VinegarWrap' in a generic way, with some mechanism to describe the verification steps required for a particular target Kimchi-style proof.
 
 ### Vinegar architecture and development plan
 
-The implementaiton is suggested to be done in the `proof-systems` repository directly. This will create, de facto, a proving system that is quite similar to pickles (written in `mina` repo in ocaml), which is intenional.
+The implementaiton is suggested to be done in the `proof-systems` repository directly. This will create, de facto, a proving system that is quite similar to Pickles (written in `mina` repo in ocaml), which is intenional.
 
 The plan for vinegar is as follows:
-1. Move the necessary pickles datatypes (such as `MessagesForNextStep` and so on) into `proof-systems`
+1. Move the necessary Pickles datatypes (such as `MessagesForNextStep` and so on) into `proof-systems`
 1. Write the computation of `deferred_values`.
     - Or find / reassemble from existing codebase -- it already exists, but it is not clear it can be conveniently used. Make sure it can be.
 1. Implement the `finalize_other_proof` circuit function, generically over both curves if possible.
@@ -122,18 +123,18 @@ The plan for vinegar is as follows:
    - In practice this requires also making sure that some datatypes are hashed/passed correctly. Expect a lot of small details.
 1. Build the `VinegarStep` circuit.
 1. Test how two Vinegar circuits work together in a rust test, that is that `VinegarStep` accepts target proof and `VinegarWrap` accepts `VinegarStep`. Use the stub target prove system written before.
-1. Test Vinegar with actual pickles and stub target prover.
-1. Test Vinegar with actual pickles and actual target prover if the latter is available.
+1. Test Vinegar with actual Pickles and stub target prover.
+1. Test Vinegar with actual Pickles and actual target prover if the latter is available.
 
 ## Test plan and functional requirements
 
 See the development plan before. For the final project the requirements are as follows:
-1. Goals and objectives: Vinegar must be able to correctly consume a target proof system in a way that is pickles-compatible and secure.
+1. Goals and objectives: Vinegar must be able to correctly consume a target proof system in a way that is Pickles-compatible and secure.
 2. Testing approach:
-   - Incremental strategy as explained before: creating a stub prover, testing parts of the circuit separately, then two circuits together within `proof-systems`, then testing Vinegar against actual `mina` pickles implementation.
+   - Incremental strategy as explained before: creating a stub prover, testing parts of the circuit separately, then two circuits together within `proof-systems`, then testing Vinegar against actual `mina` Pickles implementation.
 3. Testing scope: incremental, as explained before.
-4. Testing requirements: only correctness testing to start with. The security argument of Vinegar will probably be very similar to the security argument of pickles. The PRs during the development process must be reviewed as usual.
-5. Testing resources: stub target proof model, pickles implementation, potentially zkVM implementation if available.
+4. Testing requirements: only correctness testing to start with. The security argument of Vinegar will probably be very similar to the security argument of Pickles. The PRs during the development process must be reviewed as usual.
+5. Testing resources: stub target proof model, Pickles implementation, potentially zkVM implementation if available.
 
 <!--
 1. Testing goals and objectives:
@@ -150,9 +151,9 @@ See the development plan before. For the final project the requirements are as f
 
 ## Drawbacks
 
-1. The scope of Vinegar is relatively small in that it does not consider potential future variants of kimchi. Vinegar could be much more generic.
+1. The scope of Vinegar is relatively small in that it does not consider potential future variants of Kimchi. Vinegar could be much more generic.
    - Counterargument: Vinegar is already complex enough to start with. Future scope questions may be addressed later.
-2. Creating another variant of pickles creates code duplication, which leads to maintenance problems.
+2. Creating another variant of Pickles creates code duplication, which leads to maintenance problems.
    - Counterargument: True, but it simultaneously gives us the ability to (potentially) simplify the mina codebase by reusing some rust functions that will be written in vinegar, or to unify parts of the tooling in rust. NB: none of the mentioned alternatives are factually planned.
 
 ## Rationale and alternatives
@@ -161,22 +162,24 @@ See the development plan before. For the final project the requirements are as f
 
 Why is this design the best in the space of possible designs? What other designs have been considered and what is the rationale for not choosing them?
 - Creating a compatibility circuit for importing proofs seems to be the only practical way to integrate external proofs.
-- Implementing the project in `proof-systems` as opposed to `mina` can speed up the development quite a lot since one does not have to
+- Implementing the circuit directly on top of Kimchi also seems like least overhead -- would be more overhead to do it on top of e.g. zkVM. Implementing the circuit (or patrs of it) in o1js would be a big and unnecessary overhead too.
+- Implementing the project in `proof-systems` as opposed to `mina` can speed up the development quite a lot since one does not have to be backward-compatible or deal with rust/ocaml bindings.
 
 
 ### What is the impact of not doing this?
 
-1. Not being able to import zkVM proofs in mina is a big shortcoming of the mina ecosystem.
+1. Not being able to import zkVM proofs in mina is a missed opportunity of the mina ecosystem -- the two products do not have any other way to work together.
 2. Not having a way to transition proof systems will be a blocker for adopting new versions of Kimchi. As we plan to generalize current Kimchi and Pickles code to be more generic, we might need to have a compatibility layer between the previous less general version, and the new, more general one.
-
 
 ### What are other advantages of doing this?
 
-1. Having pickles-like code in rust that can potentially be used for generalizing the toolstack / integrating with other tools, etc. It removes the integration with ocaml barrier.
+1. Having Pickles-like code in rust that can potentially be used for generalizing the toolstack / integrating with other tools, etc. It removes the integration with ocaml barrier.
 2. Vinegar will be a good platform for developing similar compatibility layers between future (more generic and optimal) versions of Kimchi or similar proving systems.
 
 ## Prior Art
 
+In theory, Vinegar is just another recursion layer technique, so any other recursive protocol similar to Pickles is a similar solution conceptually. Vinegar is not aiming to be groundbreaking and new, but rather to work as an "adapter" variant of Pickles, with pros and cons of the latter. It does not seem that any further research is necessary in this direction that would not apply equally to Pickles.
+
 ## Unresolved questions
 
-1. In pickles, the wrap proof expands the previous step for the next step. This includes computing step's deferred values (xi, combined inner product, b, r). In Vinegar, it seems that co-step needs to work directrly with the target proof. Is this a problem? Will we require foreign field proof expansion? Or will this still be handled by the next Wrap retroactively?
+1. In Pickles, the wrap proof expands the previous step for the next step. This includes computing step's deferred values (xi, combined inner product, b, r). In Vinegar, it seems that co-step needs to work directrly with the target proof. Is this a problem? Will we require foreign field proof expansion? Or will this still be handled by the next Wrap retroactively?
