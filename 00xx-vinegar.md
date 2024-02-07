@@ -72,6 +72,8 @@ where every step proof may have 0, 1, or 2 previous wrap proofs, and each wrap p
 
 The goal of vinegar is to create compatibility layer to "absorb" other non-kimchi proofs.
 
+### Vinegar circuits
+
 This is achieved by designing two circuits, similar to pickles's Step and Wrap, that mimic hiding the mismatches between the target proof system and kimchi. The 2 new 'generic' circuits we will call VinegarStep and VinegarWrap. Let us call the external proof we are consuming "target proof" --- we assume that it is a Step-like proof over Vesta. The structure of two new circuits will then look like:
 
 ```
@@ -103,8 +105,24 @@ The responsibilities of VinegarWrap will then be to:
 
 The operations needed are conceptually very similar to the operations in the existing pickles circuits. However, because we want to avoid hard-coding the particular details of the target kimchi proof into the circuit, we will need to be careful to construct 'VinegarStep' and 'VinegarWrap' in a generic way, with some mechanism to describe the verification steps required for a particular target kimchi-style proof.
 
+### Vinegar architecture and plan
 
 The implementaiton is suggested to be done in the `proof-systems` repository directly. This will create, de facto, a proving system that is quite similar to pickles (written in `mina` repo in ocaml), which is intenional.
+
+The plan for vinegar is as follows:
+1. Move the necessary pickles datatypes (such as `MessagesForNextStep` and so on) into `proof-systems`
+1. Write the computation of `deferred_values`.
+    - Or find / reassemble from existing codebase -- it already exists, but it is not clear it can be conveniently used. Make sure it can be.
+1. Implement the `finalize_other_proof` circuit function, generically over both curves if possible.
+   - Write a test. Create a test circuit that verifies just that part.
+   - Generating a reasonable sample input for `finalize_other_proof` should help with debugging. Make sure the sample input is modelling the potentially more generic target proof system. This might require a more generic version of `kimchi`, or something that mimics it.
+1. Implement the `incrementally_verify_proof` circuit function (also generically).
+   - Write a test. Same as for the previous point.
+1. Build the `VinegarWrap` circuit by combining the two functions.
+   - In practice this requires also making sure that some datatypes are hashed/passed correctly. Expect a lot of small details.
+1. Build the `VinegarStep` circuit.
+1. Test how two Vinegar circuits work together in a rust test. Use the stub target prove system written before.
+1. Test Vinegar with actual pickles.
 
 ## Test plan and functional requirements
 
