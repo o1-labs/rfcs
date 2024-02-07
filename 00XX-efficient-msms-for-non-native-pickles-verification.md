@@ -271,9 +271,9 @@ Our circuit uses all or almost all the available rows. However, it is likely we 
 We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
 - Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
 \frac{1}{r + 0} - \frac{1}{r + v_{0}}`$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
-- `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
 
-Note that we don't have to use `total` and `right_sum` as variables. Instead we can implement the algorithm as follows:
+We will also need to adjust the algorithm a bit. Note that we don't have to use `total` and `right_sum` as variables.
+Instead, `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation. The modified sub-MSM algorithm is as follows:
 ```rust
 // Equivalent to sub_msm
 fn sub_msm_in_place(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
@@ -294,6 +294,10 @@ fn sub_msm_in_place(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
     }
 }
 ```
+
+We're almost done. For the algorithm to aggregate a total MSM value over several calls of `sub_msm`, we need to:
+- Cancel `bucket[0]` blinding factors either once in the very end of the folding procedure (the blinding value should be $l$ times larger than $H^{2^k * (2^k - 1) / 2}$, or simply subtract the current value from $H$ every time `sub_msm` is called instead of *setting* `H` to that value.
+- Reuse `bucket[0]` across different rows for the global accumulator. Note that we now never reset it, and only add elements to it. So by sum associativity, if the RAM lookup is shared across all calls of `sub_msm`, `bucket[0]` will aggregate the global value.
 
 ### Additive Lookups
 
