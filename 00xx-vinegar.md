@@ -105,7 +105,7 @@ The responsibilities of VinegarWrap will then be to:
 
 The operations needed are conceptually very similar to the operations in the existing pickles circuits. However, because we want to avoid hard-coding the particular details of the target kimchi proof into the circuit, we will need to be careful to construct 'VinegarStep' and 'VinegarWrap' in a generic way, with some mechanism to describe the verification steps required for a particular target kimchi-style proof.
 
-### Vinegar architecture and plan
+### Vinegar architecture and development plan
 
 The implementaiton is suggested to be done in the `proof-systems` repository directly. This will create, de facto, a proving system that is quite similar to pickles (written in `mina` repo in ocaml), which is intenional.
 
@@ -121,10 +121,19 @@ The plan for vinegar is as follows:
 1. Build the `VinegarWrap` circuit by combining the two functions.
    - In practice this requires also making sure that some datatypes are hashed/passed correctly. Expect a lot of small details.
 1. Build the `VinegarStep` circuit.
-1. Test how two Vinegar circuits work together in a rust test. Use the stub target prove system written before.
-1. Test Vinegar with actual pickles.
+1. Test how two Vinegar circuits work together in a rust test, that is that `VinegarStep` accepts target proof and `VinegarWrap` accepts `VinegarStep`. Use the stub target prove system written before.
+1. Test Vinegar with actual pickles and stub target prover.
+1. Test Vinegar with actual pickles and actual target prover if the latter is available.
 
 ## Test plan and functional requirements
+
+See the development plan before. For the final project the requirements are as follows:
+1. Goals and objectives: Vinegar must be able to correctly consume a target proof system in a way that is pickles-compatible and secure.
+2. Testing approach:
+   - Incremental strategy as explained before: creating a stub prover, testing parts of the circuit separately, then two circuits together within `proof-systems`, then testing Vinegar against actual `mina` pickles implementation.
+3. Testing scope: incremental, as explained before.
+4. Testing requirements: only correctness testing to start with. The security argument of Vinegar will probably be very similar to the security argument of pickles. The PRs during the development process must be reviewed as usual.
+5. Testing resources: stub target proof model, pickles implementation, potentially zkVM implementation if available.
 
 <!--
 1. Testing goals and objectives:
