@@ -1,6 +1,4 @@
-# Vinegar
-
-Vinegar, the compatibility layer for pickles.
+# Vinegar, the Compatibility Layer for Pickles
 
 ## Summary
 
@@ -8,7 +6,7 @@ Vinegar is a compatibility layer that allows "importing" target proofs that are 
 
 ## Motivation
 
-Presently, the pickles verifier is hard-coded to use the 'berkeley' configuration. However, as we create new proof systems on top of kimchi (e.g. the MIPS zkVM), we would like to have a way to 'import' those proofs into the pickles recursion system. Also, since the proof systems will not necessarily have a 'public input' feature -- and almost certainly will not have the public input structured as pickles would expect -- we need to take a different approach towards importing them.
+Presently, the pickles verifier is hard-coded to use the 'berkeley' configuration. However, as we create new proof systems on top of kimchi (e.g. the MIPS zkVM), we would like to have a way to 'import' those proofs into the pickles recursion system. Same may apply to some other kimchi-like plonk-compatible systems that users might want to integrate into mina ecosystem. These proof systems will not necessarily have a 'public input' feature, and almost certainly will not have the public input structured as pickles would expect. This means need to take a different approach towards importing them. Vinegar suggests creating a proof systems that can "absorb" external profs and make them pickles-compatible.
 
 ## Background: Kimchi and Pickles overview
 
@@ -105,7 +103,8 @@ The responsibilities of VinegarWrap will then be to:
 
 The operations needed are conceptually very similar to the operations in the existing pickles circuits. However, because we want to avoid hard-coding the particular details of the target kimchi proof into the circuit, we will need to be careful to construct 'VinegarStep' and 'VinegarWrap' in a generic way, with some mechanism to describe the verification steps required for a particular target kimchi-style proof.
 
-## Drawbacks
+
+The implementaiton is suggested to be done in the `proof-systems` repository directly. This will create, de facto, a proving system that is quite similar to pickles (written in `mina` repo in ocaml), which is intenional.
 
 ## Test plan and functional requirements
 
@@ -122,6 +121,35 @@ The operations needed are conceptually very similar to the operations in the exi
     * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.
 -->
 
+## Drawbacks
+
+1. The scope of Vinegar is relatively small in that it does not consider potential future variants of kimchi. Vinegar could be much more generic.
+   - Counterargument: Vinegar is already complex enough to start with. Future scope questions may be addressed later.
+2. Creating another variant of pickles creates code duplication, which leads to maintenance problems.
+   - Counterargument: True, but it simultaneously gives us the ability to (potentially) simplify the mina codebase by reusing some rust functions that will be written in vinegar, or to unify parts of the tooling in rust. NB: none of the mentioned alternatives are factually planned.
+
+## Rationale and alternatives
+
+### Why this design?
+
+Why is this design the best in the space of possible designs? What other designs have been considered and what is the rationale for not choosing them?
+- Creating a compatibility circuit for importing proofs seems to be the only practical way to integrate external proofs.
+- Implementing the project in `proof-systems` as opposed to `mina` can speed up the development quite a lot since one does not have to
+
+
+### What is the impact of not doing this?
+
+1. Not being able to import zkVM proofs in mina is a big shortcoming of the mina ecosystem.
+2. Not having a way to transition proof systems will be a blocker for adopting new versions of Kimchi. As we plan to generalize current Kimchi and Pickles code to be more generic, we might need to have a compatibility layer between the previous less general version, and the new, more general one.
+
+
+### What are other advantages of doing this?
+
+1. Having pickles-like code in rust that can potentially be used for generalizing the toolstack / integrating with other tools, etc. It removes the integration with ocaml barrier.
+2. Vinegar will be a good platform for developing similar compatibility layers between future (more generic and optimal) versions of Kimchi or similar proving systems.
+
 ## Prior Art
 
 ## Unresolved questions
+
+1. In pickles, the wrap proof expands the previous step for the next step. This includes computing step's deferred values (xi, combined inner product, b, r). In Vinegar, it seems that co-step needs to work directrly with the target proof. Is this a problem? Will we require foreign field proof expansion? Or will this still be handled by the next Wrap retroactively?
