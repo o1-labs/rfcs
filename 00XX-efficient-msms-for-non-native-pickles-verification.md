@@ -167,12 +167,9 @@ The sub-MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ bu
 fn sub_msm(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
     // Initialize the buckets with the blinding factor H
     let mut buckets: [C; 2^k] = [H; 2^k];
-    // Zero bucket can be instead unused.
-    // buckets[0] = 0;
     for (coefficient, commitment) in to_scale_pairs {
         buckets[coefficient] += commitment;
     }
-    // Instead of being a variable, `total` can be "stored" in buckets[0] for efficiency
     let mut total = -H.scale(2^k * (2^k - 1) / 2);
     let mut right_sum = 0;
     for i in 1..buckets.length() {
@@ -225,7 +222,6 @@ Given that each `buckets[i]` contains an `H`, the terms except for `total_0` wil
 
 
 
-
 ### Implementing Foreign Field Gates
 
 Part of the project is implementing FFA (foreign field arithmetics, additions and multiplications) and FFEC (foreign field EC additions) libraries --- practically these will be gates within a kimchi circuit.
@@ -257,9 +253,10 @@ In addition to $C_{\mathsf{sub}}$ addition per sub-MSM run, we will need to sum 
 
 In total, the whole algorithm then requires $C_{\mathsf{msm}} \approx l \times (n + 2^{k+1})$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way). For the bigger $n = 2^{16}$ MSM and $k = 15$, we get $C_{\mathsf{sub}} = 2^{17} - 2$ and $C_{\mathsf{msm}} = 2^{17} \cdot 17$ additions, which is still more than the $N = 2^{15}$ budget. Even with the easier $n = 2^{15}$ MSM we still have $C_{\mathsf{sub}} = 2^{16}$, so the sub-MSM has two times more FF EC additions than there are rows available ($N$).
 
-With that in mind, we will use folding to split the total computation into chunks that fit into our $N$-element SRS. We can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i \mathsf{subres}_j$, (2) the state of the RAM lookups.
+With that in mind, we will use folding to split the total $C_{\mathsf{msm}}$ computation into chunks that fit into our $N$-element SRS. We can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i \mathsf{subres}_j$, (2) the state of the RAM lookups.
 
-In terms of a concrete circuit design, as we discussed, the sub-MSM has more additions than the rows in the circuit. For simplicity of exposition, let us first consider the case of $n=2^{15}$. Instead of scaling the circuit horizontally, we will split the sub-MSM algorithm into several sections to then prove them progressively in the right order. For example, one can imagine one chunk proving just the initial sub-MSM bucket initialisation ($C_{\mathsf{sub}}/2$ additions), and the next chunk doing the main going-over-the-buckets loop (another $C_{\mathsf{sub}}/2$ additions).
+In terms of a concrete circuit design, as we discussed, the sub-MSM has more additions than the rows in the circuit. Instead of scaling the circuit horizontally, we will split the sub-MSM algorithm into several sections to then prove them progressively in the right order. For $n=2^{15}$ one can imagine one chunk proving just the initial sub-MSM bucket initialisation ($C_{\mathsf{sub}}/2$ additions), and the next chunk doing the main going-over-the-buckets loop (another $C_{\mathsf{sub}}/2$ additions). In the larger $n = 2^{16}$ MSM case, we will have to split our sub-MSM algorithm with $C_{\mathsf{sub}} = 2^{17}-2$ into 4 sections to fit into $N = 2^{15}$ rows with one addition per row.
+
 
 Regarding the concerns about potential lack of space in the circuit implementation --- there is reasonable hope that we will be able to fit any of the two sections of the sub-MSM algorithm (each taking $`C_{\mathsf{sub}}/2 \approx 2^{15}`$ rows with one FFEC addition per row) into /exactly/ $N = 2^{15}$ rows.
 
@@ -268,8 +265,27 @@ We can adjust the additive lookup argument to externally (by modifying lookup bo
 \frac{1}{r + 0} - \frac{1}{r + v_{0}}`$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
 - `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation.
 
+Note that we don't have to use `total` and `right_sum` as variables. Instead we can implement the algorithm as follows:
+```rust
+fn sub_msm_in_place(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
+    // Initialize the buckets with the blinding factor H
+    let mut buckets: [C; 2^k] = [H; 2^k];
+    for (coefficient, commitment) in to_scale_pairs {
+        buckets[coefficient] += commitment;
+    }
+    // Instead of being a variable, `total` can be "stored" in buckets[0] for efficiency
+    bucket[0] = -H.scale(2^k * (2^k - 1) / 2);
+    // Similarly `right_sum` can be "stored" in buckets[2^k-1] for efficiency
+    // We unroll the first loop iteration because the buckets[2^k-1] slot already contains
+    // the correct first-iteration value.
+    bucket[0] += buckets[2^k-1];
+    for i in 2..buckets.length() {
+        buckets[2^k-1] += buckets[2^k - i];
+        buckets[0] += buckets[2^k-1];
+    }
+}
+```
 
-Regarding the algorithm in the harder case of larger $n = 2^{16}$ MSM, we will have to split our sub-MSM algorithm with $C_{\mathsf{sub}} = 2^{17}-2$ into 4 sections to fit into $N = 2^{15}$ rows with one addition per row.
 
 ### Additive Lookups
 
