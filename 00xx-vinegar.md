@@ -112,13 +112,17 @@ The implementaiton is suggested to be done in the `proof-systems` repository dir
 
 The plan for vinegar is as follows:
 1. Move the necessary Pickles datatypes (such as `MessagesForNextStep` and so on) into `proof-systems`
+   - (Mostly done in branch `feature/volhovm/vinegar-poc` file `vinegar/src/lib.rs`)
 1. Write the computation of `deferred_values`.
-    - Or find / reassemble from existing codebase -- it already exists, but it is not clear it can be conveniently used. Make sure it can be.
+   - Or find / reassemble from existing codebase -- it already exists, but it is not clear it can be conveniently used. Make sure it can be.
 1. Implement the `finalize_other_proof` circuit function, generically over both curves if possible.
-   - Write a test. Create a test circuit that verifies just that part.
-   - Generating a reasonable sample input for `finalize_other_proof` should help with debugging. Make sure the sample input is modelling the potentially more generic target proof system. This might require a more generic version of `kimchi`, or something that mimics it.
+1. Create a /stub target proof generator/ for `finalize_other_proof`.
+   - This should help with testing further on. Make sure the sample input is modelling the potentially more generic target proof system than kimchi. This might require a more generic version of `kimchi`, or something that mimics it.
+   - Maybe write just a part of it that's necessary for `finalize_other_proof`.
+1. Write a test for `finalize_other_proof` using the stub target proof generator.
+   - Create a test circuit that verifies just that part.
 1. Implement the `incrementally_verify_proof` circuit function (also generically).
-   - Write a test. Same as for the previous point.
+   - Write a test. Same as for the previous points.
 1. Build the `VinegarWrap` circuit by combining the two functions.
    - In practice this requires also making sure that some datatypes are hashed/passed correctly. Expect a lot of small details.
 1. Build the `VinegarStep` circuit.
@@ -178,7 +182,9 @@ Why is this design the best in the space of possible designs? What other designs
 
 ## Prior Art
 
-In theory, Vinegar is just another recursion layer technique, so any other recursive protocol similar to Pickles is a similar solution conceptually. Vinegar is not aiming to be groundbreaking and new, but rather to work as an "adapter" variant of Pickles, with pros and cons of the latter. It does not seem that any further research is necessary in this direction that would not apply equally to Pickles.
+It does not seem that any further research is necessary in this direction that would not apply equally to Pickles.
+
+Vinegar is just another recursion layer technique, so any other recursive protocol similar to Pickles is a similar solution conceptually. Vinegar is not aiming to be theoretically groundbreaking, but rather to work as an "adapter" variant of Pickles, relying on the similar techniques, with pros and cons of the latter.
 
 ## Unresolved questions
 
