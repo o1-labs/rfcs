@@ -165,8 +165,6 @@ The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ bucket
 
 ```rust
 fn fill_buckets(coeffs: Vec<Field>, bases: Vec<Field>, k: uint, H: Group) {
-    // Initialize the buckets with the blinding factor H
-    let mut buckets: [C; 2^k] = [H; 2^k];
     for (coefficient, commitment) in coeffs.iter().zip(bases.iter()) {
         buckets[coefficient] += commitment;
     }
@@ -174,9 +172,12 @@ fn fill_buckets(coeffs: Vec<Field>, bases: Vec<Field>, k: uint, H: Group) {
 
 /// Computes the total MSM: \sum_{i=1}^N coeffs_i \cdot bases_i
 fn compute_msm(coeffs: Vec<Field>, bases: Vec<Group>, k: uint, H: Group) {
-    for i in 0..254/k {
+    // Initialize the buckets with the blinding factor H
+    let mut buckets: [C; 2^k] = [H; 2^k];
+    for i in 0..l=254/k {
         // Temporary k-bit coeffs for limb #i
         let coeffs_curlimb = coeffs[i..i+k];
+        // Temporary bases for limb #i: can be pre-computed outside of this algorithm
         let bases_curlimb = (0..N).map(|j| 2^{k i} * bases[j]);
         fill_buckets(coeffs_curlimb, bases_curlimb, k, H);
     }
@@ -253,25 +254,29 @@ Non-zero elliptic curve points are most succinctly represented in [affine coordi
 
 ### Algorithm Performance, Circuit Layout, and Multi-Circuit Folding
 
-The circuit that we are implementing is large, and its layout should be carefully considered. Luckily, we have some liberty in design decisions -- the algorithm needs to be implemented on a *variant* of Kimchi which can allow long rows, additive lookups (random memory access), and support for folding. Two last features are (being) developed in the zkVM project.
+The circuit that we are implementing is large, and its layout should be carefully considered. We implement an algorithm on a *variant* of Kimchi which can allow long rows, additive lookups (random memory access), and support for folding. This will be used to speed the algorithm up. Two last features are (being) developed in the zkVM project.
 
 #### Estimating circuit size
 
-Recall $n$ is the size of the MSM, and $N = 2^{15}$ is the number of rows available. Note that each iteration (one run) of the sub-MSM algorithm with limited buckets takes $C_{\mathsf{sub}} = n + 2^{k+1} - 2$ elliptic curve additions at most:
-- The cycle that fills buckets using `to_scale_pairs` takes $n$ additions.
-- The end loop does two additions per each iteration. All our buckets are non-zero with overwhelming probability (remember they are initialized by a non-zero $H$), so the loop takes $2 \cdot 2^{k} - 2$ additions (we dont iterate over the zero bucket).
+Recall $n$ is the size of the MSM, and $N = 2^{15}$ is the number of rows available. Note that the run of the MSM algorithm with limited buckets takes $C_{\mathsf{msm}} = l * n + 2^{k+1} - 2$ elliptic curve additions at most:
+- The cycle that fills buckets using `to_scale_pairs` takes $n$ additions each, and there are $l$ invocations.
+- The end loop performs two additions per each iteration. All our buckets are non-zero with overwhelming probability (remember they are initialized by a non-zero $H$), so the loop takes $2 \cdot 2^{k} - 2$ additions (we dont iterate over the zero bucket).
 
-In addition to $C_{\mathsf{sub}}$ additions per sub-MSM run, we will need to sum all the results of it. Luckily, this computation is relatively cheap --- we require one extra addition per run.
-
-In total, the whole algorithm then requires $C_{\mathsf{msm}} \approx l \times (n + 2^{k+1})$ additions because we need to run the inner algorithm $l$ times, and then sum the results (which is negligibly small and can be accumulated along the way).
-- For the bigger $n = 2^{16}$ MSM and $k = 15$, we get $C_{\mathsf{sub}} = 2^{17} - 2$ and $C_{\mathsf{msm}} = 2^{17} \cdot 17$ additions, which is still more than the $N = 2^{15}$ budget.
-- Even with the easier $n = 2^{15}$ MSM we still have $C_{\mathsf{sub}} = 2^{16}$, so the sub-MSM has two times more FF EC additions than there are rows available ($N$).
+In total:
+- For the bigger $n = 2^{16}$ MSM and $k = 15$, we get $C_{\mathsf{msm}} = l \times 2^{16} + (2^{16} - 2)$ additions, which is still more than the $N = 2^{15}$ rows budget.
+- Even for the smaller $n = 2^{15}$ MSM and $k = 15$  we still have $C_{\mathsf{msm}} = l \times 2^{15} + (2^{16} - 2)$.
 
 #### Splitting the circuit
 
-With that in mind, we will use folding to split the total $C_{\mathsf{msm}}$ computation into chunks that fit into our $N$-element SRS. We can assume that the only shared states between the rounds of folding are (1) total accumulator for the computed value $\sum\limits_{j=1}^i \mathsf{subres}_j$, (2) the state of the RAM lookups.
+We intend to have *one EC addition per row*, split the total $C_{\mathsf{msm}}$ computation into chunks that fit into our $N$-element SRS, and recombine this chunks.
 
-In terms of a concrete circuit design, as we discussed, the sub-MSM has more additions than the rows in the circuit. Instead of scaling the circuit horizontally, we will split the sub-MSM algorithm into several sections to then prove them progressively in the right order. For $n=2^{15}$ one can imagine one chunk proving just the initial sub-MSM bucket initialisation ($C_{\mathsf{sub}}/2$ additions), and the next chunk doing the main going-over-the-buckets loop (another $C_{\mathsf{sub}}/2$ additions). In the larger $n = 2^{16}$ MSM case, we will have to split our sub-MSM algorithm with $C_{\mathsf{sub}} = 2^{17}-2$ into 4 sections to fit into $N = 2^{15}$ rows with one addition per row.
+For $n=2^{15}$ the sub-circuits can be as follows:
+1. First sub-circuit will be proving just the initial sub-MSM bucket initialisation, `fill_buckets` --- $2^{15}$ additions, this section we will repeated/folded $l$ times
+2. Second sub-section doing the main going-over-the-buckets loop, but only half of it --- another $2^{15}$ additions, this section we only repeat once.
+3. Third sub-section is same as the second one, but goes over the second half of the buckets, taking another $2^{15}$ additions, only repeated once.
+
+
+In the larger $n = 2^{16}$ MSM case, we will have to repeat the first `fill_bucket` chunk $2\cdot l$ times instead of just $l$ (each iteration will handle half of the bases). The second and third chunks are same as before, since $k$, and thus the number of buckets, is the same.
 
 
 #### Using all the circuits rows
