@@ -161,14 +161,24 @@ Let us call the inner sum computation $`\sum\limits_{i=1}^n c_{i,j} (G_i \cdot 2
 
 In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use RAM lookups on `buckets` which speeds up things quite a bit.
 
-The sub-MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $3 n$ curve point additions. Assuming the additive notation for the group:
+The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $3 n$ curve point additions. Assuming the additive notation for the group:
 
 ```rust
-fn sub_msm(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
+fn fill_buckets(coeffs: Vec<Field>, bases: Vec<Field>, k: uint, H: Group) {
     // Initialize the buckets with the blinding factor H
     let mut buckets: [C; 2^k] = [H; 2^k];
-    for (coefficient, commitment) in to_scale_pairs {
+    for (coefficient, commitment) in coeffs.iter().zip(bases.iter()) {
         buckets[coefficient] += commitment;
+    }
+}
+
+/// Computes the total MSM: \sum_{i=1}^N coeffs_i \cdot bases_i
+fn compute_msm(coeffs: Vec<Field>, bases: Vec<Group>, k: uint, H: Group) {
+    for i in 0..254/k {
+        // Temporary k-bit coeffs for limb #i
+        let coeffs_curlimb = coeffs[i..i+k];
+        let bases_curlimb = (0..N).map(|j| 2^{k i} * bases[j]);
+        fill_buckets(coeffs_curlimb, bases_curlimb, k, H);
     }
     let mut total = -H.scale(2^k * (2^k - 1) / 2);
     let mut right_sum = 0;
