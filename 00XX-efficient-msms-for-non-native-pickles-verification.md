@@ -136,6 +136,8 @@ Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can
 
 Then our target computation can be expressed as follows:
 
+**TODO** Fix outdated formula. get rid of subres
+
 ```math
 \begin{align*}
 \sum_{i=1}^n c_i G_i &=
@@ -148,6 +150,8 @@ Then our target computation can be expressed as follows:
 \end{align*}
 ```
 
+
+
 <!-- Note that we have now N * l base elements, not only N -->
 
 Where each $\mathsf{subres}_j$ is the result of the individual inner step --- we will accumulate $`\sum\limits_{j=1}^i \mathsf{subres}_j`$ after each iteration.
@@ -159,9 +163,7 @@ corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we 
 
 Let us call the inner sum computation $`\sum\limits_{i=1}^n c_{i,j} (G_i \cdot 2^{j \cdot k})`$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $`\{c_{i,j}\}`$ and a different set of bases.
 
-In the rest of the section we describe the sub-MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use RAM lookups on `buckets` which speeds up things quite a bit.
-
-The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $3 n$ curve point additions. Assuming the additive notation for the group:
+In the rest of the section we describe the MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use RAM lookups on `buckets` which speeds up things quite a bit. The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $l * n + 2^{k+1}$ curve point additions. Assuming the additive notation for the group:
 
 ```rust
 fn fill_buckets(coeffs: Vec<Field>, bases: Vec<Field>, k: uint, H: Group) {
@@ -271,7 +273,7 @@ In total:
 We intend to have *one EC addition per row*, split the total $C_{\mathsf{msm}}$ computation into chunks that fit into our $N$-element SRS, and recombine this chunks.
 
 For $n=2^{15}$ the sub-circuits can be as follows:
-1. First sub-circuit will be proving just the initial sub-MSM bucket initialisation, `fill_buckets` --- $2^{15}$ additions, this section we will repeated/folded $l$ times
+1. First sub-circuit will be proving just the initial sub-MSM bucket initialisation, `fill_buckets` --- $2^{15}$ additions, this sub-circuit/section we will repeated/folded $l$ times
 2. Second sub-section doing the main going-over-the-buckets loop, but only half of it --- another $2^{15}$ additions, this section we only repeat once.
 3. Third sub-section is same as the second one, but goes over the second half of the buckets, taking another $2^{15}$ additions, only repeated once.
 
@@ -281,38 +283,39 @@ In the larger $n = 2^{16}$ MSM case, we will have to repeat the first `fill_buck
 
 #### Using all the circuits rows
 
-Our circuit uses all or almost all the available rows. However, it is likely we will be able to fit any of the two sections of the sub-MSM algorithm (each taking $`C_{\mathsf{sub}}/2 \approx 2^{15}`$ rows with one FFEC addition per row) into *exactly* $N = 2^{15}$ rows.
+Our circuit uses all or almost all the available rows. However, it is likely we will be able to fit any of the sections of the MSM algorithm (each taking $`\approx 2^{15}`$ rows with one FFEC addition per row) into *exactly* $N = 2^{15}$ rows.
 
-We can adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration. We use the zero bucket for communicating the accumulator between fold iterations.
-- Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
-\frac{1}{r + 0} - \frac{1}{r + v_{0}}`$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
+The first chunk is easy --- assuming that our RAM lookup state is shared across all the $l$ or $2l$ invocations of the `fill_buckets`, there is no need for any further communication.
 
-We will also need to adjust the algorithm a bit. Note that we don't have to use `total` and `right_sum` as variables.
-Instead, `total` will go into the zero bucket, and `right_sum` can go into the $2^{k} - 1$ bucket (the last one), and then the second loop in the sub-MSM algorithm can be uniform without any extra single row for aggregation. The modified sub-MSM algorithm is as follows:
+Sharing state between second and third sub-section can be done by reusing some of the buckets as the memory bus.
+
+We will need to adjust the algorithm a bit. Note that we don't have to use `total` and `right_sum` as variables.
+Instead, `total` will go into the zero bucket, and `right_sum` can go into the bucket number $2^{k} - 1$ (the last one), and then the second loop in the MSM algorithm can be uniform without any extra single row for aggregation. And thus we are able to split it into sub-circuits 2 and 3 while maintaining common state without any variables, just with RAM lookup. The modified second part of the MSM algorithm is as follows:
 ```rust
-// Equivalent to sub_msm
-fn sub_msm_in_place(H: Group, to_scale_pairs: Vec<Field,Group>, k: uint) {
-    // Initialize the buckets with the blinding factor H
-    let mut buckets: [C; 2^k] = [H; 2^k];
-    for (coefficient, commitment) in to_scale_pairs {
-        buckets[coefficient] += commitment;
-    }
-    // Instead of being a variable, `total` can be "stored" in buckets[0] for efficiency
-    bucket[0] = -H.scale(2^k * (2^k - 1) / 2);
-    // Similarly `right_sum` can be "stored" in buckets[2^k-1] for efficiency
-    // We unroll the first loop iteration because the buckets[2^k-1] slot already contains
-    // the correct first-iteration value.
-    bucket[0] += buckets[2^k-1];
-    for i in 2..buckets.length() {
-        buckets[2^k-1] += buckets[2^k - i];
-        buckets[0] += buckets[2^k-1];
-    }
+// ... (loop with fill_buckets) ...
+// Instead of being a variable, `total` can be "stored" in buckets[0] for efficiency
+bucket[0] = -H.scale(2^k * (2^k - 1) / 2);
+// Similarly `right_sum` can be "stored" in buckets[2^k-1] for efficiency
+// We unroll the first loop iteration because the buckets[2^k-1] slot already contains
+// the correct first-iteration value.
+bucket[0] += buckets[2^k-1];
+// Done in chunk 2
+for i in 2..buckets.length()/2 {
+    buckets[2^k-1] += buckets[2^k - i];
+    buckets[0] += buckets[2^k-1];
+}
+// Done in chunk 3, state is communicated through the RAM lookup now
+for i in bucket.length/2..buckets.length() {
+    buckets[2^k-1] += buckets[2^k - i];
+    buckets[0] += buckets[2^k-1];
 }
 ```
 
-We're almost done. For the algorithm to aggregate a total MSM value over several calls of `sub_msm`, we need to:
-- Cancel `bucket[0]` blinding factors either once in the very end of the folding procedure (the blinding value should be $l$ times larger than $H^{2^k * (2^k - 1) / 2}$, or simply subtract the current value from $H$ every time `sub_msm` is called instead of *setting* `H` to that value.
-- Reuse `bucket[0]` across different rows for the global accumulator. Note that we now never reset it, and only add elements to it. So by sum associativity, if the RAM lookup is shared across all calls of `sub_msm`, `bucket[0]` will aggregate the global value.
+Finally, to assert that the final computed `buckets[0]` value is what we expect, we need to slightly adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration.
+- Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
+\frac{1}{r + 0} - \frac{1}{r + v_{0}}`$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
+
+
 
 ### Additive Lookups
 
@@ -490,7 +493,7 @@ Think about the lessons from other blockchain projects or similar updates and pr
 
 1. Engineering problem: how exactly does the accumulation trick with the additive lookup tables work?
    - If we go with the circuit layout that fits $2^{15}$ additions into $2^{15}$ rows having exactly one addition per row, we need to make sure the total joint accumulator (between folding iterations) is being updated properly. This requires altering the folding protocol checks.
-2. When splitting sub-MSM into chunks --- is it not problematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
+2. When splitting MSM into chunks --- is it not problematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
 
 
 <!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
