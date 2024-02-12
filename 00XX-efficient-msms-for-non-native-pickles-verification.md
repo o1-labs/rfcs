@@ -140,10 +140,10 @@ Then our target computation can be expressed as follows:
 \begin{align*}
 \sum_{i=1}^n c_i G_i &=
   \underbrace{\sum_{j=1}^{l}
-    (\sum_{i=1}^n \overbrace{c_{i,j}}^{\in\ \mathbb{F}_{scalar}(\text{Vesta})}
+    \Big(\sum_{i=1}^n \overbrace{c_{i,j}}^{\in\ \mathbb{F}_{scalar}(\text{Vesta})}
         (\overbrace{G_i 2^{j \cdot k}}^{\text{Coordinates in $\mathbb{F}_{base}(\mathrm{Vesta})$, computed externally}}
-        )}_{\text{Encoded in $\mathbb{F}_{scalar}(\textrm{BN254})$}} \\
-&= \sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i )) \\
+        )\Big)}_{\text{Encoded in $\mathbb{F}_{scalar}(\textrm{BN254})$}} \\
+&= \sum_{j=1}^{l} \Big(\sum_{i=1}^n c_{i,j} \cdot (2^{j \cdot k} \cdot G_i )\Big) \\
 \end{align*}
 ```
 
@@ -152,16 +152,18 @@ Then our target computation can be expressed as follows:
 The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). The scaled base elements $2^{k j} G_{i}$ can be pre-computed outside of the circuit. A lookup table will be used to fetch the
 corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$ elements in $`\mathbb{F}_{scalar}(\mathrm{BN254})`$. Note that the elements $G_i \cdot 2^{j \cdot k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
 
-In the rest of the section we describe the MSM algorithm that efficiently computes the inner sum. The main strength of the MSM algorithm is that due to coefficients being small we can use RAM lookups on `buckets` which speeds up things quite a bit. The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $l * n + 2^{k+1}$ curve point additions.
+In the rest of the section we describe the MSM algorithm that efficiently computes the inner sum. The main strength of the MSM algorithm is that due to coefficients being small we can use RAM lookups on `buckets` which speeds up things quite a bit. The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $l \cdot n + 2^{k+1}$ curve point additions.
 
 Note how we can iterate over all the possible coefficients $c_{i,j}$ without knowing the indices. For a given $c$, let $\hat G_{c,j}$ be the value equal to $2^{j \cdot k} \cdot G_i$ such that $c = c_{i,j}$ (coefficient number $i$ for limb number $j$). Then the previous decomposition equation can be expressed as:
 
 ```math
 \begin{align*}
-\sum_{i=1}^n c_i G_i &= \sum_{j=1}^{l} (\sum_{c \in [0,2^k-1]} c \cdot \hat G_{c,j}) \\
-&= \sum_{c \in [0,2^k-1]} c (\sum_{j=1}^{l} \hat G_{c,j})
+\sum_{i=1}^n c_i G_i &= \sum_{j=1}^{l} \Big(\sum_{c \in [0,2^k-1]} c \cdot \hat G_{c,j}\Big) \\
+&= \sum_{c \in [0,2^k-1]} c \cdot (\sum_{j=1}^{l} \hat G_{c,j})
 \end{align*}
 ```
+
+This suggests that we can first accumulate the values of $G_{c,j}$ into the right "buckets", where each bucket corresponds to a coefficient $c_i \in [0,2^k-1]$, and then sum all of them scaling by $c_{i}$.
 
 Assuming the additive notation for the group, the formal code description of the algorithm is as follows:
 
@@ -192,26 +194,7 @@ fn compute_msm(coeffs: Vec<Field>, bases: Vec<Group>, k: uint, H: Group) {
 }
 ```
 
-For now assuming the blinding factor is $0$, notice that this works because after successive iterations we have:
-```
-// First iteration
-right_sum = buckets[2^k - 1]
-total = buckets[2^k - 1]
-
-// Second iteration
-right_sum = buckets[2^k - 1] + buckets[2^k - 2]
-total = 2*buckets[2^k - 1] + buckets[2^k - 2]
-...
-// `i`th iteration
-right_sum = buckets[2^k - 1] + buckets[2^k - 2] + ... + buckets[2^k - i]
-total = i*buckets[2^k - 1] + (i-1)*buckets[2^k - 2] + ... + buckets[2^k - i]
-...
-// `2^k-1`th iteration
-right_sum = buckets[2^k - 1] + ... + buckets[1]
-total = (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buckets[1]
-```
-
-The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the MSM algorithm. The correctness still holds. Let `total_0 = - H.scale(2^k * (2^k - 1) / 2)`:
+Let us explain the correctness of the protocol. The loop in the end does a double partial-sum accumulation, which computes the value $\sum_{c \in [0,2^k-1]} c \cdot (\sum_{j=1}^{l} \hat G_{c,j})$. The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the MSM algorithm. Let `total_0 = - H.scale(2^k * (2^k - 1) / 2)`, then:
 
 ```
 // First iteration
@@ -231,7 +214,7 @@ right_sum = buckets[2^k - 1] + ... + buckets[1]
 total = total_0 + (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buckets[1]
 ```
 
-Given that each `buckets[i]` contains an `H`, the terms except for `total_0` will contain $`\sum\limits_{i=1}^{2^k-1} i \cdot H`$ of blinding terms, which is exactly the (negated) amount in `total_0`.
+First, note that we correctly aggregate $2^i$ coefficients along the way. And given that each `buckets[i]` contains an `H`, the terms except for `total_0` will contain $`\sum\limits_{i=1}^{2^k-1} i \cdot H`$ of blinding terms, which is exactly the (negated) amount in `total_0`.
 
 
 
