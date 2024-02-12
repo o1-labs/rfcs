@@ -143,18 +143,17 @@ Then our target computation can be expressed as follows:
     \Big(\sum_{i=1}^n \overbrace{c_{i,j}}^{\in\ \mathbb{F}_{scalar}(\text{Vesta})}
         (\overbrace{G_i 2^{j \cdot k}}^{\text{Coordinates in $\mathbb{F}_{base}(\mathrm{Vesta})$, computed externally}}
         )\Big)}_{\text{Encoded in $\mathbb{F}_{scalar}(\textrm{BN254})$}} \\
-&= \sum_{j=1}^{l} \Big(\sum_{i=1}^n c_{i,j} \cdot (2^{j \cdot k} \cdot G_i )\Big) \\
+&= \sum_{j=1}^{l} \Big(\sum_{i=1}^n \underbrace{c_{i,j}}_{\text{Coefficients for limb $j$}} \cdot \overbrace{(2^{j \cdot k} \cdot G_i )}^{\text{"Base" for limb $j$}}\Big) \\
 \end{align*}
 ```
 
 <!-- Note that we have now N * l base elements, not only N -->
 
-The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). The scaled base elements $2^{k j} G_{i}$ can be pre-computed outside of the circuit. A lookup table will be used to fetch the
-corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$ elements in $`\mathbb{F}_{scalar}(\mathrm{BN254})`$. Note that the elements $G_i \cdot 2^{j \cdot k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
+The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). The scaled base elements $2^{j \cdot k} \cdot G_{i}$ can be pre-computed outside of the circuit.
 
 In the rest of the section we describe the MSM algorithm that efficiently computes the inner sum. The main strength of the MSM algorithm is that due to coefficients being small we can use RAM lookups on `buckets` which speeds up things quite a bit. The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $l \cdot n + 2^{k+1}$ curve point additions.
 
-Note how we can iterate over all the possible coefficients $c_{i,j}$ without knowing the indices. For a given $c$, let $\hat G_{c,j}$ be the value equal to $2^{j \cdot k} \cdot G_i$ such that $c = c_{i,j}$ (coefficient number $i$ for limb number $j$). Then the previous decomposition equation can be expressed as:
+Note how in the formula above we can iterate over all the possible coefficients $c_{i,j}$ without knowing the indices in advance -- a coefficient $c$ and limb number $j$ defines positions $i$ in which the index is used. For a given $c$, let $\hat G_{c,j}$ be the value equal to $\sum_i 2^{j \cdot k} \cdot G_i$ for all $c_{i,j}$ (coefficient number $i$ for limb number $j$) equal to $c$. Then the previous decomposition equation can be expressed as:
 
 ```math
 \begin{align*}
@@ -163,7 +162,9 @@ Note how we can iterate over all the possible coefficients $c_{i,j}$ without kno
 \end{align*}
 ```
 
-This suggests that we can first accumulate the values of $G_{c,j}$ into the right "buckets", where each bucket corresponds to a coefficient $c_i \in [0,2^k-1]$, and then sum all of them scaling by $c_{i}$.
+This suggests that we can first accumulate the values of $`\hat G_{c,j}`$ into the correct "buckets", where each bucket corresponds to a coefficient $c_i \in [0,2^k-1]$, and then sum all of them scaling by $c_{i}$.
+
+A lookup table will be used to fetch the corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$ elements in $`\mathbb{F}_{scalar}(\mathrm{BN254})`$. Note that the elements $G_i \cdot 2^{j \cdot k}$ will have coordinates in $`\mathbb{F}_{base}(\mathrm{Vesta})`$. Therefore, the table will require more than one limbs for each coordinates.
 
 Assuming the additive notation for the group, the formal code description of the algorithm is as follows:
 
@@ -194,7 +195,7 @@ fn compute_msm(coeffs: Vec<Field>, bases: Vec<Group>, k: uint, H: Group) {
 }
 ```
 
-Let us explain the correctness of the protocol. The loop in the end does a double partial-sum accumulation, which computes the value $\sum_{c \in [0,2^k-1]} c \cdot (\sum_{j=1}^{l} \hat G_{c,j})$. The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the MSM algorithm. Let `total_0 = - H.scale(2^k * (2^k - 1) / 2)`, then:
+Let us explain the correctness of the protocol. The loop in the end does a double partial-sum accumulation, which computes the value $`\sum\limits_{c \in [0,2^k-1]} c \cdot (\sum\limits_{j=1}^{l} \hat G_{c,j})`$. The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the MSM algorithm. Let `total_0 = - H.scale(2^k * (2^k - 1) / 2)`, then:
 
 ```
 // First iteration
