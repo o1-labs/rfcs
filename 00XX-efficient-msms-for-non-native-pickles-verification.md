@@ -112,7 +112,7 @@ The values shared between the stages are exposed from the public inputs of the p
 
 ### High-level description of the algorithm
 
-As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i} \}`$, which will have length $n = \mathttt{domain_size}$ for each of the 2 groups, and the set of (SRS) bases $`\{G_i\}`$. The goal is to compute $`\sum\limits_{i=1}^n c_i G_i`$ within a kimchi circuit.
+As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i} \}`$, which will have length $`n = \mathtt{domain_size}`$ for each of the 2 groups, and the set of (SRS) bases $`\{G_i\}`$. The goal is to compute $`\sum\limits_{i=1}^n c_i G_i`$ within a kimchi circuit.
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $N = 2^{15}$, which is so far the largest existing SRS that is available in this context.
 
@@ -136,8 +136,6 @@ Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can
 
 Then our target computation can be expressed as follows:
 
-**TODO** Fix outdated formula. get rid of subres
-
 ```math
 \begin{align*}
 \sum_{i=1}^n c_i G_i &=
@@ -146,24 +144,26 @@ Then our target computation can be expressed as follows:
         (\overbrace{G_i 2^{j \cdot k}}^{\text{Coordinates in $\mathbb{F}_{base}(\mathrm{Vesta})$, computed externally}}
         )}_{\text{Encoded in $\mathbb{F}_{scalar}(\textrm{BN254})$}} \\
 &= \sum_{j=1}^{l} (\sum_{i=1}^n c_{i,j} (2^{j \cdot k} \cdot G_i )) \\
-&= \sum_j \mathsf{subres}_j
 \end{align*}
 ```
 
-
-
 <!-- Note that we have now N * l base elements, not only N -->
-
-Where each $\mathsf{subres}_j$ is the result of the individual inner step --- we will accumulate $`\sum\limits_{j=1}^i \mathsf{subres}_j`$ after each iteration.
-
 
 The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). The scaled base elements $2^{k j} G_{i}$ can be pre-computed outside of the circuit. A lookup table will be used to fetch the
 corresponding $G_i \cdot 2^{j \cdot k}$. Therefore, the only operations that we need to encoded is the addition of $`\mathbb{F}_{base}(\mathrm{Vesta})`$ elements in $`\mathbb{F}_{scalar}(\mathrm{BN254})`$. Note that the elements $G_i \cdot 2^{j \cdot k}$ will have coordinates in Vesta($\mathbb{F}_{base}$). Therefore, the table will require more than one limbs for each coordinates.
 
+In the rest of the section we describe the MSM algorithm that efficiently computes the inner sum. The main strength of the MSM algorithm is that due to coefficients being small we can use RAM lookups on `buckets` which speeds up things quite a bit. The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $l * n + 2^{k+1}$ curve point additions.
 
-Let us call the inner sum computation $`\sum\limits_{i=1}^n c_{i,j} (G_i \cdot 2^{j \cdot k})`$ the "sub-MSM" --- it is structurally similar to the original MSM, but it uses the smaller decomposed $`\{c_{i,j}\}`$ and a different set of bases.
+Note how we can iterate over all the possible coefficients $c_{i,j}$ without knowing the indices. For a given $c$, let $\hat G_{c,j}$ be the value equal to $2^{j \cdot k} \cdot G_i$ such that $c = c_{i,j}$ (coefficient number $i$ for limb number $j$). Then the previous decomposition equation can be expressed as:
 
-In the rest of the section we describe the MSM algorithm that efficiently computes the inner sum. The main strength of the sub-MSM algorithm is that due to coefficients being small we can use RAM lookups on `buckets` which speeds up things quite a bit. The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $l * n + 2^{k+1}$ curve point additions. Assuming the additive notation for the group:
+```math
+\begin{align*}
+\sum_{i=1}^n c_i G_i &= \sum_{j=1}^{l} (\sum_{c \in [0,2^k-1]} c \cdot \hat G_{c,j}) \\
+&= \sum_{c \in [0,2^k-1]} c (\sum_{j=1}^{l} \hat G_{c,j})
+\end{align*}
+```
+
+Assuming the additive notation for the group, the formal code description of the algorithm is as follows:
 
 ```rust
 fn fill_buckets(coeffs: Vec<Field>, bases: Vec<Field>, k: uint, H: Group) {
@@ -211,7 +211,7 @@ right_sum = buckets[2^k - 1] + ... + buckets[1]
 total = (2^k - 1) * buckets[2^k - 1] + (2^k - 2) * buckets[2^k - 2] + ... + buckets[1]
 ```
 
-The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the sub-MSM algorithm. The correctness still holds. Let `total_0 = - H.scale(2^k * (2^k - 1) / 2)`:
+The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the MSM algorithm. The correctness still holds. Let `total_0 = - H.scale(2^k * (2^k - 1) / 2)`:
 
 ```
 // First iteration
@@ -273,7 +273,7 @@ In total:
 We intend to have *one EC addition per row*, split the total $C_{\mathsf{msm}}$ computation into chunks that fit into our $N$-element SRS, and recombine this chunks.
 
 For $n=2^{15}$ the sub-circuits can be as follows:
-1. First sub-circuit will be proving just the initial sub-MSM bucket initialisation, `fill_buckets` --- $2^{15}$ additions, this sub-circuit/section we will repeated/folded $l$ times
+1. First sub-circuit will be proving just the initial MSM bucket initialisation, `fill_buckets` --- $2^{15}$ additions, this sub-circuit/section we will repeated/folded $l$ times
 2. Second sub-section doing the main going-over-the-buckets loop, but only half of it --- another $2^{15}$ additions, this section we only repeat once.
 3. Third sub-section is same as the second one, but goes over the second half of the buckets, taking another $2^{15}$ additions, only repeated once.
 
