@@ -6,7 +6,7 @@ This RFC describes a protocol for computing elliptic curve MSMs (multi-scalar mu
 
 ## Motivation
 
-We would like to support bridging the Mina state to EVM-compatible chains, creating an efficiently-verifiable proof that wraps Mina's blockchain proofs. In particular, to achieve this we need to verify the Pasta IPA proofs emitted by Pickles in a proof over a different backend.
+We would like to support bridging the Mina state to EVM-compatible chains, creating an efficiently-verifiable proof that wraps Mina's blockchain proofs. Bridging is necessary for achieving secure cross-chain data transfers, including tokens, leveraging mina's ZK functionality on other blockchains, and a variety of other (deliberately elided) reasons motivating the Mina <-> EVM state bridge. In particular, to achieve this we need to verify the Pasta IPA proofs emitted by Pickles in a proof over a different backend.
 
 The goal of this work is to complement the existing efforts by Lambdaclass to verify the proof using Kimchi with the provided Bn254 KZG backend, in such away that the MSM part of verification can be offloaded to this protocol, but their existing code can be reused (mostly) as-is.
 
@@ -16,8 +16,6 @@ Hypotheses:
 * The cryptography and protocol details are sufficiently similar to existing work done by the crypto team that it will be possible to implement this in a reasonable about of time.
 
 This RFC focuses explicitly on minimising the size of the circuit used for this expensive part of the protocol. Happily, this also forces us to use a relatively simple algorithm.
-
-*Product motivation for a Mina -> EVM state bridge deliberately elided.*
 
 ## Detailed design
 
