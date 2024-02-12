@@ -143,7 +143,7 @@ Then our target computation can be expressed as follows:
     \Big(\sum_{i=1}^n \overbrace{c_{i,j}}^{\in\ \mathbb{F}_{scalar}(\text{Vesta})}
         (\overbrace{G_i 2^{j \cdot k}}^{\text{Coordinates in $\mathbb{F}_{base}(\mathrm{Vesta})$, computed externally}}
         )\Big)}_{\text{Encoded in $\mathbb{F}_{scalar}(\textrm{BN254})$}} \\
-&= \sum_{j=1}^{l} \Big(\sum_{i=1}^n \underbrace{c_{i,j}}_{\text{Coefficients for limb $j$}} \cdot \overbrace{(2^{j \cdot k} \cdot G_i )}^{\text{"Base" for limb $j$}}\Big) \\
+&= \sum_{j=1}^{l} \Big(\sum_{i=1}^n \underbrace{c_{i,j}}_{\text{Coefficients for limb $j$}} \cdot \overbrace{(2^{j \cdot k} \cdot G_i )}^{\text{"Bases" for limb $j$}}\Big) \\
 \end{align*}
 ```
 
