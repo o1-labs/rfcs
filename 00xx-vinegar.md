@@ -2,7 +2,7 @@
 
 ## Summary
 
-Vinegar is a compatibility layer that allows "importing" target proofs that are not directly Pickles-compatible, into Pickles, which is immensely useful for integrating Pickles with other not immediately compatible proof systems.
+Vinegar is a compatibility layer that allows "importing" target proofs that are not directly Pickles-compatible, into Pickles, which is immensely useful for integrating Pickles with other not-immediately-compatible proof systems.
 
 ## Motivation
 
@@ -22,8 +22,8 @@ The verification procedure can broadly be broken down into the following stages:
 1. Absorb the evaluations, and check that the evaluations satisfy the 'combined constraint polynomial'.
     - Continuing in `verifier.rs/oracles`, now we instantiate the `fr_sponge` --- a sponge which absorbs and produces elements in the scalar field. First we absorb the previous recursion challenges (`prev_challenge_digest = prev_challenges.chals`, which are scalars over the same group), compute `public_evals` (from `public_input`, also scalar field element), absorb `ft_eval1` together with `public_evals`. Then squeeze out recombination challenges `v`,`u` (also called `polyscale`,`evalscale`). And then compute and return (1) previous recursion challenges evaluation `polys`, (2) combined evaluation `evals`, (3) evaluation `ft_eval0`, (4) the combined constraint polynomial `combined_inner_product`.
     - Now, looking into `verifier.rs/to_batch` -- after `OraclesResult` that corresponds to the previous computation, we compute `f_comm`, and start collecting evaluations, now into `evaluations`, to return them together with previous data in `BatchEvaluationProof`.
-    - Note: `prev_challenges` that are the input to `verifier.rs` are coming from 2 itertaions before --- not from the previous proof, but from the one before that. Hence they are over the same group (`prev.challenges.comm` is a commitment, that is group element, and `prev_challenges.chals` are scalar field elements) as the target one for the proof that we are verifying. Hence `prev_challenges.chals` are absorbed in this step.
-    - volhovm: what is this "checking that the evaluations satisfy the combined constraint polynomial"? I don't think there's any *checking* or *verification* happening at this point, we merely compute thes polynomial, no?
+    - Note: `prev_challenges` that are the input to `verifier.rs` are coming from 2 iterations before --- not from the previous proof, but from the one before that. Hence they are over the same group (`prev.challenges.comm` is a commitment, that is group element, and `prev_challenges.chals` are scalar field elements) as the target one for the proof that we are verifying. Hence `prev_challenges.chals` are absorbed in this step.
+    - NB: what is this "checking that the evaluations satisfy the combined constraint polynomial"? I don't think there's any *checking* or *verification* happening at this point, we merely compute this polynomial, no?
 1. Verify that the polynomial commitments and their evaluations  are consistent by checking the 'opening proof' of the polynomial commitment scheme.
     - This corresponds to `OpeningProof::verify` call in the end of `batch_verify`. Internally, this will combine all the evaluations together, and check that they are consistent with the commitments, jointly.
 
@@ -106,9 +106,11 @@ The responsibilities of VinegarWrap will then be to:
 
 The operations needed are conceptually very similar to the operations in the existing Pickles circuits. However, because we want to avoid hard-coding the particular details of the target Kimchi proof into the circuit, we will need to be careful to construct 'VinegarStep' and 'VinegarWrap' in a generic way, with some mechanism to describe the verification steps required for a particular target Kimchi-style proof.
 
+Note that everything that is currently verified by Pickles needs to be verified in either VinegarStep or VinegarWrap. In Pickles, the wrap proof expands the previous step for the next step. This includes computing step's deferred values (xi, combined inner product, b, r). However, VinegarStep needs to work directly with the target proof. So this expansion needs to be done in VinegarWrap, and potentially retro-fit into VinegarStep via a hash or some other mechanism.
+
 ### Vinegar architecture and development plan
 
-The implementaiton is suggested to be done in the `proof-systems` repository directly. This will create, de facto, a proving system that is quite similar to Pickles (written in `mina` repo in ocaml), which is intenional.
+The implementation is suggested to be done in the `proof-systems` repository directly. This will create, de facto, a proving system that is quite similar to Pickles (written in `mina` repo in ocaml), which is intentional.
 
 The plan for vinegar is as follows:
 1. Move the necessary Pickles datatypes (such as `MessagesForNextStep` and so on) into `proof-systems`
@@ -166,7 +168,7 @@ See the development plan before. For the final project the requirements are as f
 
 Why is this design the best in the space of possible designs? What other designs have been considered and what is the rationale for not choosing them?
 - Creating a compatibility circuit for importing proofs seems to be the only practical way to integrate external proofs.
-- Implementing the circuit directly on top of Kimchi also seems like least overhead -- would be more overhead to do it on top of e.g. zkVM. Implementing the circuit (or patrs of it) in o1js would be a big and unnecessary overhead too.
+- Implementing the circuit directly on top of Kimchi also seems like least overhead -- would be more overhead to do it on top of e.g. zkVM. Implementing the circuit (or parts of it) in o1js would be a big and unnecessary overhead too.
 - Implementing the project in `proof-systems` as opposed to `mina` can speed up the development quite a lot since one does not have to be backward-compatible or deal with rust/ocaml bindings.
 
 
@@ -185,7 +187,3 @@ Why is this design the best in the space of possible designs? What other designs
 It does not seem that any further research is necessary in this direction that would not apply equally to Pickles.
 
 Vinegar is just another recursion layer technique, so any other recursive protocol similar to Pickles is a similar solution conceptually. Vinegar is not aiming to be theoretically groundbreaking, but rather to work as an "adapter" variant of Pickles, relying on the similar techniques, with pros and cons of the latter.
-
-## Unresolved questions
-
-1. In Pickles, the wrap proof expands the previous step for the next step. This includes computing step's deferred values (xi, combined inner product, b, r). In Vinegar, it seems that co-step needs to work directrly with the target proof. Is this a problem? Will we require foreign field proof expansion? Or will this still be handled by the next Wrap retroactively?
