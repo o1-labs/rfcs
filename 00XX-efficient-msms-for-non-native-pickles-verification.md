@@ -90,7 +90,7 @@ Verifying the 'opening proof':
 * resume using the 'pre-evaluation sponge', which operates over the base field of `C`;
 * absorb the combined inner product into the sponge;
 * for each of the `log2(domain_size)` rounds, absorb the 'left' and 'right' commitments, and squeeze a challenge for 'folding' the split commitments together;
-* compute the evaluation of $h(X)$ (formed from the folding challenges) at each evaluation point, combined by powers of the evaluation combiner;
+* compute the evaluation of $h(X)$ (formed from the folding challenges; sometimes called $b(X)$) at each evaluation point, combined by powers of the evaluation combiner;
 * **compute the commitment to $h(X)$ (formed from the folding challenges) using a large MSM**;
   - this is the 'recursion polynomial commitment' that we use in the first stage of the protocol when we're using recursion
 * scale and add a small number of other commitments (details elided; [see here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L767));
@@ -167,7 +167,7 @@ A lookup table will be used to fetch the corresponding $G_i \cdot 2^{j \cdot k}$
 Assuming the additive notation for the group, the formal code description of the algorithm is as follows:
 
 ```rust
-fn fill_buckets(coeffs: Vec<Field>, bases: Vec<Field>, k: uint, H: Group) {
+fn fill_buckets(buckets: [C; 2^k], coeffs: Vec<Field>, bases: Vec<Field>) {
     for (coefficient, commitment) in coeffs.iter().zip(bases.iter()) {
         buckets[coefficient] += commitment;
     }
@@ -175,14 +175,15 @@ fn fill_buckets(coeffs: Vec<Field>, bases: Vec<Field>, k: uint, H: Group) {
 
 /// Computes the total MSM: \sum_{i=1}^N coeffs_i \cdot bases_i
 fn compute_msm(coeffs: Vec<Field>, bases: Vec<Group>, k: uint, H: Group) {
-    // Initialize the buckets with the blinding factor H
+    // Initialize the buckets with the blinding term H
     let mut buckets: [C; 2^k] = [H; 2^k];
-    for i in 0..l=254/k {
+    let l = ceil(254/k); // number of limbs
+    for i in 0..l {
         // Temporary k-bit coeffs for limb #i
         let coeffs_curlimb = coeffs[i..i+k];
         // Temporary bases for limb #i: can be pre-computed outside of this algorithm
         let bases_curlimb = (0..N).map(|j| 2^{k i} * bases[j]);
-        fill_buckets(coeffs_curlimb, bases_curlimb, k, H);
+        fill_buckets(buckets, coeffs_curlimb, bases_curlimb);
     }
     let mut total = -H.scale(2^k * (2^k - 1) / 2);
     let mut right_sum = 0;
@@ -193,7 +194,7 @@ fn compute_msm(coeffs: Vec<Field>, bases: Vec<Group>, k: uint, H: Group) {
 }
 ```
 
-Let us explain the correctness of the protocol. The loop in the end does a double partial-sum accumulation, which computes the value $`\sum\limits_{c \in [0,2^k-1]} c \cdot (\sum\limits_{j=1}^{l} \hat G_{c,j})`$. The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the `H` factors introduced in the beginning of the MSM algorithm. Let `total_0 = - H.scale(2^k * (2^k - 1) / 2)`, then:
+Let us explain the correctness of the protocol. The loop in the end does a double partial-sum accumulation, which computes the value $`\sum\limits_{c \in [0,2^k-1]} c \cdot (\sum\limits_{j=1}^{l} \hat G_{c,j})`$. The $H$ generator is a standard technique used to avoid dealing with elliptic curve infinity point. The initial value of `total` is there to exactly cancel the factors of the blinding element `H` that are introduced in the beginning of the MSM algorithm. Let `total_0 = - H.scale(2^k * (2^k - 1) / 2)`, then:
 
 ```
 // First iteration
@@ -294,24 +295,25 @@ for i in bucket.length/2..buckets.length() {
 ```
 
 Finally, to assert that the final computed `buckets[0]` value is what we expect, we need to slightly adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration.
-- Our additive lookup constraint has a form of like $\frac{1}{r + v}$, and we can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
-\frac{1}{r + 0} - \frac{1}{r + v_{0}}`$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
+- Our additive lookup constraint has a form $`\phi(X) = \phi(X\cdot \omega) + \mathsf{write}(X) - \mathsf{read(X)}`$ where $`\mathsf{read}(\omega^i) = \frac{1}{\alpha + v}`$, and this constraint is run every circuit.
+- While building $`\mathsf{read}`$ and $`\mathsf{write}`$ e can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
+\frac{1}{\alpha + 0} - \frac{1}{\alpha + v_{0}}`$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
 
 
 
 ### Additive Lookups
 
-In the zkVM project there is already an implementation of an additive lookup algorithm.
-- We must make sure, when moving it into our project, that it does not rely heavily on pairings -- even though BN254 supports a pairing, it is better (for future compatibility with IPA Kimchi) to ignore this.
+In the zkVM project there is already an implementation of an additive lookup algorithm. We will need to have RAM variant of it implemented for operations on buckets.
+- Even though BN254 supports a pairing and pairing-based additive lookups exist, we need the pairing-free version of the additive lookups, since for RAM lookups it's cheaper and more straightforward.
 - We must make sure that the lookup argument supports lookups of the $k$ bit size, so the parameter must align well with the lookup protocol.
 
 ### Folding's IVC
 
 For folding to work correctly "in its full recursive power", additionally to merely instance folding itself, we will need an IVC (interactive verifiable computation) part that will verify the previous folding iteration within the circuit.
-- We consider two approaches regarding folding IVC: either supporting a cycle of curves (BN254 / Grumpkin cycle) or non-native emulation.
-    - The cycle of curves approach relies on switching between two curves on every folding iteration. Verification of KZG can be encoded with Grumpkin curve (see [this aztec blog post](https://hackmd.io/@aztec-network/ByzgNxBfd#2-Grumpkin---A-curve-on-top-of-BN-254-for-SNARK-efficient-group-operations)).
-    - The non-native emulation uses foreign field arithmetics to proceed. (Note that this is /not/ the Goblin Plonk approach)
-    - We expect to start the project by implementing the FFA/FFEC circuit first. When it is time to start implementing folding with IVC, if only the curves approach is available, it will be our first choice. However the second approach is strongly preferred in the long run.
+- To implement the IVC for folding we will need to emulate the operations on Pasta non-natively.
+    - IVC for folding makes sure two Pasta-based instances "combine" into third Pasta instance.
+    - The non-native emulation will use the same foreign field arithmetics we implemented earlier.
+    - (this is /not/ related to the Goblin Plonk approach)
 - It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $N = 2^{15}$ available rows (SRS size limit) without worrying about size of the IVC.
 
 
@@ -370,21 +372,6 @@ For SnarkyJS and other zkApps-related projects:
     * Identify the resources required for testing, such as testing environments, test data, or any additional tools or infrastructure needed for effective testing.-->
 
 Phase 1:
-1. Investigate existing approaches to FFA (foreign field arithmetics) and FFEC (foreign field elliptic curves), including ones implemented for the standard Kimchi. Get basic insight.
-    - Have a high level look at foreign field addition and multiplication gate in Kimchi
-        - Reading doc in the book + the code. Maybe starting without details (half a day), after that jump on the code to implement, and come back after that for a deeper understanding.
-    - Examine the avaliable FFEC implementations / algorithms.
-      - This includes the existing implementation of ECDSA / FFEC in o1js. See if it can be used as a comparison for our implementation -- e.g. as a baseline, if it's performant enough.
-      - But also other implementations (not part of Kimchi/o1js).
-    - Implement the addition of points of (non-native) Vesta with (native) BN254(Fp) using the existing FFA library within Kimchi.
-      - The ECC addition operation must be implemented from scratch, but it relies on the foreign field additions/multiplications support which already exists in Kimchi.
-      - Start with the affine coordinates. If time allows, see if projective or Jacobian can be more performant.
-      - Important: we need to verify that the conditions are respected for the scalar field of BN254. Initially, it has been written for the scalar field of Vesta/Pallas.
-    - Evaluate the complexity of the implementation
-       - Check the number of constraints, proof size, verifier time, etc. Write benchmarks.
-1. Decide on the optimal algorithm for (primarily) FFA, and FFEC.
-    - Probably just go with the most intuitive and simple bignum implementation using $16$ bits per limb.
-    - In terms of FFEC we can probably just go forward with affine coordinates.
 1. Assemble the /core/ target proving system (parallel with everything before), without folding.
     - Build a variant (clone) of Kimchi with a higher number of columns, and additive lookups (but no folding).
       - These components are now implemented in optimism project to different degrees --- they have to be all brought (ideally reused, practicall probably copied) to a project folder.
@@ -392,6 +379,7 @@ Phase 1:
     - Make sure the proving system works on some simple examples (at least).
 1. Implement POC FFA sub-circuit for the modified target proof system. Test and benchmark.
    - A single wide row implementation according to the (hopefully optimal) algorithm chosen in the previous step.
+   - Follow the intuitive approach with simple bignum implementation using $16$ bits per limb.
 1. Implement POC FFEC sub-circuit for the modified target proof system. Test and benchmark.
    - This will probably be just standard affine addition. Should be less problematic than the previous FFA step.
 1. Implement the MSM algorithm in the circuit suggested above. Test and benchmark.
@@ -403,10 +391,11 @@ Phase 1:
 
 Phase 2:
 1. Bring folding with IVC into our variant of Kimchi.
-   - If available, use FF IVC (preferred), otherwise the BN254/Grumpkin cycle (temporary fallback).
    - Analyze folding and try to use it in a simple circuit with one of the Pasta curve. Must be able to prove and verify a circuit. It is independent of this work.
 1. Implement the MSM algorithm with folding and IVC.
    - The MSM circuit from the previous step should be now properly split into sections and folded.
+
+Phase 3:
 1. Evaluate the system and potentially optimise the algorithms.
    - It is perhaps more wise to not spend too much time at the earlier stages choosing the most optimal approach. This task is for revisit their performance now when the whole proving system is in place. Swapping an FFA or FFEC algorithm for another (if more optimal one is found) should be much easier at this step.
 
@@ -473,9 +462,7 @@ Think about the lessons from other blockchain projects or similar updates and pr
 
 ## Unresolved questions
 
-1. Engineering problem: how exactly does the accumulation trick with the additive lookup tables work?
-   - If we go with the circuit layout that fits $2^{15}$ additions into $2^{15}$ rows having exactly one addition per row, we need to make sure the total joint accumulator (between folding iterations) is being updated properly. This requires altering the folding protocol checks.
-2. When splitting MSM into chunks --- is it not problematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
+1. When splitting MSM into chunks --- is it not problematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
 
 
 <!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
