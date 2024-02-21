@@ -108,19 +108,21 @@ The Pallas proof requires all steps of verification to be run as part of the non
 
 The values shared between the stages are exposed from the public inputs of the pickles Pallas proof, as well as a hash of the 'pickles public input' to be used by the user circuits embedded in the pickles instance. The details of this are elided for brevity.
 
-### High-level description of the algorithm
+### Protocol summary
 
-As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i} \}`$, which will have length $`n = \mathtt{domain_size}`$ for each of the 2 groups, and the set of (SRS) bases $`\{G_i\}`$. The goal is to compute $`\sum\limits_{i=1}^n c_i G_i`$ within a kimchi circuit.
+Our protocol will primarily consist of two parts: computing MSM coefficients from IPA challenges, and the actual MSM algorithm. The latter is much more complex.
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $N = 2^{15}$, which is so far the largest existing SRS that is available in this context.
+
+For each curve we will need to verify two MSMs, since every step consumes two wraps, and thus each proof is carrying a pair of IPA commitments to check.
 
 To reiterate on the curve choices: assuming we verify an MSM for a Step proof:
 - $\mathbb{F}_{scalar}(\mathrm{BN254})$ is the field the circuit has to be expressed in
 - $\mathbb{F}_{scalar}(\mathrm{Vesta})$ is the field for the scalar used in the MSM
 - $\mathbb{F}_{base}(\mathrm{Vesta})$ is the field for the coordinates of the curve
 
-Recall that the coefficients $`\{c_i\}`$ we perform MSM on are coming from the IPA polynomial commitment. Assuming $`\{\mathsf{chal}\}_{i=1}^{\mathsf{domain_size}}`$ is a (logarithmic) set of IPA challenges, we then to compute the polynomial $h(x)$, which is defined by
-
+Let $`n = \mathtt{domain_size}`$ (either 15 or 16).
+As inputs to the whole procedure we have $`\{\mathsf{chal}\}_{i=1}^{\log(n)}`$ which are a (logarithmic) set of IPA challenges. Our task is to perform MSM using coefficients $`\{c_i\}`$ that are coefficients of $h(X)$, computed in the IPA procedure as recombinations of the IPA challenges as follows. The polynomial $h(x)$ is defined as:
 
 ```math
 h(X) = (1 + \mathsf{chal}_{-1} X) \cdot (1 + \mathsf{chal}_{-2} X^2) \cdot (1 + \mathsf{chal}_{-3} X^3) \ldots
@@ -128,7 +130,26 @@ h(X) = (1 + \mathsf{chal}_{-1} X) \cdot (1 + \mathsf{chal}_{-2} X^2) \cdot (1 + 
 
 and can be easily computed using a standard circuit of size `domain_size` using the algorithm [here](https://github.com/o1-labs/proof-systems/blob/cfc829220b44c1122863eca0db411560b99d6c8e/poly-commitment/src/commitment.rs#L294).
 
+
+As inputs for the MSM algorithm, we take a list of coefficients $`\{c_{i}\}_{i=1}^n`$ for each of the 2 groups, and the set of (SRS) bases $`\{G_i\}`$. The goal is to compute $`\sum\limits_{i=1}^n c_i G_i`$ within a kimchi circuit.
+
+
 Once the coefficients $c_i$ of $h(X)$ have been determined, we want to provably construct its polynomial commitment by computing the MSM formed by each coefficient and the commitment from the URS that reprepresents the corresponding `x^i`.
+
+### Unwrapping IPA challenges
+
+As input to this part of the protocol we take $`\{\mathsf{chal}\}_{i=1}^{\log(n)}`$  in the 88-bit limb size representation. Assuming $n = 15$ each row of the circuit will do the following:
+1. Expect all $`\{\mathsf{chal}\}_{i=1}^{\log(n)}`$ as separate rows. We need them all in one row since we don't have permutation constraints.
+1. Convert all of them to $16$-bit representation that will be used for our FFA circuit.
+1. In row number $i$, compute $`c_i = \prod\limits_{j=0}^{n-1} \mathsf{chal}_j^{j_i}`$ where $`j_i`$ denotes the $i$th bit of $j$.
+   - In other words, we compute all possible products between challenges, one product per row.
+1. Convert `c_i` to the $k$-bit limb representation if $k \neq 16$ (likely $k = 15$). Then commitments to limbs of $c_i$ can be used as inputs to the following circuits.
+   - Alternatively, if previous steps can do 15-limb FFmul arithmetics, we don't need this step.
+
+
+For the $n = 16$ case we need two circuits to do this.
+
+### Description of the MSM algorithm
 
 Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our 254-bit scalars into sums of smaller, $k$-bit scalars, in the following way $`c_i = \sum c_{i,j} 2^{j \cdot k}`$. Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size $k$.
 
@@ -307,7 +328,9 @@ In the zkVM project there is already an implementation of an additive lookup alg
 - Even though BN254 supports a pairing and pairing-based additive lookups exist, we need the pairing-free version of the additive lookups, since for RAM lookups it's cheaper and more straightforward.
 - We must make sure that the lookup argument supports lookups of the $k$ bit size, so the parameter must align well with the lookup protocol.
 
-### Folding's IVC
+Our lookups will be RAM lookups shared across all the circuits.
+
+### Folding and IVC
 
 For folding to work correctly "in its full recursive power", additionally to merely instance folding itself, we will need an IVC (interactive verifiable computation) part that will verify the previous folding iteration within the circuit.
 - To implement the IVC for folding we will need to emulate the operations on Pasta non-natively.
@@ -315,6 +338,8 @@ For folding to work correctly "in its full recursive power", additionally to mer
     - The non-native emulation will use the same foreign field arithmetics we implemented earlier.
     - (this is /not/ related to the Goblin Plonk approach)
 - It also needs to be noted that IVC circuit is running "in parallel" --- it is not part of our target circuit, so we can use all the $N = 2^{15}$ available rows (SRS size limit) without worrying about size of the IVC.
+
+### Circuit for converting inputs
 
 
 <!-- This foreign field emulation is (probably) what Aztec call "goblin plonk" technique. Link: https://hackmd.io/@aztec-network/B19AA8812 (see CF Istanbul talks from Zac). -->
