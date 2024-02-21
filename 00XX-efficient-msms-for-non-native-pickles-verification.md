@@ -114,7 +114,7 @@ Our protocol will primarily consist of two parts: computing MSM coefficients fro
 
 For the Vesta proof, [`log2(domain_size) = 16`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L17), and for the Pallas proof, [`log2(domain_size) = 15`](https://github.com/MinaProtocol/mina/blob/8814cea6f2dfbef6fb8b65cbe9ff3694ee81151e/src/lib/crypto/kimchi_backend/pasta/basic/kimchi_pasta_basic.ml#L16). The size of the SRS over BN254 is $N = 2^{15}$, which is so far the largest existing SRS that is available in this context.
 
-For each curve we will need to verify two MSMs, since every step consumes two wraps, and thus each proof is carrying a pair of IPA commitments to check.
+Note: for each curve we will need to verify *two MSMs*, since every step consumes two wraps, and thus each proof is carrying a pair of IPA commitments to check.
 
 To reiterate on the curve choices: assuming we verify an MSM for a Step proof:
 - $\mathbb{F}_{scalar}(\mathrm{BN254})$ is the field the circuit has to be expressed in
@@ -140,18 +140,15 @@ Once the coefficients $c_i$ of $h(X)$ have been determined, we want to provably 
 
 As input to this part of the protocol we take $`\{\mathsf{chal}\}_{i=1}^{\log(n)}`$  in the 88-bit limb size representation. Assuming $n = 15$ each row of the circuit will do the following:
 1. Expect all $`\{\mathsf{chal}\}_{i=1}^{\log(n)}`$ as separate rows. We need them all in one row since we don't have permutation constraints.
-1. Convert all of them to $16$-bit representation that will be used for our FFA circuit.
+1. Convert all of them to $15$-bit representation that will be used for our FFA circuit.
 1. In row number $i$, compute $`c_i = \prod\limits_{j=0}^{n-1} \mathsf{chal}_j^{j_i}`$ where $`j_i`$ denotes the $i$th bit of $j$.
    - In other words, we compute all possible products between challenges, one product per row.
-1. Convert `c_i` to the $k$-bit limb representation if $k \neq 16$ (likely $k = 15$). Then commitments to limbs of $c_i$ can be used as inputs to the following circuits.
-   - Alternatively, if previous steps can do 15-limb FFmul arithmetics, we don't need this step.
-
 
 For the $n = 16$ case we need two circuits to do this.
 
 ### Description of the MSM algorithm
 
-Let $k$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our 254-bit scalars into sums of smaller, $k$-bit scalars, in the following way $`c_i = \sum c_{i,j} 2^{j \cdot k}`$. Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size $k$.
+Let $k = 15$ be a fixed integer parameter defining a bucket size. Observe that we can decompose our 254-bit scalars into sums of smaller, $k$-bit scalars, in the following way $`c_i = \sum c_{i,j} 2^{j \cdot k}`$. Define $l = 255/k$ as a number of buckets computed as bitlength of Pallas/Vesta field (both are 255 bits) divided by the bucket size $k$.
 
 Then our target computation can be expressed as follows:
 
@@ -168,7 +165,7 @@ Then our target computation can be expressed as follows:
 
 <!-- Note that we have now N * l base elements, not only N -->
 
-The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (around 15). The scaled base elements $2^{j \cdot k} \cdot G_{i}$ can be pre-computed outside of the circuit.
+The coefficients $c_{i, j}$ will be encoded on $2^k$ bits, with $k$ small compared to the field size (15 bit). The scaled base elements $2^{j \cdot k} \cdot G_{i}$ can be pre-computed outside of the circuit.
 
 In the rest of the section we describe the MSM algorithm that efficiently computes the inner sum. The main strength of the MSM algorithm is that due to coefficients being small we can use RAM lookups on `buckets` which speeds up things quite a bit. The MSM algorithm is implementing a standard 'bucketing' trick with $2^k$ buckets to avoid doing any doublings or scalings at all, requiring only $l \cdot n + 2^{k+1}$ curve point additions.
 
@@ -249,7 +246,7 @@ Regarding the foreign field additions and multiplications, native Kimchi already
 
 However, these were designed with very different constraints in mind, and their performance is wholly unsuitable for our needs.
 
-Instead, we start right away with a naive solution --- by using big integers arithmetic, taking limb size to be 16 bits and range checking these. We can revisit the technique and optimise the circuit if required later.
+Instead, we start right away with a naive solution --- by using big integers arithmetic, taking limb size to be 15 bits and range checking these. We can revisit the technique and optimise the circuit if required later.
 
 
 o1js also contains an implementation of ECDSA some relevant ECDSA gadgets. These are based on the existing, unsuitable gates, but still serve as useful reference:
@@ -404,7 +401,7 @@ Phase 1:
     - Make sure the proving system works on some simple examples (at least).
 1. Implement POC FFA sub-circuit for the modified target proof system. Test and benchmark.
    - A single wide row implementation according to the (hopefully optimal) algorithm chosen in the previous step.
-   - Follow the intuitive approach with simple bignum implementation using $16$ bits per limb.
+   - Follow the intuitive approach with simple bignum implementation using $15$ bits per limb.
 1. Implement POC FFEC sub-circuit for the modified target proof system. Test and benchmark.
    - This will probably be just standard affine addition. Should be less problematic than the previous FFA step.
 1. Implement the MSM algorithm in the circuit suggested above. Test and benchmark.
