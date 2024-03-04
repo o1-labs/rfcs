@@ -314,7 +314,7 @@ for i in bucket.length/2..buckets.length() {
 
 Finally, to assert that the final computed `buckets[0]` value is what we expect, we need to slightly adjust the additive lookup argument to externally (by modifying lookup boundary conditions) assert that the accumulated computation result (the discrepancy) is contained in the last constraint of the last folding iteration.
 - Our additive lookup constraint has a form $`\phi(X) = \phi(X\cdot \omega) + \mathsf{write}(X) - \mathsf{read(X)}`$ where $`\mathsf{read}(\omega^i) = \frac{1}{\alpha + v}`$, and this constraint is run every circuit.
-- While building $`\mathsf{read}`$ and $`\mathsf{write}`$ e can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
+- While building $`\mathsf{read}`$ and $`\mathsf{write}`$ we can use an alternative accumulator boundary condition $`\mathsf{acc}' = \mathsf{acc} +
 \frac{1}{\alpha + 0} - \frac{1}{\alpha + v_{0}}`$ embedded into the constraint, where $v_0$ is the value contained in the zero slot. In such a way enforce $v_0$ to be present at the zero address. This approach is already taken in the zkVM implementation.
 
 
@@ -484,7 +484,9 @@ Think about the lessons from other blockchain projects or similar updates and pr
 
 ## Unresolved questions
 
-1. When splitting MSM into chunks --- is it not problematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
+<!-- 1. When splitting MSM into chunks --- is it not problematic that we have to enforce the right order of the chunks? The soundness of the approach relies heavily on the impossibility to swap these chunks around.
+Not relevant at the moment
+-->
 
 
 <!--* What parts of the design do you expect to resolve through the RFC process before this RFC gets merged?
