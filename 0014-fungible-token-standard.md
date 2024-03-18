@@ -18,7 +18,7 @@ Fungible tokens on Mina will use the custom token feature of Mina defined in [MI
 
 The token owner contract can change balances of accounts with the custom token, so it can mint, burn, and move tokens. When an `AccountUpdate` that has not been created in a method of the owner contract tries to modify the balance of an account with the custom token, it needs to be approved by the owner contract. That way, the owner contract can enforce rules that all transactions with the token must satisfy (conservation of tokens being a very common example). The [`TokenContract` class](https://github.com/o1-labs/o1js/pull/1384) defines methods for token transfer, as well as for approving a whole forest of account updates. The API that we define mirrors those methods, and the reference implementation is built using the `TokenContract`.
 
-The API consists of the following `TypeScript` `interface`s:
+The API consists of the following TypeScript interfaces:
 
 ### Transferable
 This interface consists of a single function, `transfer`, which sends a specified amount of tokens from one account to another.
@@ -37,7 +37,6 @@ Transactions that are either more complicated than a transfer from one account t
 
 ```TypeScript
 interface Approvable {
-
   approveAccountUpdate(accountUpdate: AccountUpdate | AccountUpdateTree): void;
   approveAccountUpdates(accountUpdates: (AccountUpdate | AccountUpdateTree)[]): void;
   approveBase(forest: AccountUpdateForest): void;
