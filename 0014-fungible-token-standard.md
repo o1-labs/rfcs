@@ -28,7 +28,7 @@ This interface consists of a single function, `transfer`, which sends a specifie
 interface Transferable {
   transfer(from: PublicKey | AccountUpdate,
            to: PublicKey | AccountUpdate,
-           amount: UInt64 | number | bigint): void;
+           amount: UInt64): void;
 }
 ```
 
