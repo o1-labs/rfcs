@@ -44,7 +44,7 @@ interface Approvable {
 ```
 
 ### Administrative Interfaces
-For administrative actions, such as changing the supply or updating the `VerificationKey`, we define the `Mintable`, `Burnable`, and `Upgradeable` interfaces:
+For administrative actions, such as changing the total supply or minting and burning tokens, we define the `Mintable` and `Burnable` interfaces:
 
 ```TypeScript
 interface Mintable {
@@ -56,10 +56,6 @@ interface Mintable {
 
 interface Burnable {
   burn: (from: PublicKey, amount: UInt64) => AccountUpdate;
-}
-
-interface Upgradable {
-  setVerificationKey: (verificationKey: VerificationKey) => void;
 }
 ```
 
