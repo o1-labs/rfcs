@@ -84,6 +84,8 @@ We shall extend the test suite to also cover cases that must fail (transactions 
 
 ## Drawbacks
 
+Currently, it is only possible to pass token permissions for one kind of token down an `AccountUpdate` tree. That limitation makes it somewhat cumbersome to implement solutions involving multiple custom tokens (such as a decentralized exchange). Removing that limitation in a future upgrade to `o1js` and Mina would make development around custom tokens easier.
+
 ## Prior art
 
 This standard has evolved from a discussion and proposal on MinaResearch, see https://forums.minaprotocol.com/t/draft-fungible-token-standard-zkapps/6142
