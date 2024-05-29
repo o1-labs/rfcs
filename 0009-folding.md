@@ -138,7 +138,7 @@ To support the general case, let's use a small example.
 Let's suppose the constraint system is described by the multi-variate polynomial
 $P(X_{1}, X_{2}, X_{3}) = X_{1} X_{2} + (1 - X_{3})$.
 
-As described below, and as described in more details in the Nova paper, a
+As described below, and as described in more detail in the Nova paper, a
 folding scheme will consist as a first step in "relaxing" the polynomial $P$ in
 a polynomial that can handle "random linear combinations" of instances. In other
 terms, the polynomial $P(X_{1}, X_{2}, X_{3})$ will be transformed into a
