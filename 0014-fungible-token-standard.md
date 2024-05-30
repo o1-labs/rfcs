@@ -2,15 +2,19 @@
 
 ## Summary
 
-Fungible tokens are a pervasive feature that are used for many applications, such as bridges, decentralised exchanges, layer 2 solutions, and others. Establishing a standard for creating fungible tokens on Mina will reduce the efforts for builders to create their own tokens, and allow exchanges, explorers, and other third party applications to integrate fungible tokens in a uniform way.
+Fungible tokens are a pervasive feature that is used for many applications, such as bridges, decentralised exchanges, layer 2 solutions, and others. Establishing a standard for creating fungible tokens on Mina will reduce the efforts for builders to create their own tokens, and allow exchanges, explorers, and other third party applications to integrate fungible tokens in a uniform way.
 
 ## Motivation
 
 Fungible tokens are a common feature on programmable blockchain systems. Establishing a standard will help developers to create their own fungible tokens and to interface their application with tokens that others have created.
 
-We propose a modular standard, consisting of a number of TypeScript interfaces. These define an API that third parties can target for integration.  We also provide a reference implementation, based on the [custom token feature](https://github.com/MinaProtocol/MIPs/blob/main/MIPS/mip-zkapps.md#custom-tokens) of Mina and the [`TokenContract` class](https://github.com/o1-labs/o1js/pull/1384) of `o1js.`
+Beyond standardising an API, we want to have a standard _implementation_ of fungible tokens that people should use when deploying a token. The reason for that is that in the off-chain execution model of Mina, integrating with a `SmartContract` does require having access to the code of that contract, and running it in your own environment. If each token were to use a different contract, that would put a significant burden on wallets or other applications that want to interface with arbitrary tokens.
 
-The standard supports the common features associated with fungible tokens: minting and burning, transferring, and viewing account balances. Transfers can be initiated by either calling a `@method` of the contract defining the token (the _token owner contract_), or by having `AccountUpdate`s that contain balance changes _approved_ by the token owner contract. In particular, this design allows interoperability in the sense that arbitrary third party `SmartContract`s can use fungible tokens.
+In order to allow for some flexibility without changing the token contract itself, we separate out administrative actions like minting new tokens to a special admin contract. The token contract will call methods from the admin contract when trying to mint new tokens, and the admin contract can implement arbitrary logic to determine whether the minting should be permitted. That way, we can move all the custom code to the admin contract, which applications that only deal with token transfers will not need to call. Thus, a wallet, for instance, will be able to integrate against the standard token contract, and be compatible with any token that does not change that token contract.
+
+We use Mina's [custom token feature](https://github.com/MinaProtocol/MIPs/blob/main/MIPS/mip-zkapps.md#custom-tokens) to store account balances directly in the Mina ledger, as opposed to storing balances in the state of the token contract itself. That way, we do not rely on any particular off-chain storage solution. Furthermore, this helps us to allow for multiple transactions involving a particular token within the same block, which would be more difficult to achieve if balances were part of the contract state.
+
+The standard implementation supports the common features associated with fungible tokens: minting and burning, transferring, and viewing account balances. One-to-one transfers can be initiated by calling a `@method` of the contract defining the token (the _token owner contract_). More complicated transactions can be formed by constructing multiple `AccountUpdate`s and have those be _approved_ by the token owner contract. In particular, this design allows interoperability in the sense that arbitrary third party `SmartContract`s can use fungible tokens.
 
 ## Detailed design
 
