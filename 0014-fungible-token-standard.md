@@ -132,7 +132,38 @@ After `pause()` has been successfully called, users will not be able to move or 
 Those methods call `canPause()` and `canResume()` of the admin contract, respectively, and only succeed on `Bool(true)`.
 
 ### Events
+
+Minting, burning, or transferring tokens (via the `transfer()` method, not via approving account updates) will emit the following events:
+
+```TypeScript
+export class MintEvent extends Struct({
+  recipient: PublicKey,
+  amount: UInt64,
+}) {}
+
+export class BurnEvent extends Struct({
+  from: PublicKey,
+  amount: UInt64,
+}) {}
+
+export class TransferEvent extends Struct({
+  from: PublicKey,
+  to: PublicKey,
+  amount: UInt64,
+}) {}
+```
+
 ### Actions and Reducers
+
+The token contract keeps track of the current circulation of tokens. As it is not currently possible to have multiple transactions in one block that modify the same part of the contract state, we use actions and reducers instead.
+
+Minting and burning tokens will dispatch an action to modify the circulating supply. These actions can be reduced by calling
+
+```TypeScript
+@method.returns(UInt64) async getCirculating()
+```
+
+This method will collect the actions that were dispatched by `mint()` and `burn()`, and update the circulating supply in the contract state. It will also return the current circulating supply.
 
 ### Standard Implementation
 
