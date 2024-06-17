@@ -51,7 +51,7 @@ Note that this method does _not_ emit an event. Creating an appropriate and mean
 
 #### Burning Tokens
 ```TypeScript
- @method.returns(AccountUpdate) async burn(from: PublicKey, amount: UInt64)
+ @method.returns(AccountUpdate) async burn(from: PublicKey, amount: UInt64): Promise<AccountUpdate>
 ```
 
 Destroys a number of tokens specified by `amount` from the token account for the public key `from`.
@@ -64,7 +64,7 @@ Emits a `BurnEvent` (see [Events](#events)).
 
 #### Query Balances
 ```TypeScript
-@method.returns(UInt64) async getBalanceOf(address: PublicKey)
+@method.returns(UInt64) async getBalanceOf(address: PublicKey): Promise<UInt64>
 ```
 
 Returns the balance of the token account for the public key `address`.
@@ -91,18 +91,17 @@ An example implementation that allows a priviledged key to perform any kind of a
 
 #### Deploying the Contract
 ```TypeScript
-export interface FungibleTokenDeployProps extends Exclude<DeployArgs, undefined> {
+interface FungibleTokenDeployProps extends Exclude<DeployArgs, undefined> {
   /** Address of the contract controlling permissions for administrative actions */
   admin: PublicKey
   /** The token symbol. */
   symbol: string
-  /** A source code reference, which is placed within the `zkappUri` of the contract account. */
+  /** A source code reference, which is placed within the `zkappUri` of the contract account.
+   * Typically a link to a file on github. */
   src: string
   /** Number of decimals in a unit */
   decimals: UInt8
 }
-
-async deploy(props: FungibleTokenDeployProps)
 ```
 
 Deploys the token contract. The token admin contract is assumed to be already deployed, at the address given by `admin`. The token symbol, number of digits, and reference to the source code are to be provided.
@@ -114,7 +113,7 @@ Deploys the token contract. The token admin contract is assumed to be already de
 
 #### Minting Tokens
 ```TypeScript
-@method.returns(AccountUpdate) async mint(recipient: PublicKey, amount: UInt64)
+@method.returns(AccountUpdate) async mint(recipient: PublicKey, amount: UInt64): Promise<AccountUpdate>
 ```
 
 Creates `amount` new tokens in the token account of `recipient`.
@@ -160,7 +159,7 @@ The token contract keeps track of the current circulation of tokens. As it is no
 Minting and burning tokens will dispatch an action to modify the circulating supply. These actions can be reduced by calling
 
 ```TypeScript
-@method.returns(UInt64) async getCirculating()
+@method.returns(UInt64) async getCirculating(): Promise<UInt64>
 ```
 
 This method will collect the actions that were dispatched by `mint()` and `burn()`, and update the circulating supply in the contract state. It will also return the current circulating supply.
