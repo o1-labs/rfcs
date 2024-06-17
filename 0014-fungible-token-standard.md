@@ -77,7 +77,7 @@ In order to allow flexibility in granting permisssions, the methods in this sect
 
 #### The Admin Contract
 ```TypeScript
-export type FungibleTokenAdminBase = SmartContract & {
+type FungibleTokenAdminBase = SmartContract & {
   canMint(accountUpdate: AccountUpdate): Promise<Bool>
   canChangeAdmin(admin: PublicKey): Promise<Bool>
   canPause(): Promise<Bool>
@@ -135,17 +135,17 @@ Those methods call `canPause()` and `canResume()` of the admin contract, respect
 Minting, burning, or transferring tokens (via the `transfer()` method, not via approving account updates) will emit the following events:
 
 ```TypeScript
-export class MintEvent extends Struct({
+class MintEvent extends Struct({
   recipient: PublicKey,
   amount: UInt64,
 }) {}
 
-export class BurnEvent extends Struct({
+class BurnEvent extends Struct({
   from: PublicKey,
   amount: UInt64,
 }) {}
 
-export class TransferEvent extends Struct({
+class TransferEvent extends Struct({
   from: PublicKey,
   to: PublicKey,
   amount: UInt64,
