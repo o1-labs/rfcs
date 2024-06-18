@@ -21,7 +21,6 @@ The support for account deletion relies on adding features at the levels of
 transaction logic(s) and storage (ledgers). The latter is a prerequisite of the
 former.
 
-
 ### Storage
 
 Within the protocol-related codebase, the lowest-level support lies in having a
@@ -151,8 +150,7 @@ Deletion support relies on the same techniques as in-memory ledgers, tailored to
 Removing elements in ledgers is supported by 2 functions :
 
 - `val remove_location: t -> location -> unit`
-- `val remove_account: t -> account -> unit
-`
+- `val remove_account: t -> account -> unit`
 
 ### o1js
 The API used by `o1js` is not expected to change much but for some details.
@@ -170,6 +168,25 @@ The API used by `o1js` is not expected to change much but for some details.
   ```
 
 - *recipient* :
+
+
+
+## Test plan
+
+- **Testing goals and objectives**:
+  - Check the correctness of the account deletion feature;
+  - Validate the absence of impact of the feature on the existing functionalities.
+- **Testing approach**:
+  - Unit tests for the ledger implementations;
+  - Integration tests for the extension of transaction logics.
+- **Testing scope**:
+  - Testing sequences of intertwined addition/removal commands;
+  - Testing simple high-level account updates;
+  - Testing from `o1js` typical use-cases scenarios.
+- **Testing requirements**:
+  - Test in various local setups to simulate different development environments.
+- **Testing resources**:
+  - Simulated environments resembling typical local development setups.
 
 
 # Resources
