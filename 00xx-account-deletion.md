@@ -31,6 +31,7 @@ merkle trees.
 
 #### Merkle trees
 
+The current implementation of in-memory ledgers use a Merkle tree.
 Current implementation has an index of the next location to fill on insertion,
 that is, the leftmost empty slot of the tree.
 
@@ -44,7 +45,93 @@ Now, on removal, there are (at least) 2 options:
        location that will be removed, a little bit like one does when
        implementing a heap data structure.
 
-Each option would correctly implement the needed support
+Each option would correctly implement the needed support. Let's show how they
+differ.
+
+##### Option 1: Tracking freed locations
+
+To illustrate the two options, let's assume we have the following Merkle tree, with an empty free list.
+```
+       Root               free = []
+      /    \
+  Hash_AB   Hash_C
+   /  \      /
+  A    B    C
+```
+
+
+The addition of data `D` results in the following Merkle tree.
+
+```
+       Root               free = []
+      /    \
+  Hash_AB   Hash_CD
+   /  \      /  \
+  A    B    C    D
+```
+
+Upon removal of `C`, the structure would evolve as follows, with `x` marking the
+freed location, which would actually be bound to the empty account in practice.
+The free list now states that the location determined by sequence of directions
+`[Right; Left]` is available for reuse.
+
+```
+       Root               free = [[Right; Left]]
+      /    \
+  Hash_AB   Hash_xD
+   /  \      /  \
+  A    B    x    D
+```
+
+
+Now adding data `E` would result in
+
+```
+       Root               free = []
+      /    \
+  Hash_AB   Hash_ED
+   /  \      /  \
+  A    B    E    D
+```
+
+##### Option 2: Maintaining invariants
+
+For the sake of completeness, with option 2, removing `C` would not need
+updating the free list -- since it does not need this concept.
+
+```
+       Root
+      /    \
+  Hash_AB   Hash_D
+   /  \      /
+  A    B    D
+```
+
+
+Now adding data `E` would result in
+
+```
+       Root
+      /    \
+  Hash_AB   Hash_DE
+   /  \      /  \
+  A    B    D    E
+```
+
+
+##### Implementation choice
+
+We opt to implement the tracking of freed locations. This support only needs
+adding a record field in the masking ledger implementation.
+
+
+
+
+#### On-disk ledger
+
+The `Database` module implements an on-disk ledger that backs up the in-memory data structure.
+
+Deletion support relies on the same techniques as in-memory ledgers, tailored to the on-disk db.
 
 
 ### Transaction logic
@@ -59,6 +146,15 @@ Each option would correctly implement the needed support
 
 ## API
 
+### Ledgers
+
+Removing elements in ledgers is supported by 2 functions :
+
+- `val remove_location: t -> location -> unit`
+- `val remove_account: t -> account -> unit
+`
+
+### o1js
 The API used by `o1js` is not expected to change much but for some details.
 
 - *accounts update* : we propose to implement account deletion as a specific
@@ -74,3 +170,15 @@ The API used by `o1js` is not expected to change much but for some details.
   ```
 
 - *recipient* :
+
+
+# Resources
+
+> Here are some things I am thinking about, maybe they help you inform the RFC:
+>
+> - easy API - we need to express account deletion via an easy API in the sdk
+> - ideally, this should also be efficient (maybe a single "instruction")? How would this look like as a transaction?
+> - will we be able to assert that an account has been deleted? eg look up existing accounts, or put a precondition on it that says "account must be deleted"?
+> - recover the original account creation fee to a predetermined address or creator
+> - What requirements does an account have to fulfill in order to be deleted?
+> - Regarding consumable accounts as a whole, how will they look like? Will they be their own specific type of account or a full account as we know currently?
