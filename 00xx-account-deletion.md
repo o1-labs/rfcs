@@ -143,14 +143,36 @@ Deletion support relies on the same techniques as in-memory ledgers, tailored to
  !-- mask ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_mask/masking_merkle_tree.ml#L973
  !-- db ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_ledger/database.ml#L559 -->
 
+
 ## API
 
 ### Ledgers
 
-Removing elements in ledgers is supported by 2 functions :
+We propose to support removing elements in ledgers through  2 functions :
 
 - `val remove_location: t -> location -> unit`
 - `val remove_account: t -> account -> unit`
+
+
+The current ledger interface also exposes the following function
+```ocaml
+(** for account locations in the ledger, the last (rightmost) filled
+    location
+*)
+val last_filled : t -> Location.t option
+```
+
+We propose to change the implemented interface with a pair of functions
+- `last_filled` returns the last filled location (which might not be the righmost one anymore)
+- `rightmost_filled`, a new function, would return the rightmost location that is filled
+
+Alternatively, depending on the current usage of `last_filled`, we could
+implement a different function `next_fillable` that would return the next
+fillable location with the same exact signature.
+
+
+
+
 
 ### o1js
 The API used by `o1js` is not expected to change much but for some details.
