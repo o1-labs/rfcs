@@ -30,32 +30,38 @@ merkle trees.
 
 #### Merkle trees
 
-The current implementation of in-memory ledgers use a [Merkle tree](https://en.wikipedia.org/wiki/Merkle_tree).
-Current implementation has an index of the next location to fill on insertion,
+The current implementation of in-memory ledgers use a fixed-depth [Merkle
+tree](https://en.wikipedia.org/wiki/Merkle_tree).
+
+For insertion, the current implementation keeps track of the "fill frontier",
 that is, the leftmost empty slot of the tree.
 
 Now, on removal, there are (at least) 2 options:
-    1. Symbolically mark the location as removed and make this knowledge
-       available at data structure level such that, upon new insertions, these
-       available locations are looked at before inserting on the leftmost
-       available location.
 
-    2. Switch the value currently indexed on the frontier of the tree with the
-       location that will be removed, a little bit like one does when
-       implementing a heap data structure.
+1. Symbolically mark the location as removed and make this knowledge available
+   at data structure level such that, upon new insertions, these available
+   locations are looked at before inserting on the leftmost available
+   location. This solution extends the datatype of current implementation with a
+   structure tracking freed locations.
 
-Each option would correctly implement the needed support. Let's show how they
+2. Switch the value currently indexed on the frontier of the tree with the
+   location that will be removed, a little bit like one does when implementing a
+   heap data structure. This solution keeps the insertion of new data to the
+   leftmost available locations and thus solution wouldn't change the current
+   datatype.
+
+Each option would correctly implement the needed support. Let us show how they
 differ.
 
 ##### Option 1: Tracking freed locations
 
-To illustrate the two options, let's assume we have the following Merkle tree, with an empty free list.
+To illustrate the two options, let's assume we have the following Merkle tree of depth 2, with an empty free list.
 ```
-    H(H(A,B),H(C))
+    H(H(A,B),H(C,x))
       /       \
-   H(A,B)     H(C)
-   /  \       /
-  A    B     C
+   H(A,B)     H(C,x)
+   /  \       /  \
+  A    B     C    x
 ```
 
 
@@ -98,27 +104,31 @@ Now adding data `E` would result in
   A    B     E    D
 ```
 
-##### Option 2: Maintaining invariant
+##### Option 2: Maintain insertion on leftmost location
 
-For the sake of completeness, let's consider option 2, which aims at maintaining
-the fact that any new insertions happens on the leftmost available location.
+For the sake of completeness, let us consider the other option, which aims at
+maintaining the fact that any new insertions happens on the leftmost available
+location.
 
-In this case, removing `C` would not need updating the free list -- since it
-does not need this concept.
+In this case, removing `C` would not update any free list -- since this solution
+does not need this concept. But it would change the location of `D`.
 
 ```
-    H(H(A,B),H(D))
+    H(H(A,B),H(D,x))
       /       \
-   H(A,B)     H(D)
-   /  \       /  
-  A    B     D   
+   H(A,B)     H(D,x)
+   /  \       /   \
+  A    B     D     x
 ```
+
+Since the ledger implementation also tracks mapping from account to location as
+well as location to accounts, both these mappings would need updating.
 
 
 Now adding data `E` would result in
 
 ```
-    H(H(A,B),H(D,E))               
+    H(H(A,B),H(D,E))
       /       \
    H(A,B)     H(D,E)
    /  \       /  \
@@ -128,9 +138,16 @@ Now adding data `E` would result in
 
 ##### Implementation choice
 
-We opt to implement the tracking of freed locations. This support only needs
-adding a record field in the masking ledger implementation.
+We opt to implement the tracking of freed locations. 
 
+While this choice implies adding a structure in the masking ledger
+implementation to track freed locations, it offers 2 advantages
+
+* the cost of removal is slightly better since we do not need to update location
+   <-> account mappings;
+*  account locations in this representation are fixed for the lifetime of the
+  account: proof of inclusion would not change but for the last element of the
+  Merkle path.
 
 
 
