@@ -30,7 +30,7 @@ merkle trees.
 
 #### Merkle trees
 
-The current implementation of in-memory ledgers use a Merkle tree.
+The current implementation of in-memory ledgers use a [Merkle tree](https://en.wikipedia.org/wiki/Merkle_tree).
 Current implementation has an index of the next location to fill on insertion,
 that is, the leftmost empty slot of the tree.
 
@@ -51,70 +51,78 @@ differ.
 
 To illustrate the two options, let's assume we have the following Merkle tree, with an empty free list.
 ```
-       Root               free = []
-      /    \
-  Hash_AB   Hash_C
-   /  \      /
-  A    B    C
+    H(H(A,B),H(C))
+      /       \
+   H(A,B)     H(C)
+   /  \       /
+  A    B     C
 ```
 
 
-The addition of data `D` results in the following Merkle tree.
+The insertion of data `D` results in the following Merkle tree.
 
 ```
-       Root               free = []
-      /    \
-  Hash_AB   Hash_CD
-   /  \      /  \
-  A    B    C    D
+    H(H(A,B),H(C,D))               free = []
+      /       \
+   H(A,B)     H(C,D)
+   /  \       /  \
+  A    B     C    D
 ```
 
-Upon removal of `C`, the structure would evolve as follows, with `x` marking the
-freed location, which would actually be bound to the empty account in practice.
-The free list now states that the location determined by sequence of directions
-`[Right; Left]` is available for reuse.
+Upon removal of `C`, the structure would evolve as follows, with `x` a
+placeholder value marking the freed location, which would actually represent to
+the empty account in practice.  The free list now states that the location
+determined by sequence of directions `[Right; Left]` is available for reuse for
+new insertions
 
 ```
-       Root               free = [[Right; Left]]
-      /    \
-  Hash_AB   Hash_xD
-   /  \      /  \
-  A    B    x    D
+    H(H(A,B),H(C,D))       free = [[Right; Left]]
+      /       \
+   H(A,B)     H(x,D)
+   /  \       /  \
+  A    B     x    D
+
+```
+
+Thus removal incurs a cost proportional to the height of the tree since we have
+to recompute the hashes on the Merkle path from the removed data.
+
+
+Now adding data `E` would result in
+
+```
+    H(H(A,B),H(E,D))               free = []
+      /       \
+   H(A,B)     H(E,D)
+   /  \       /  \
+  A    B     E    D
+```
+
+##### Option 2: Maintaining invariant
+
+For the sake of completeness, let's consider option 2, which aims at maintaining
+the fact that any new insertions happens on the leftmost available location.
+
+In this case, removing `C` would not need updating the free list -- since it
+does not need this concept.
+
+```
+    H(H(A,B),H(D))
+      /       \
+   H(A,B)     H(D)
+   /  \       /  
+  A    B     D   
 ```
 
 
 Now adding data `E` would result in
 
 ```
-       Root               free = []
-      /    \
-  Hash_AB   Hash_ED
-   /  \      /  \
-  A    B    E    D
-```
-
-##### Option 2: Maintaining invariants
-
-For the sake of completeness, with option 2, removing `C` would not need
-updating the free list -- since it does not need this concept.
-
-```
-       Root
-      /    \
-  Hash_AB   Hash_D
-   /  \      /
-  A    B    D
-```
-
-
-Now adding data `E` would result in
-
-```
-       Root
-      /    \
-  Hash_AB   Hash_DE
-   /  \      /  \
-  A    B    D    E
+    H(H(A,B),H(D,E))               
+      /       \
+   H(A,B)     H(D,E)
+   /  \       /  \
+  A    B     D    E
 ```
 
 
@@ -163,7 +171,8 @@ val last_filled : t -> Location.t option
 ```
 
 We propose to change the implemented interface with a pair of functions
-- `last_filled` returns the last filled location (which might not be the righmost one anymore)
+- `last_filled` returns the last filled location, which might not be the
+  rightmost one anymore, since we have a list of free locations.
 - `rightmost_filled`, a new function, would return the rightmost location that is filled
 
 Alternatively, depending on the current usage of `last_filled`, we could
