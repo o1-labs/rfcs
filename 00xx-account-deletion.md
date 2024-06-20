@@ -138,7 +138,7 @@ Now adding data `E` would result in
 
 ##### Implementation choice
 
-We opt to implement the tracking of freed locations. 
+We opt to implement the tracking of freed locations.
 
 While this choice implies adding a structure in the masking ledger
 implementation to track freed locations, it offers 2 advantages
@@ -150,15 +150,33 @@ implementation to track freed locations, it offers 2 advantages
   Merkle path.
 
 
-
 #### On-disk ledger
 
 The `Database` module implements an on-disk ledger that backs up the in-memory data structure.
 
 Deletion support relies on the same techniques as in-memory ledgers, tailored to the on-disk db.
 
+There are some further details to be taken care of, such as:
+
+- updating Merkle paths on removal
+- updating the `all_accounts` function to avoid iterating over addresses that
+  have been removed
+
 
 ### Transaction logic
+
+The support for deletion at the ledger level now needs to be lifted within the
+transaction logic for account updates.
+
+The key idea here is to handle removal as a specific kind of update for a given account.
+
+In effect, an account deletion can be seen as a payment of the intial account
+creation fee back to an address with extended with that triggers account
+deletion.
+
+In zkapps commands, this is an update with deletion flag on.
+Small change to the `Account_update.Stable.t` type with an additional record field.
+
 
 <!-- Locations to track
  !--
@@ -179,7 +197,7 @@ We propose to support removing elements in ledgers through  2 functions :
 - `val remove_account: t -> account -> unit`
 
 
-The current ledger interface also exposes the following function
+The current ledger interface also exposes the following function:
 ```ocaml
 (** for account locations in the ledger, the last (rightmost) filled
     location
@@ -187,15 +205,19 @@ The current ledger interface also exposes the following function
 val last_filled : t -> Location.t option
 ```
 
-We propose to change the implemented interface with a pair of functions
-- `last_filled` returns the last filled location, which might not be the
-  rightmost one anymore, since we have a list of free locations.
-- `rightmost_filled`, a new function, would return the rightmost location that is filled
+The usage of this function relies on the implicit invariant that data are never
+removed, thus the frontier location, as computed by `last_filled` is directly
+related to the next location we can allocate.
 
-Alternatively, depending on the current usage of `last_filled`, we could
-implement a different function `next_fillable` that would return the next
-fillable location with the same exact signature.
+This assumption breaks upon the introduction of the remove function we sketched
+before.
 
+There are two uses of this function
+
+- [sparse_ledger](https://github.com/MinaProtocol/mina/blob/develop/src/lib/mina_base/sparse_ledger_base.ml#L39)
+  Now that we would have two sources of free locations, we propose to integrate the computation done
+  here in the `Ledger` interface.
+- [util](https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_ledger/util.ml#L168)
 
 
 
@@ -208,14 +230,15 @@ The API used by `o1js` is not expected to change much but for some details.
   delete a given account during a transaction.
 
   In its simplest form, this entails the addition of Boolean argument at the API
-  level stating whether to delete or not. We propose to add a dedicated, more
-  explicit, algebraic datatype of the form:
+  level stating whether to delete or not. <!-- We propose to add a dedicated, more
+   !-- explicit, algebraic datatype of the form:
+   !--
+   !-- ```ocaml
+   !-- type account_update = Delete | Update
+   !-- ``` -->
 
-  ```ocaml
-  type account_update = Delete | Update
-  ```
-
-- *recipient* :
+- *recipient* : upon deletion the interface should allow to specify who should
+  the recipient of the account creation fee.
 
 
 
