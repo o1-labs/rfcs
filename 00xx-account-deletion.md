@@ -160,30 +160,10 @@ Concretely, the basic support is provided by adding a deletion flag on account
 updates, i.e., extend the `Account_update.Body.Stable.t` type with an additional
 record field `delete_account`.
 
-This turns the actual definition from
-```ocaml
-      type t = Mina_wire_types.Mina_base.Account_update.Body.V1.t =
-        { public_key : Public_key.Compressed.Stable.V1.t
-        ; token_id : Token_id.Stable.V2.t
-        ; update : Update.Stable.V1.t
-        ; balance_change :
-            (Amount.Stable.V1.t, Sgn.Stable.V1.t) Signed_poly.Stable.V1.t
-        ; increment_nonce : bool
-        ; events : Events'.Stable.V1.t
-        ; actions : Events'.Stable.V1.t
-        ; call_data : Pickles.Backend.Tick.Field.Stable.V1.t
-        ; preconditions : Preconditions.Stable.V1.t
-        ; use_full_commitment : bool
-        ; implicit_account_creation_fee : bool
-        ; may_use_token : May_use_token.Stable.V1.t
-        ; authorization_kind : Authorization_kind.Stable.V1.t
-        }
-```
-
-into
-
+This turns the current definition into
     ```ocaml
-      type t = Mina_wire_types.Mina_base.Account_update.Body.V1.t =
+      (* This will update the version of the correspond Mina_wire_types definition too).
+      type t = Mina_wire_types.Mina_base.Account_update.Body.V2.t =
         { public_key : Public_key.Compressed.Stable.V1.t
         ; token_id : Token_id.Stable.V2.t
         ; update : Update.Stable.V1.t
