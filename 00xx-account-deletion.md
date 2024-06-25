@@ -55,17 +55,22 @@ differ.
 
 ##### Option 1: Tracking freed locations
 
-To illustrate the two options, let's assume we have the following Merkle tree of depth 2, with an empty free list.
+To illustrate the two options, let's assume we have the following Merkle tree of
+depth 2, with an empty free list.
+
 ```
-    H(H(A,B),H(C,x))
+    H(H(A,B),H(C,x))               free = []
       /       \
    H(A,B)     H(C,x)
    /  \       /  \
   A    B     C    x
 ```
 
+The free list contains a set of locations bound to the empty account located
+between the leftmost leaf and righmost non-empty leaf.  The idea is to recycle
+these locations upon further addition of data, as we will see shortly.
 
-The insertion of data `D` results in the following Merkle tree.
+The insertion of new data `D` results in the following Merkle tree.
 
 ```
     H(H(A,B),H(C,D))               free = []
@@ -79,7 +84,7 @@ Upon removal of `C`, the structure would evolve as follows, with `x` a
 placeholder value marking the freed location, which would actually represent to
 the empty account in practice.  The free list now states that the location
 determined by sequence of directions `[Right; Left]` is available for reuse for
-new insertions
+new insertions.
 
 ```
     H(H(A,B),H(C,D))       free = [[Right; Left]]
@@ -104,9 +109,9 @@ Now adding data `E` would result in
   A    B     E    D
 ```
 
-##### Option 2: Maintain insertion on leftmost location
+##### Option 2: Maintain insertion on leftmost available location
 
-For the sake of completeness, let us consider the other option, which aims at
+For the sake of completeness, let us consider another option, which aims at
 maintaining the fact that any new insertions happens on the leftmost available
 location.
 
@@ -167,16 +172,67 @@ There are some further details to be taken care of, such as:
 
 The support for deletion at the ledger level now needs to be lifted within the
 transaction logic for account updates.
+The key idea here is to handle removal as a specific kind of account update for
+a given account.
 
-The key idea here is to handle removal as a specific kind of update for a given account.
+Concretely, the basic support is provided by adding a deletion flag on account
+updates, i.e., extend the `Account_update.Body.Stable.t` type with an additional
+record field `delete_account`.
 
-In effect, an account deletion can be seen as a payment of the intial account
+This turns the actual definition from
+```ocaml
+      type t = Mina_wire_types.Mina_base.Account_update.Body.V1.t =
+        { public_key : Public_key.Compressed.Stable.V1.t
+        ; token_id : Token_id.Stable.V2.t
+        ; update : Update.Stable.V1.t
+        ; balance_change :
+            (Amount.Stable.V1.t, Sgn.Stable.V1.t) Signed_poly.Stable.V1.t
+        ; increment_nonce : bool
+        ; events : Events'.Stable.V1.t
+        ; actions : Events'.Stable.V1.t
+        ; call_data : Pickles.Backend.Tick.Field.Stable.V1.t
+        ; preconditions : Preconditions.Stable.V1.t
+        ; use_full_commitment : bool
+        ; implicit_account_creation_fee : bool
+        ; may_use_token : May_use_token.Stable.V1.t
+        ; authorization_kind : Authorization_kind.Stable.V1.t
+        }
+```
+
+into
+
+    ```ocaml
+      type t = Mina_wire_types.Mina_base.Account_update.Body.V1.t =
+        { public_key : Public_key.Compressed.Stable.V1.t
+        ; token_id : Token_id.Stable.V2.t
+        ; update : Update.Stable.V1.t
+        ; balance_change :
+            (Amount.Stable.V1.t, Sgn.Stable.V1.t) Signed_poly.Stable.V1.t
+        ; increment_nonce : bool
+        ; events : Events'.Stable.V1.t
+        ; actions : Events'.Stable.V1.t
+        ; call_data : Pickles.Backend.Tick.Field.Stable.V1.t
+        ; preconditions : Preconditions.Stable.V1.t
+        ; use_full_commitment : bool
+        ; implicit_account_creation_fee : bool
+        ; may_use_token : May_use_token.Stable.V1.t
+        ; authorization_kind : Authorization_kind.Stable.V1.t
+         (* if true, this account update will delete the account *)
+        ; delete_account: bool;
+        }
+    ```
+
+This extension provides is thus a version 2 of the current versioned type (`V2`).
+
+What about the changes in Mina_wire_Types?
+
+Account deletion is also a payment of the initial account
 creation fee back to an address with extended with that triggers account
 deletion.
 
-In zkapps commands, this is an update with deletion flag on.
-Small change to the `Account_update.Stable.t` type with an additional record field.
-
+Clearly, account deletion should not be permitted except for authorized keys, e.g., the
+contract that create the consumable account. For that, we need to check this
+with respect to the `permissions` filed of `Account_update.Update.t`.
 
 <!-- Locations to track
  !--
@@ -186,16 +242,25 @@ Small change to the `Account_update.Stable.t` type with an additional record fie
  !-- mask ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_mask/masking_merkle_tree.ml#L973
  !-- db ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_ledger/database.ml#L559 -->
 
+## Updating the archive node
+
 
 ## API
 
 ### Ledgers
+
+#### Removal
 
 We propose to support removing elements in ledgers through  2 functions :
 
 - `val remove_location: t -> location -> unit`
 - `val remove_account: t -> account -> unit`
 
+While both are not needed, since one can usually be easily derived from the
+other, we argue that it is nicer to have this 2 functions be provided in the
+interface.
+
+#### Changes to `last_filled`
 
 The current ledger interface also exposes the following function:
 ```ocaml
@@ -219,6 +284,14 @@ There are two uses of this function
   here in the `Ledger` interface.
 - [util](https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_ledger/util.ml#L168)
 
+### General protocol changes
+
+The update to `Account_update.t`, though seemingly straightforward has a trickle
+down effect, due to the impact of versioning.
+
+All types dependent on type `Account_update.t` will need updating.  This single
+change is relatively massive so that adding the extra field should really be a
+single task to help reviewers.
 
 
 
