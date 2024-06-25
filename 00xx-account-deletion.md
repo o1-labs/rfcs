@@ -229,7 +229,7 @@ We propose to support removing elements in ledgers through  2 functions, that we
   don't do anything if `account` does not exist.
 
 While both are not needed, since one can usually be easily derived from the
-other, we argue that it is nicer to have this 2 functions be provided in the
+other, we argue that it is nicer to have these 2 functions be provided in the
 interface.
 
 #### Changes to `last_filled`
