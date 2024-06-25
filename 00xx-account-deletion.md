@@ -323,10 +323,14 @@ The API used by `o1js` is not expected to change much but for some details.
 
 ## Drawbacks
 
-The main drawback of account deletion is that it needs a hard fork to be activated on-chain.
+The main drawback of implementing account deletion is that it needs a hard fork
+to be activated on-chain.
 
-While the changes are relatively limited,
-
+On the surface, the changes might seem trivial (adding a removal function,
+adding a field in a data structure) but they they actually have a widespread
+impact on the codebase (50+ files are touched just for adding the aforementioned
+field addition so that the our codebase compiles). We thus need to be extra
+careful both in the coding *and* the reviewing phases.
 
 ## <a name="alternatives"></a>Rationale and alternatives
 
