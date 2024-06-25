@@ -193,7 +193,7 @@ deletion.
 
 Clearly, account deletion should not be permitted except for authorized keys, e.g., the
 contract that create the consumable account. For that, we need to check this
-with respect to the `permissions` filed of `Account_update.Update.t`.
+with respect to the `permissions` field of `Account_update.Update.t`.
 
 <!-- Locations to track
  !--
@@ -261,8 +261,8 @@ change is relatively massive so that adding the extra field should really be a
 single task to help reviewers.
 
 
-
 #### o1js
+
 The API used by `o1js` is not expected to change much but for some details.
 
 - *accounts update* : we propose to implement account deletion as a specific
