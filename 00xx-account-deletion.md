@@ -70,6 +70,7 @@ The free list contains a set of locations bound to the empty account located
 between the leftmost leaf and righmost non-empty leaf.  The idea is to recycle
 these locations upon further addition of data, as we will see shortly.
 
+
 The insertion of new data `D` results in the following Merkle tree.
 
 ```
@@ -82,9 +83,16 @@ The insertion of new data `D` results in the following Merkle tree.
 
 Upon removal of `C`, the structure would evolve as follows, with `x` a
 placeholder value marking the freed location, which would actually represent to
-the empty account in practice.  The free list now states that the location
-determined by sequence of directions `[Right; Left]` is available for reuse for
-new insertions.
+the empty account in practice.
+
+In this example, locations will be represented as lists of directions for the
+sake of readability. In practice, though, they will be represented by other,
+usually isomorphic to the list of directions, means, e.g., an integer encoding
+the position of the leaf.
+
+The free list now states that the location determined by
+sequence of directions `[Right; Left]` is available for reuse for new
+insertions.
 
 ```
     H(H(A,B),H(C,D))       free = [[Right; Left]]
@@ -97,7 +105,6 @@ new insertions.
 
 Thus removal incurs a cost proportional to the height of the tree since we have
 to recompute the hashes on the Merkle path from the removed data.
-
 
 Now adding data `E` would result in
 
@@ -113,7 +120,8 @@ Now adding data `E` would result in
 
 For the sake of completeness, let us consider another option, which aims at
 maintaining the fact that any new insertions happens on the leftmost available
-location.
+location, and that all leaves between the leftmost one and the rightmost
+non-empty one are filled.
 
 In this case, removing `C` would not update any free list -- since this solution
 does not need this concept. But it would change the location of `D`.
@@ -128,7 +136,6 @@ does not need this concept. But it would change the location of `D`.
 
 Since the ledger implementation also tracks mapping from account to location as
 well as location to accounts, both these mappings would need updating.
-
 
 Now adding data `E` would result in
 
