@@ -225,6 +225,13 @@ with respect to the `permissions` filed of `Account_update.Update.t`.
 
 ### Updating the archive node
 
+The addition of a field in `Account_update` will need to reflected in table
+`zkapp_account_update_body` with the addition of a `delete_account` column.
+
+The migration of the current database needs to set a `false` value in this new
+column for all already registered rows.
+
+
 
 ### Other expected code changes
 #### Ledgers
