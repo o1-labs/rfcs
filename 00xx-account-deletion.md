@@ -183,9 +183,11 @@ This turns the current definition into
         }
     ```
 
-This extension provides is thus a version 2 of the current versioned type (`V2`).
+This extension therefore provides a version 2 of the current versioned type (`V2`).
 
-What about the changes in Mina_wire_Types?
+This simple change trickles down into updating the transitive closure of all
+type definitions depending on `Account_update`, including
+`Mina_wire_types.Mina_transaction`.
 
 Account deletion is also a payment of the initial account
 creation fee back to an address with extended with that triggers account
