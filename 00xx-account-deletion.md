@@ -34,7 +34,9 @@ The current implementation of in-memory ledgers use a fixed-depth [Merkle
 tree](https://en.wikipedia.org/wiki/Merkle_tree).
 
 For insertion, the current implementation keeps track of the "fill frontier",
-that is, the leftmost empty slot of the tree.
+that is, the leftmost empty slot of the tree. Since removal is not possible, the
+leaves between the leftmost leaf of the Merkle tree and the rightmost-filled
+leaf are *all* filled with data (i.e., non-empty acccounts).
 
 Now, on removal, there are (at least) 2 options:
 
@@ -56,7 +58,9 @@ differ.
 ##### Option 1: Tracking freed locations
 
 To illustrate the two options, let's assume we have the following Merkle tree of
-depth 2, with an empty free list.
+depth 2, with an empty free list. This Merkle tree has one location marked with
+`x` - this marks the empty account.
+
 
 ```
     H(H(A,B),H(C,x))               free = []
@@ -81,9 +85,8 @@ The insertion of new data `D` results in the following Merkle tree.
   A    B     C    D
 ```
 
-Upon removal of `C`, the structure would evolve as follows, with `x` a
-placeholder value marking the freed location, which would actually represent to
-the empty account in practice.
+Upon removal of `C`, the structure would evolve as follows, with `x` (the empty
+account) marking the freed location.
 
 In this example, locations will be represented as lists of directions for the
 sake of readability. In practice, though, they will be represented by other,
