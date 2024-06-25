@@ -28,7 +28,7 @@ working and sound `remove` functions for the different ledger implementations
 (`Database`, `Any_ledger`, `Null_ledger`, `Syncable_ledger`) and in masking
 merkle trees.
 
-#### Merkle trees
+#### <a name="merkle_trees"></a> Merkle trees
 
 The current implementation of in-memory ledgers use a fixed-depth [Merkle
 tree](https://en.wikipedia.org/wiki/Merkle_tree).
@@ -52,14 +52,15 @@ Now, on removal, there are (at least) 2 options:
    leftmost available locations and thus solution wouldn't change the current
    datatype.
 
-Each option would correctly implement the needed support. Let us show how they
-differ.
+We will only discuss option 1 here and delay the discussion about option 2 in
+[the alternative section](#alternative).
 
-##### Option 1: Tracking freed locations
 
-To illustrate the two options, let's assume we have the following Merkle tree of
-depth 2, with an empty free list. This Merkle tree has one location marked with
-`x` - this marks the empty account.
+#### Example scenario
+
+To illustrate option 1, let us assume we have the following Merkle tree of depth
+2, with an empty free list. This Merkle tree has one location marked with `x` -
+this marks the empty account.
 
 
 ```
@@ -133,51 +134,6 @@ $$
 
 
 
-
-##### Option 2: Maintain insertion on leftmost available location
-
-For the sake of completeness, let us consider another option, which aims at
-maintaining the fact that any new insertions happens on the leftmost available
-location, and that all leaves between the leftmost one and the rightmost
-non-empty one are filled.
-
-In this case, removing `C` would not update any free list -- since this solution
-does not need this concept. But it would change the location of `D`.
-
-```
-    H(H(A,B),H(D,x))
-      /       \
-   H(A,B)     H(D,x)
-   /  \       /   \
-  A    B     D     x
-```
-
-Since the ledger implementation also tracks mapping from account to location as
-well as location to accounts, both these mappings would need updating.
-
-Now adding data `E` would result in
-
-```
-    H(H(A,B),H(D,E))
-      /       \
-   H(A,B)     H(D,E)
-   /  \       /  \
-  A    B     D    E
-```
-
-
-##### Implementation choice
-
-We opt to implement the tracking of freed locations.
-
-While this choice implies adding a structure in the masking ledger
-implementation to track freed locations, it offers 2 advantages
-
-* the cost of removal is slightly better since we do not need to update location
-   <-> account mappings;
-*  account locations in this representation are fixed for the lifetime of the
-  account: proof of inclusion would not change but for the last element of the
-  Merkle path.
 
 
 #### On-disk ledger
@@ -365,11 +321,58 @@ The main drawback of account deletion is that it needs a hard fork to be activat
 While the changes are relatively limited,
 
 
-## Rationale and alternatives
+## <a name="alternatives"></a>Rationale and alternatives
+
+### Merkle trees
+
+For the sake of completeness, let us consider another option for implementing
+removal at the level of Merkle trees, which aims at maintaining the fact that
+any new insertions happens on the leftmost available location, and that all
+leaves between the leftmost one and the rightmost non-empty one are filled.
+
+In this case, removing `C` would not update any free list -- since this solution
+does not need this concept. But it would change the location of `D`.
+
+```
+    H(H(A,B),H(D,x))
+      /       \
+   H(A,B)     H(D,x)
+   /  \       /   \
+  A    B     D     x
+```
+
+Since the ledger implementation also tracks mapping from account to location as
+well as location to accounts, both these mappings would need updating.
+
+Now adding data `E` would result in
+
+```
+    H(H(A,B),H(D,E))
+      /       \
+   H(A,B)     H(D,E)
+   /  \       /  \
+  A    B     D    E
+```
+
+##### Implementation choice
+
+We opt to implement the tracking of freed locations as illustrate in [this section](#merkle_trees).
+
+While this choice implies adding a structure in the masking ledger
+implementation to track freed locations, it offers 2 advantages:
+
+* the cost of removal is slightly better since we do not need to update location
+   <-> account mappings;
+*  account locations in this representation are fixed for the lifetime of the
+  account: proof of inclusion would not change but for a single element of the
+  Merkle path.
+
 
 ## Prior art
 
 ## Unresolved questions
+
+- Merkelization of ledger + free list and interface for interacting with this data structure
 
 
 ## Resources - TB removed
