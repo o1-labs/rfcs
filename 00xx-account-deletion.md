@@ -15,7 +15,7 @@ receive the deposit back when you no longer need them. This is key for zkApps
 developers who want to trigger actions on other accounts in a deadlock-safe way
 so that they can create a cross-account smart contracts & applications.
 
-## Design
+## Detailed Design
 
 The support for account deletion relies on adding features at the levels of
 transaction logic(s) and storage (ledgers). The latter is a prerequisite of the
@@ -249,12 +249,11 @@ with respect to the `permissions` filed of `Account_update.Update.t`.
  !-- mask ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_mask/masking_merkle_tree.ml#L973
  !-- db ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_ledger/database.ml#L559 -->
 
-## Updating the archive node
+### Updating the archive node
 
 
-## API
-
-### Ledgers
+### Other expected code changes
+#### Ledgers
 
 #### Removal
 
@@ -291,7 +290,7 @@ There are two uses of this function
   here in the `Ledger` interface.
 - [util](https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_ledger/util.ml#L168)
 
-### General protocol changes
+#### General protocol changes
 
 The update to `Account_update.t`, though seemingly straightforward has a trickle
 down effect, due to the impact of versioning.
@@ -302,7 +301,7 @@ single task to help reviewers.
 
 
 
-### o1js
+#### o1js
 The API used by `o1js` is not expected to change much but for some details.
 
 - *accounts update* : we propose to implement account deletion as a specific
@@ -322,7 +321,8 @@ The API used by `o1js` is not expected to change much but for some details.
 
 
 
-## Test plan
+
+## Test plan and functional requirements
 
 - **Testing goals and objectives**:
   - Check the correctness of the account deletion feature;
@@ -340,7 +340,22 @@ The API used by `o1js` is not expected to change much but for some details.
   - Simulated environments resembling typical local development setups.
 
 
-# Resources
+## Drawbacks
+
+The main drawback of account deletion is that it needs a hard fork to be activated on-chain.
+
+While the changes are relatively limited,
+
+
+## Rationale and alternatives
+
+## Prior art
+
+## Unresolved questions
+
+
+## Resources - TB removed
+
 
 > Here are some things I am thinking about, maybe they help you inform the RFC:
 >
