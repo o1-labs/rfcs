@@ -220,10 +220,13 @@ column for all already registered rows.
 
 #### Removal
 
-We propose to support removing elements in ledgers through  2 functions :
+We propose to support removing elements in ledgers through  2 functions, that we specify below:
 
-- `val remove_location: t -> location -> unit`
-- `val remove_account: t -> account -> unit`
+- `val remove_location: t -> location -> unit`: remove the account found at the
+  given `location` from the ledger, don't do anything if `location` is occupied
+  by the empty account
+- `val remove_account: t -> account -> unit`: remove `account` from the ledger,
+  don't do anything if `account` does not exist.
 
 While both are not needed, since one can usually be easily derived from the
 other, we argue that it is nicer to have this 2 functions be provided in the
