@@ -119,6 +119,21 @@ Now adding data `E` would result in
   A    B     E    D
 ```
 
+##### Merkelizing the free list
+
+The view of the free list above is a simplification.
+
+The data contained in the free list needs to be Merkelized as well.  This means,
+assuming a hash function $H$ and locations $loc_1, ..., loc_n$ being inserted in
+the free list in that order, that the actual data in the free list would be:
+
+$$
+free = [ (loc_n, h_n = H(loc_n, h_{n-1})), ..., (loc_2, h_2 = H(loc_2, h_1)); (loc_1, h_1 = H(loc_1, nil))]
+$$
+
+
+
+
 ##### Option 2: Maintain insertion on leftmost available location
 
 For the sake of completeness, let us consider another option, which aims at
