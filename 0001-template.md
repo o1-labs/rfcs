@@ -42,7 +42,7 @@ Evergreen details are included directly in the RFC in this section.
 
 Ephemeral details must live in the spec so that they can evolve over time.
 
-In this section, link to one or more lines of code in committed GitHub code or one or more lines within a PR or PR draft.
+In this section, link to one or more lines of code in a PR draft. This should be the final PR that is merged for this project.
 
 When in doubt, "the spec" can be a block comment in source code, but there are a few conventions for our existing systems:
 
