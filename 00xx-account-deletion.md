@@ -161,7 +161,7 @@ updates, i.e., extend the `Account_update.Body.Stable.t` type with an additional
 record field `delete_account`.
 
 This turns the current definition into
-    ```ocaml
+```ocaml
       (* This will update the version of the correspond Mina_wire_types definition too).
       type t = Mina_wire_types.Mina_base.Account_update.Body.V2.t =
         { public_key : Public_key.Compressed.Stable.V1.t
@@ -181,7 +181,7 @@ This turns the current definition into
          (* if true, this account update will delete the account *)
         ; delete_account: bool;
         }
-    ```
+```
 
 This extension therefore provides a version 2 of the current versioned type (`V2`).
 
