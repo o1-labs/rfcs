@@ -23,6 +23,10 @@ former.
 
 ### Storage
 
+<!-- sparse ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/mina_base/sparse_ledger_base.ml#L85
+ !-- mask ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_mask/masking_merkle_tree.ml#L973
+ !-- db ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_ledger/database.ml#L559 -->
+
 Within the protocol-related codebase, the lowest-level support lies in having a
 working and sound `remove` functions for the different ledger implementations
 (`Database`, `Any_ledger`, `Null_ledger`, `Syncable_ledger`) and in masking
@@ -120,11 +124,13 @@ Now adding data `E` would result in
   A    B     E    D
 ```
 
-##### Merkelizing the free list
+##### Merklizing the free list
 
-The view of the free list above is a simplification.
+<!-- The practical usefulness of this section is in discussion  -->
 
-The data contained in the free list needs to be Merkelized as well.  This means,
+The view of the free list shown in the example above is a simplification.
+
+The data contained in the free list needs to be Merklized as well.  This means,
 assuming a hash function $H$ and locations $loc_1, ..., loc_n$ being inserted in
 the free list in that order, that the actual data in the free list would be:
 
@@ -132,15 +138,15 @@ $$
 free = [ (loc_n, h_n = H(loc_n, h_{n-1})), ..., (loc_2, h_2 = H(loc_2, h_1)); (loc_1, h_1 = H(loc_1, nil))]
 $$
 
-
-
+In turn, the ledger state is the Merklized pair of the ledger itself (as a
+Merkle tree) and its free list.
 
 
 #### On-disk ledger
 
 The `Database` module implements an on-disk ledger that backs up the in-memory data structure.
 
-Deletion support relies on the same techniques as in-memory ledgers, tailored to the on-disk db.
+Deletion support relies on the same techniques as in-memory ledgers.
 
 There are some further details to be taken care of, such as:
 
@@ -149,10 +155,10 @@ There are some further details to be taken care of, such as:
   have been removed
 
 
-### Transaction logic
+### Transaction logic and snark
 
 The support for deletion at the ledger level now needs to be lifted within the
-transaction logic for account updates.
+transaction logic and snark for account updates.
 The key idea here is to handle removal as a specific kind of account update for
 a given account.
 
@@ -189,21 +195,22 @@ This simple change trickles down into updating the transitive closure of all
 type definitions depending on `Account_update`, including
 `Mina_wire_types.Mina_transaction`.
 
-Account deletion is also a payment of the initial account
-creation fee back to an address with extended with that triggers account
-deletion.
+Deleting an account also provokes a payment of the initial account
+creation fee back, and its MINA balance, to an address.
 
 Clearly, account deletion should not be permitted except for authorized keys, e.g., the
 contract that create the consumable account. For that, we need to check this
 with respect to the `permissions` field of `Account_update.Update.t`.
 
-<!-- Locations to track
- !--
- !-- user command snark https://github.com/MinaProtocol/mina/blob/develop/src/lib/transaction_logic/mina_transaction_logic.ml#L1007
- !-- zkapp command snark https://github.com/MinaProtocol/mina/blob/develop/src/lib/transaction_logic/zkapp_command_logic.ml#L1232
- !-- sparse ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/mina_base/sparse_ledger_base.ml#L85
- !-- mask ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_mask/masking_merkle_tree.ml#L973
- !-- db ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/merkle_ledger/database.ml#L559 -->
+
+At the snark level, removing an existing account is handled as setting the
+location to the empty account using the already existing `set_account`.
+
+Now similar to account creationg, one needs to check the resulting balance.
+
+
+<!-- user command snark https://github.com/MinaProtocol/mina/blob/develop/src/lib/transaction_logic/mina_transaction_logic.ml#L1007
+ !-- zkapp command snark https://github.com/MinaProtocol/mina/blob/develop/src/lib/transaction_logic/zkapp_command_logic.ml#L1232 -->
 
 ### Updating the archive node
 
@@ -368,17 +375,17 @@ implementation to track freed locations, it offers 2 advantages:
 
 ## Unresolved questions
 
-- Merkelization of ledger + free list and interface for interacting with this data structure
+- Merklization of ledger + free list and interface for interacting with this data structure
 
 
-## Resources - TB removed
-
-
-> Here are some things I am thinking about, maybe they help you inform the RFC:
->
-> - easy API - we need to express account deletion via an easy API in the sdk
-> - ideally, this should also be efficient (maybe a single "instruction")? How would this look like as a transaction?
-> - will we be able to assert that an account has been deleted? eg look up existing accounts, or put a precondition on it that says "account must be deleted"?
-> - recover the original account creation fee to a predetermined address or creator
-> - What requirements does an account have to fulfill in order to be deleted?
-> - Regarding consumable accounts as a whole, how will they look like? Will they be their own specific type of account or a full account as we know currently?
+<!-- ## Resources - TB removed
+ !--
+ !--
+ !--  Here are some things I am thinking about, maybe they help you inform the RFC:
+ !--
+ !--  - easy API - we need to express account deletion via an easy API in the sdk
+ !--  - ideally, this should also be efficient (maybe a single "instruction")? How would this look like as a transaction?
+ !--  - will we be able to assert that an account has been deleted? eg look up existing accounts, or put a precondition on it that says "account must be deleted"?
+ !--  - recover the original account creation fee to a predetermined address or creator
+ !--  - What requirements does an account have to fulfill in order to be deleted?
+ !--  - Regarding consumable accounts as a whole, how will they look like? Will they be their own specific type of account or a full account as we know currently? -->
