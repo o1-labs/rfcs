@@ -141,6 +141,8 @@ $$
 In turn, the ledger state is the Merklized pair of the ledger itself (as a
 Merkle tree) and its free list.
 
+TBD: using an ordered free list to avoid Merklization
+
 
 #### On-disk ledger
 
@@ -153,6 +155,18 @@ There are some further details to be taken care of, such as:
 - updating Merkle paths on removal
 - updating the `all_accounts` function to avoid iterating over addresses that
   have been removed
+
+TBD: On-disk representation of the free list
+
+
+#### Ledger sync
+
+Now that the ledger is can have unfilled leaves
+
+Encoding of the legder leaves:
+- Some(a) when there is an account a,
+- None if it´s empty
+
 
 
 ### Transaction logic and snark
@@ -294,8 +308,11 @@ The API used by `o1js` is not expected to change much but for some details.
 
 
 
-
 ## Test plan and functional requirements
+
+- Implement ledger changes
+- Check ledger sync
+- Transition logic
 
 - **Testing goals and objectives**:
   - Check the correctness of the account deletion feature;
@@ -376,7 +393,12 @@ implementation to track freed locations, it offers 2 advantages:
 ## Unresolved questions
 
 - Merklization of ledger + free list and interface for interacting with this data structure
+- Upon account deletion, do we want to be able to return the creation fee to one
+  account and the balance to another?
 
+  Is account deletion only possible on
+  accounts with a MINA balance of 0, so that we only deal with returning the
+  creation fee in the transaction logic?
 
 <!-- ## Resources - TB removed
  !--
