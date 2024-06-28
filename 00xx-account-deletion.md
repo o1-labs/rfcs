@@ -150,17 +150,35 @@ TBD: using an ordered free list to avoid Merklization
 
 #### On-disk ledger
 
-The `Database` module implements an on-disk ledger that backs up the in-memory data structure.
+The
+[`Database`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/database.ml)
+module implements an on-disk ledger that backs up the in-memory data structure.
 
-Deletion support relies on the same techniques as in-memory ledgers.
+Deletion support relies on the same techniques as in-memory ledgers, that is, a
+representation of a ledger as Merkle tree *and* an additional free list.
+
+The main culprit is the representation of the free list on-disk. Here we will
+piggyback the data on the KV database as follows:
+- the free list is identified by the key `free_list` (like [`last_account_location`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/database.ml#L235));
+- when parsing binary data associated to this key, we get two things:
+  1. the actual first free location within the Merkle tree;
+  2. the new value of the `free_list`.
+
+Basically, the free list is handled as a binary-encoded list with a lazy decoding function, a single element at a time.
+
+<!-- This needs to be rewritten, not sure this is correct -->
+We will implement a decoding function where one can specify how many locations
+we ideally want to retrieve (up to `n`) to handle functions `set_location_batch`.
+This function will return a list of free locations together with its size (so that we do not need to call `List.length`).
 
 There are some further details to be taken care of, such as:
 
+- patch function [`allocate`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/database.ml#L267) to handle the free list as well
 - updating Merkle paths on removal
 - updating the `all_accounts` function to avoid iterating over addresses that
   have been removed
 
-TBD: On-disk representation of the free list
+
 
 
 #### Syncing ledgers
