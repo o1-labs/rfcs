@@ -336,9 +336,19 @@ The API used by `o1js` is not expected to change much but for some details.
 
 ## Test plan and functional requirements
 
-- Implement ledger changes
-- Check ledger sync
-- Transition logic
+### Implementation steps
+
+The implementation of deletable accounts can be broken down in 3 steps
+- Ledger changes to get basic deletion working + unit testing;
+- Add ledger synchronization and test it: upon completing this step, the set of
+  changes implemented could even be part of soft-fork.
+- Transition support:
+  - Extend account updates : upon completion, the SDK team can start working on
+    their end to see if the API works for them, though no effect can be
+    observed;
+  - Add actual support in the logic and the snark
+
+### Testing
 
 - **Testing goals and objectives**:
   - Check the correctness of the account deletion feature;
