@@ -21,6 +21,10 @@ The support for account deletion relies on adding features at the levels of
 transaction logic(s) and storage (ledgers). The latter is a prerequisite of the
 former.
 
+For code links, we will use the head of branch `develop` at the time of writing, i.e.,
+[commit 4495af5](https://github.com/MinaProtocol/mina/tree/4495af5caea5e1bb2f98f92592c065f93a586ade).
+
+
 ### Storage
 
 <!-- sparse ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/mina_base/sparse_ledger_base.ml#L85
