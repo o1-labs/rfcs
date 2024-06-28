@@ -229,24 +229,26 @@ type definitions depending on `Account_update`, including
 
 Deleting an account $a₀$ results in two actions:
 1. Actual removal of account $a₀$ of the storage layer;
-2. Return of MINA balance from $a₉$ and initial creation fee to a specified $a₁$ account.
+2. Return of balance of MINA tokens from $a₉$ and initial creation fee to a specified $a₁$ account.
 
-At the snark level, the deletion should thus be equivalent to proving two things
+Handling other tokens is the responsability of the smart contract(s) dealing with these tokens.
+
+Furthermore, account deletion should not be permitted except for some authorized
+participants, e.g., the contract that created the consumable account.
+
+We propose to restrict this capacity to the account to be deleted, so that only
+yourself can call for your own deletion.
+
+For that, we need to check this with respect to the `permissions` field of
+`Account_update.Update.t`.
+
+
+At the snark level, deletion should thus be equivalent to proving two things
 1. The location $l$ of account $a₀$ is now  equal to the empty account.
-   This should be the same proof as calling `set_account` to location $l$ with the empty account;
+   A simple implementation is to call [`set_account`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_snark/transaction_snark.ml#L1531) to location $l$ with the empty account;
 2. The change in MINA of $a₁$ should be equal to
    - the initial creation fee;
    - augmented by any remaining MINA balance.
-
-Furthermore, account deletion should not be permitted except for some authorized
-participants, e.g., the contract that created the consumable account. We propose
-to restrict this capacity to the account to be deleted, so that only yourself
-can call for your own deletion.
-
-For that, we need to check this
-with respect to the `permissions` field of `Account_update.Update.t`.
-
-Now similar to account creationg, one needs to check the resulting balance.
 
 
 <!-- user command snark https://github.com/MinaProtocol/mina/blob/develop/src/lib/transaction_logic/mina_transaction_logic.ml#L1007
