@@ -225,16 +225,26 @@ This simple change trickles down into updating the transitive closure of all
 type definitions depending on `Account_update`, including
 `Mina_wire_types.Mina_transaction`.
 
-Deleting an account also provokes a payment of the initial account
-creation fee back, and its MINA balance, to an address.
+#### Effect of deleting an account
 
-Clearly, account deletion should not be permitted except for authorized keys, e.g., the
-contract that create the consumable account. For that, we need to check this
+Deleting an account $a₀$ results in two actions:
+1. Actual removal of account $a₀$ of the storage layer;
+2. Return of MINA balance from $a₉$ and initial creation fee to a specified $a₁$ account.
+
+At the snark level, the deletion should thus be equivalent to proving two things
+1. The location $l$ of account $a₀$ is now  equal to the empty account.
+   This should be the same proof as calling `set_account` to location $l$ with the empty account;
+2. The change in MINA of $a₁$ should be equal to
+   - the initial creation fee;
+   - augmented by any remaining MINA balance.
+
+Furthermore, account deletion should not be permitted except for some authorized
+participants, e.g., the contract that created the consumable account. We propose
+to restrict this capacity to the account to be deleted, so that only yourself
+can call for your own deletion.
+
+For that, we need to check this
 with respect to the `permissions` field of `Account_update.Update.t`.
-
-
-At the snark level, removing an existing account is handled as setting the
-location to the empty account using the already existing `set_account`.
 
 Now similar to account creationg, one needs to check the resulting balance.
 
