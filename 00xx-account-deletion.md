@@ -175,13 +175,15 @@ A ledger supporting account deletion can have unfilled leaves, which breaks this
 Thus, we need to devise a suitable strategy to transfer this data.
 
 We propose to maintain the current syncing protocol with the following simple
-extension: send multiple chunks of contiguous blocks of allocated addresses instead of a single one that assumes no unallocated address.
+extension: send multiple chunks of contiguous intervals of allocated addresses
+instead of a single one that assumes no unallocated address as the result of [this code block](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/syncable_ledger/syncable_ledger.ml#L297).
 
 On the other side of the synchronization,
 [add_content](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/syncable_ledger/syncable_ledger.ml#L408)
 needs to be handle this correctly and this in turn relies on
-[set_all_accounts_rooted_at_exn](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/syncable_ledger/syncable_ledger.ml#L419). We
-will keep the same function body and apply if to the list of chunks.
+[set_all_accounts_rooted_at_exn](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/syncable_ledger/syncable_ledger.ml#L419).
+The change here will mainly be to call ``set_all_accounts_rooted_at_exn` as many
+times as there are chunks in the data.
 
 
 
