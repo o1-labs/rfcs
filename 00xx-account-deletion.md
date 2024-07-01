@@ -211,7 +211,24 @@ The main culprit is the representation of the free list on-disk. Here we will si
 the data on the KV database as follows:
 - the free list is identified by the key `free_list` (like
   [`last_account_location`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/database.ml#L235));
-- store the serialized encoding of the heap in the database.
+- store the serialized encoding of the heap in the database
+  - this encoding stores an array (i.e., the length of the array and a sequence of bytes of all elements concatenated)
+  - this will use a specialized version of [this parse function](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/location_intf.mli#L31).
+
+**Adapting the parse function**. As of now, the parse function is based on the
+hypothesis that the `bigstring` parameter fully encodes a single value of type
+`Location.t`.  We need to adapt this function to read only as many bytes as
+needed and return the `Location.t` read and how many bytes it actually read for
+the following read to occur. While the cases of decoding `Location.Addr`and
+`Location.Hash` are fully determined by the ledger_depth (see the function
+[`serialize`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/location.ml#L106)),
+the case of `Location.Generic` is not, since it can contain any data.
+
+**On location serialization**. For that, we need to have a specific additional
+serialization of `Location.t` which is the same as the `serialize`, but for the
+case `Generic data`.  In this case the new encoding would be `[0xff,
+Bigstring.length data, data]` for a generic location contained in the array
+instead of `[0xff, data]` for a single value.
 
 **Space requirements**. We argue that this is okay to have this simple scheme in
 terms of space use.  Indeed, in the worst case today, the ledger is full and we
@@ -222,7 +239,7 @@ usually smaller (a single integer instead of a complex data structure).
 Therefore storing free locations does not add more storage requirements than
 today.
 
-The serialization of and array-based heap (ike `bheap`) of integers should be rather efficient.
+The serialization of and array-based heap (like `bheap`) of integers should be rather efficient.
 
 **Allocation cost**. Allocating locations from the free list now means
 1. read `free_list`
