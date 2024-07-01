@@ -41,10 +41,11 @@ merkle trees.
 The current implementation of in-memory ledgers use a fixed-depth [Merkle
 tree](https://en.wikipedia.org/wiki/Merkle_tree).
 
-For insertion, the current implementation keeps track of the "fill frontier",
-that is, the leftmost empty slot of the tree. Since removal is not possible, the
-leaves between the leftmost leaf of the Merkle tree and the rightmost-filled
-leaf are *all* filled with data (i.e., non-empty acccounts).
+For insertion, the current implementation keeps track of the "fill frontier"
+index, that is, at the moment, the rightmost leaf that is filled in the tree. Since
+removal is not possible, the leaves between the leftmost leaf of the Merkle tree
+and the rightmost-filled leaf are *all* filled with data (i.e., non-empty
+acccounts).
 
 Now, on removal, there are (at least) 2 options:
 
