@@ -340,13 +340,15 @@ column for all already registered rows.
 
 #### Removal
 
-We propose to support removing elements in ledgers through  2 functions, that we specify below:
+We propose to support removing elements in ledgers through 2 functions, that we
+specify below, using types definde in the ledger interface
+[here](ttps://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/intf.ml#L278)
 
-- `val remove_location: t -> location -> unit`: remove the account found at the
+- `val remove_location: t -> Location.t -> unit`: remove the account found at the
   given `location` from the ledger, don't do anything if `location` is occupied
   by the empty account
-- `val remove_account: t -> account -> unit`: remove `account` from the ledger,
-  don't do anything if `account` does not exist.
+- `val remove_account: t -> account_id -> unit`: remove the account that has identifier `account_id` from the ledger,
+  don't do anything if this account does not exist.
 
 While both are not needed, since one can usually be easily derived from the
 other, we argue that it is nicer to have these 2 functions be provided in the
