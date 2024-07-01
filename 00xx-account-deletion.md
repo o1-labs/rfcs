@@ -301,22 +301,25 @@ Deleting an account $a₀$ results in two actions:
 
 Handling other tokens is the responsability of the smart contract(s) dealing with these tokens.
 
-Furthermore, account deletion should not be permitted except for some authorized
-participants, e.g., the contract that created the consumable account.
-
-We propose to restrict this capacity to the account to be deleted, so that only
-yourself can call for your own deletion.
-
-For that, we need to check this with respect to the `permissions` field of
-`Account_update.Update.t`.
-
-
 At the snark level, deletion should thus be equivalent to proving two things
 1. The location $l$ of account $a₀$ is now  equal to the empty account.
    A simple implementation is to call [`set_account`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_snark/transaction_snark.ml#L1531) to location $l$ with the empty account;
 2. The change in MINA of $a₁$ should be equal to
    - the initial creation fee;
    - augmented by any remaining MINA balance.
+
+
+**Permissions**. Furthermore, account deletion should not be permitted except
+for some authorized participants, e.g., the contract that created the consumable
+account. We will extend the [permissions
+type](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/mina_base/permissions.ml#L343)
+with a dedicated `delete` field.  The handling of permissions will be similar as
+the one for [nonce
+update](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_logic/zkapp_command_logic.ml#L1687)
+for the computation of `has_permission` and the updated `local_state`. This
+updated local state will also depend on extending [`Failure.t`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/mina_base/transaction_status.ml#L9) with an extra variant `Update_not_permitted_delete`.
+
+
 
 
 <!-- user command snark https://github.com/MinaProtocol/mina/blob/develop/src/lib/transaction_logic/mina_transaction_logic.ml#L1007
