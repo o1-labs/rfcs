@@ -186,19 +186,38 @@ module implements an on-disk ledger that backs up the in-memory data structure.
 Deletion support relies on the same techniques as in-memory ledgers, that is, a
 representation of a ledger as Merkle tree *and* an additional free list.
 
-The main culprit is the representation of the free list on-disk. Here we will
-piggyback the data on the KV database as follows:
-- the free list is identified by the key `free_list` (like [`last_account_location`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/database.ml#L235));
-- when parsing binary data associated to this key, we get two things:
-  1. the actual first free location within the Merkle tree;
-  2. the new value of the `free_list`.
+The main culprit is the representation of the free list on-disk. Here we will simply store
+the data on the KV database as follows:
+- the free list is identified by the key `free_list` (like
+  [`last_account_location`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/database.ml#L235));
+- store the serialized encoding of the heap in the database.
 
-Basically, the free list is handled as a binary-encoded list with a lazy decoding function, a single element at a time.
+**Space requirements**. We argue that this is okay to have this simple scheme in
+terms of space use.  Indeed, in the worst case today, the ledger is full and we
+do need to store it in the database.  The requirement of storing the free list
+alongside the ledger have the same worst-case scenario. When deleting an account
+one is trading the storage of an account for the storage of a location, which is
+usually smaller (a single integer instead of a complex data structure).
+Therefore storing free locations does not add more storage requirements than
+today.
 
-<!-- This needs to be rewritten, not sure this is correct -->
-We will implement a decoding function where one can specify how many locations
-we ideally want to retrieve (up to `n`) to handle functions `set_location_batch`.
-This function will return a list of free locations together with its size (so that we do not need to call `List.length`).
+The serialization of and array-based heap (ike `bheap`) of integers should be rather efficient.
+
+**Allocation cost**. Allocating locations from the free list now means
+1. read `free_list`
+2. deserialize the heap value;
+3. get the needed free locations;
+4. write the accounts to the free locations;
+5. reserialize the new value of the heap.
+
+**Simple improvement on batch allocations**. Furthermore, we will implement a
+decoding function where one can specify how many locations we ideally want to
+retrieve (up to `n`) to handle functions `set_location_batch`.  This function
+will return a list of free locations together with its size (so that we do not
+need to call `List.length`) in order to know if we need further allocation
+starting from the fill frontier index.  This function avoids
+deserializing/serializing multiple times when we know in advance we will do
+multiple allocations.
 
 There are some further details to be taken care of, such as:
 
@@ -207,7 +226,7 @@ There are some further details to be taken care of, such as:
 - updating the `all_accounts` function to avoid iterating over addresses that
   have been removed
 
-
+Other strategies are discussed [here](#free_list_db alt).
 
 
 #### Syncing ledgers
@@ -497,6 +516,36 @@ Merkle tree) and its free list.
 The main drawback with the choice described in this alternative is that we
 *need* to transfer the data during synchronization since the order in which the
 elements are found in the list cannot be inferred from the ledger.
+
+
+### <a name="free_list_db alt"></a>Free list in database
+
+There are other possible representations of the free list in key-value store.
+
+#### No storage
+
+For one, to follow the strategy which allocates the biggest available address
+within contained within the fill frontier first, we could just scan from the
+fill frontier index downto the leftmost leaf, and allocate the first available slot.
+
+This takes O(n) time.
+
+To save scanning when the ledger is full within the fill frontier, we could just
+store how many free locations there are in the database. However, an update to
+the database would probably require a full scan anyway to update this value so
+that it does not seem as appealing.
+
+#### Other storage strategies
+
+One could devise a number of alternate strategies which would try to amortize
+the cost of deserializing the heap, without trying to improve cost of storing
+the heap.
+
+The database would keep $n$ indices with dedicated keys $loc_{i}$ and an index
+of the current one.  Once these are all used, we would deserialize the heap
+once, fill the $n$ $loc_{i}$ keys with the value and reserialize the resulting
+heap. One drawback of this option is that finding the right $n$ would need
+specific testing.
 
 
 ## Prior art
