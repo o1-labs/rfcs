@@ -143,18 +143,32 @@ drawbacks (see [alternative](#free_list_repr alt)), most importantly that a
 newcomer node cannot have any knowledge of the past, so that the free list would
 need to be fully communicated to it.
 
-We contend that it is better to impose the ordering from the structure of the
-data that we insert in the free list. Heaps, `OCaml` sets (which rely on a
-comparison function), or even ordered lists are implementation choices that
-would work in this context.
+**Imposing an ordering** from the structure of the data that we insert in the
+free list has better properties. Heaps, `OCaml` sets (which rely on a comparison
+function), or even ordered lists are implementation choices that would work in
+this context.
 
-We thus propose to use a **min-heap** (like
+We thus propose to use a **max-heap** (like
 [bheap](https://opam.ocaml.org/packages/bheap/) or
 [CCHeap](https://c-cube.github.io/ocaml-containers/last/containers/CCHeap/index.html))
 for this implementation, that is, the free list is an ordered set of locations,
-from which we always allocate the smallest one.
+from which we always allocate the biggest one.
 
-The main benefit of having this ordered data structure is that location
+**Deallocation at fill frontier** shows why we need to choose to reallocate the
+maximal element of the free list.
+
+When freeing the location at the fill frontier, we also need to check whether the preceeding location in the order of
+Merkle tree leaves is free or not to compute the new frontier pointer.
+
+For example if we have data `[A, B, x, E]` in the tree, the frontier would be at
+index `3` with a free list `[2]`. Removing `E` should result in a frontier at
+index `1` and an empty free list. The max-heap data structure handles that
+scenario very gracefully in worst-case O(n log n), where $n$ is the number of
+elements in the free list.  A stack structure could incur an *O(n²)*
+worst-case cost. The min-heap would not be adequate.
+
+
+**The main benefit** of having this ordered data structure is that location
 allocation does not depend on when a location has been freed anymore. Thus, when
 syncing ledgers, the free list can be recomputed while retrieving the ledger by
 adding any empty location within the fill frontier to the currently built free list heap.
