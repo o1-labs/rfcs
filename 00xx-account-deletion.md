@@ -153,17 +153,37 @@ We thus propose to use a **max-heap** (like
 [bheap](https://opam.ocaml.org/packages/bheap/) or
 [CCHeap](https://c-cube.github.io/ocaml-containers/last/containers/CCHeap/index.html))
 for this implementation, that is, the free list is an ordered set of locations,
-from which we always allocate the biggest one.
+from which we always allocate the biggest one. The reason is to optimize what
+happens when deallocating at the fill frontier.
 
 **Deallocation at fill frontier** shows why we need to choose to reallocate the
 maximal element of the free list.
 
-When freeing the location at the fill frontier, we also need to check whether the preceeding location in the order of
-Merkle tree leaves is free or not to compute the new frontier pointer.
+When freeing the location at the fill frontier, we also need to check whether
+the preceeding location in the order of Merkle tree leaves is free or not to
+compute the new fill frontier index.
 
-For example if we have data `[A, B, x, E]` in the tree, the frontier would be at
-index `3` with a free list `[2]`. Removing `E` should result in a frontier at
-index `1` and an empty free list. The max-heap data structure handles that
+Let us start with a tree where the leaves are `[a, b, c, d, e, f, X, X]`: the
+O-indexed fill frontier index is 5, and the free list is empty.
+```
+[a, b, c, d, e, f, X, X]  l = []   i = 5
+delete(d)
+[a, b, c, X, e, f, X, X]  l = [3]  i = 5
+delete(f)
+[a, b, c, X, e, X, X, X]  l = [3]  i = 4
+delete(e)
+[a, b, c, X, X, X, X, X]  l = []   i = 2
+```
+
+The last step `delete(e)` is where the need for the max-heap is apparent.
+To get to `i = 2` we need to
+- check that we are removing the element at the fill frontier (this already done in the code)
+- repeatedly, to compute the new fill frontier index:
+  - peek and if the top is `i - 1`
+    - pop from the free list
+    - set i to i - 1
+
+The max-heap data structure handles that
 scenario very gracefully in worst-case O(n log n), where $n$ is the number of
 elements in the free list.  A stack structure could incur an *O(n²)*
 worst-case cost. The min-heap would not be adequate.
