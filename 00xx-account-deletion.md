@@ -128,25 +128,40 @@ Now adding data `E` would result in
   A    B     E    D
 ```
 
-##### Merklizing the free list
-
-<!-- The practical usefulness of this section is in discussion  -->
+##### <a name="free_list repr"></a>Representation of the free list
 
 The view of the free list shown in the example above is a simplification.
 
-The data contained in the free list needs to be Merklized as well.  This means,
-assuming a hash function $H$ and locations $loc_1, ..., loc_n$ being inserted in
-the free list in that order, that the actual data in the free list would be:
+The contents of this list need be easily shareable, e.g., to synchronize a
+bootstrapping node. In order to achieve that, the data structure representing
+the free list needs to be *ordered*.
 
-$$
-free = [ (loc_n, h_n = H(loc_n, h_{n-1})), ..., (loc_2, h_2 = H(loc_2, h_1)); (loc_1, h_1 = H(loc_1, nil))]
-$$
+The ordering can be derived from the timestamp the locations are freed during
+the lifetime of the chain. This would result in using a *stack* (for a LIFO
+allocation) or a *queue* (for a FIFO allocation). However, this choice has some
+drawbacks (see [alternative](#free_list_repr alt)), most importantly that a
+newcomer node cannot have any knowledge of the past, so that the free list would
+need to be fully communicated to it.
 
-In turn, the ledger state is the Merklized pair of the ledger itself (as a
-Merkle tree) and its free list.
+We contend that it is better to impose the ordering from the structure of the
+data that we insert in the free list. Heaps, `OCaml` sets (which rely on a
+comparison function), or even ordered lists are implementation choices that
+would work in this context.
 
-TBD: using an ordered free list to avoid Merklization
+We thus propose to use a **min-heap** (like
+[bheap](https://opam.ocaml.org/packages/bheap/) or
+[CCHeap](https://c-cube.github.io/ocaml-containers/last/containers/CCHeap/index.html))
+for this implementation, that is, the free list is an ordered set of locations,
+from which we always allocate the smallest one.
 
+The main benefit of having this ordered data structure is that location
+allocation does not depend on when a location has been freed anymore. Thus, when
+syncing ledgers, the free list can be recomputed while retrieving the ledger by
+adding any empty location within the fill frontier to the currently built free list heap.
+
+There is a single caveat: the comparison function for locations needs to be
+*total* for this choice to work. The implementations of `Location` in the
+codebase all have this property.
 
 #### On-disk ledger
 
@@ -444,6 +459,30 @@ implementation to track freed locations, it offers 2 advantages:
 *  account locations in this representation are fixed for the lifetime of the
   account: proof of inclusion would not change but for a single element of the
   Merkle path.
+
+
+### <a name="free_list repr_alt"></a>Representation of free list
+
+
+An alternative [this data representation](#free_list_repr) is to use a stack
+representation. Whenever a location is freed, it is thus added on top of the
+stack.
+
+The data contained in the free list needs to be Merklized as well, in order to
+be easily transmitted during node bootstrapping.  This means, assuming a hash
+function $H$ and locations $loc_1, ..., loc_n$ being inserted in the free list
+in that order, that the actual data in the free list would be:
+
+$$
+free = [ (loc_n, h_n = H(loc_n, h_{n-1})), ..., (loc_2, h_2 = H(loc_2, h_1)); (loc_1, h_1 = H(loc_1, nil))]
+$$
+
+In turn, the ledger state is the Merklized pair of the ledger itself (as a
+Merkle tree) and its free list.
+
+The main drawback with the choice described in this alternative is that we
+*need* to transfer the data during synchronization since the order in which the
+elements are found in the list cannot be inferred from the ledger.
 
 
 ## Prior art
