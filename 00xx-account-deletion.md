@@ -24,7 +24,6 @@ former.
 For code links, we will use the head of branch `develop` at the time of writing, i.e.,
 [commit 4495af5](https://github.com/MinaProtocol/mina/tree/4495af5caea5e1bb2f98f92592c065f93a586ade).
 
-
 ### Storage
 
 <!-- sparse ledger https://github.com/MinaProtocol/mina/blob/develop/src/lib/mina_base/sparse_ledger_base.ml#L85
@@ -53,11 +52,9 @@ fill interval is the subset of indices between 0 and the fill frontier, i.e.,
 The current implementation of in-memory ledgers use a fixed-depth [Merkle
 tree](https://en.wikipedia.org/wiki/Merkle_tree).
 
-For insertion, the current implementation keeps track of the "fill frontier"
-index, that is, at the moment, the rightmost leaf that is filled in the tree. Since
-removal is not possible, the leaves between the leftmost leaf of the Merkle tree
-and the rightmost-filled leaf are *all* filled with data (i.e., non-empty
-acccounts).
+For insertion, the current implementation keeps track of the fill
+frontier. Since removal is not possible, the fill interval is *fully* filled
+with data (i.e., non-empty acccounts).
 
 Now, on removal, there are (at least) 2 options:
 
@@ -173,10 +170,10 @@ maximal element of the free list.
 
 When freeing the location at the fill frontier, we also need to check whether
 the preceeding location in the order of Merkle tree leaves is free or not to
-compute the new fill frontier index.
+compute the new fill frontier.
 
 Let us start with a tree where the leaves are `[a, b, c, d, e, f, X, X]`: the
-O-indexed fill frontier index is 5, and the free list is empty.
+O-indexed fill frontier is 5, and the free list is empty.
 ```
 [a, b, c, d, e, f, X, X]  l = []   i = 5
 delete(d)
@@ -190,7 +187,7 @@ delete(e)
 The last step `delete(e)` is where the need for the max-heap is apparent.
 To get to `i = 2` we need to
 - check that we are removing the element at the fill frontier (this already done in the code)
-- repeatedly, to compute the new fill frontier index:
+- repeatedly, to compute the new fill frontier:
   - peek and if the top is `i - 1`
     - pop from the free list
     - set i to i - 1
@@ -204,7 +201,7 @@ worst-case cost. The min-heap would not be adequate.
 **The main benefit** of having this ordered data structure is that location
 allocation does not depend on when a location has been freed anymore. Thus, when
 syncing ledgers, the free list can be recomputed while retrieving the ledger by
-adding any empty location within the fill frontier to the currently built free list heap.
+adding any empty location in the fill interval to the currently built free list heap.
 
 There is a single caveat: the comparison function for locations needs to be
 *total* for this choice to work. The implementations of `Location` in the
@@ -266,7 +263,7 @@ decoding function where one can specify how many locations we ideally want to
 retrieve (up to `n`) to handle functions `set_location_batch`.  This function
 will return a list of free locations together with its size (so that we do not
 need to call `List.length`) in order to know if we need further allocation
-starting from the fill frontier index.  This function avoids
+starting from the fill frontier.  This function avoids
 deserializing/serializing multiple times when we know in advance we will do
 multiple allocations.
 
@@ -314,7 +311,7 @@ we contend we should try to optimize a bit the encoding.
 
 We propose to use a similar strategy as in the [previous
 section](#syncing_ledger), that is we still send an array. However its elements
-are all elements within the fill frontier, that is:
+are all elements within the fill interval, that is:
 - either an account (aka a JSON object); or
 - an integer, which represent the size of a contiguous interval of empty accounts.
 
@@ -640,12 +637,12 @@ There are other possible representations of the free list in key-value store.
 #### No storage <a name="free_list_no_storage"></a>
 
 For one, to follow the strategy which allocates the biggest available address
-within contained within the fill frontier first, we could just scan from the
+within contained within the fill interval first, we could just scan from the
 fill frontier index downto the leftmost leaf, and allocate the first available slot.
 
 This takes O(n) time.
 
-To save scanning when the ledger is full within the fill frontier, we could just
+To save scanning when the ledger is full within the fill interval, we could just
 store how many free locations there are in the database. However, an update to
 the database would probably require a full scan anyway to update this value so
 that it does not seem as appealing.
