@@ -36,6 +36,18 @@ working and sound `remove` functions for the different ledger implementations
 (`Database`, `Any_ledger`, `Null_ledger`, `Syncable_ledger`) and in masking
 merkle trees.
 
+**Fill frontier, fill interval**. In order to ease the discussion, let us define
+some concepts related to account allocations.  We can model the allocation space
+as an array of accounts. A cell in this array can either be empty (`X`) or
+contain an account (denoted by a lowercase letter).
+
+Within this array, we define the fill interval and the fill frontier.  The fill
+frontier is the rightmost non-empty index in the array. For example in `[a, b,
+c, d]` or `[a, b, X, d]`, the fill frontier is 3 (the array is 0-indexed). The
+fill interval is the subset of indices between 0 and the fill frontier, i.e.,
+`[0, 3]` in our example.
+
+
 #### <a name="merkle_trees"></a> Merkle trees
 
 The current implementation of in-memory ledgers use a fixed-depth [Merkle
