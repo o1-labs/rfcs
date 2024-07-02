@@ -441,7 +441,7 @@ specify below, using types definde in the ledger interface
 
 - `val remove_location: t -> Location.t -> unit`: remove the account found at the
   given `location` from the ledger, don't do anything if `location` is occupied
-  by the empty account
+  by the empty account;
 - `val remove_account: t -> account_id -> unit`: remove the account that has identifier `account_id` from the ledger,
   don't do anything if this account does not exist.
 
