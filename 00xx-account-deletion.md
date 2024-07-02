@@ -291,6 +291,17 @@ needs to be handle this correctly and this in turn relies on
 The change here will mainly be to call ``set_all_accounts_rooted_at_exn` as many
 times as there are chunks in the data.
 
+#### JSON encoding of ledgers
+
+The current JSON encoding of ledgers does not mention locations. It is a
+straightforward array of accounts. We now need to state where empty accounts are.
+
+We propose to use a similar strategy as above, that is we still send an
+array. However its elements are all elements within the fill frontier, that is:
+- either an account (aka a JSON object); or
+- an integer, which represent the size of a contiguous interval of empty accounts.
+
+For example, the ledger  `[a, X, X, d, X, f, X, X]` would be encoded as `[a, 2, d, 1, f]`.
 
 
 ### Transaction logic and snark
