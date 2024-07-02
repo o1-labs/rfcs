@@ -230,6 +230,7 @@ case `Generic data`.  In this case the new encoding would be `[0xff,
 Bigstring.length data, data]` for a generic location contained in the array
 instead of `[0xff, data]` for a single value.
 
+
 **Space requirements**. We argue that this is okay to have this simple scheme in
 terms of space use.  Indeed, in the worst case today, the ledger is full and we
 do need to store it in the database.  The requirement of storing the free list
@@ -595,13 +596,9 @@ specific testing.
 
 ## Unresolved questions
 
-- Merklization of ledger + free list and interface for interacting with this data structure
-- Upon account deletion, do we want to be able to return the creation fee to one
-  account and the balance to another?
+- Is it safe to assume that `Location.t` for account deletion is always using the constructor `Location.Account` and never `Location.Generic`?
+  Should we use a GADT to enforce that?
 
-  Is account deletion only possible on
-  accounts with a MINA balance of 0, so that we only deal with returning the
-  creation fee in the transaction logic?
 
 <!-- ## Resources - TB removed
  !--
