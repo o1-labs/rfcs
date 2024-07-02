@@ -198,7 +198,7 @@ There is a single caveat: the comparison function for locations needs to be
 *total* for this choice to work. The implementations of `Location` in the
 codebase all have this property.
 
-#### On-disk ledger
+#### On-disk ledger <a name="free_list_db"></a>
 
 The
 [`Database`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/database.ml)
@@ -265,7 +265,8 @@ There are some further details to be taken care of, such as:
 - updating the `all_accounts` function to avoid iterating over addresses that
   have been removed
 
-Other strategies are discussed [here](#free_list_db alt).
+Other strategies are discussed [here](#free_list_db alt). In particular, the
+choice of [storing the free list](#free_list_implementation).
 
 
 #### Syncing ledgers
@@ -566,7 +567,7 @@ elements are found in the list cannot be inferred from the ledger.
 
 There are other possible representations of the free list in key-value store.
 
-#### No storage
+#### No storage <a name="free_list_no_storage"></a>
 
 For one, to follow the strategy which allocates the biggest available address
 within contained within the fill frontier first, we could just scan from the
@@ -592,12 +593,30 @@ heap. One drawback of this option is that finding the right $n$ would need
 specific testing.
 
 
+#### Implementation choice <a name="free_list_implementation"></a>
+
+The choice described in the section related to [on-disk ledger](#free_list_db)
+need, in the worst case, to read on-disk data, deserialize the free list, pop an
+element and reserialize the data to write them on-disk. This cost is potentially
+not negligible, especially when the size of the free list grows.
+
+In particular the choice made here actually depends on the use that we envision
+for account deletion. As long as the size of the free list is much smaller than
+the ledger size, storing the free list is reasonable. However, if the ledger is
+mostly empty with empty locations stored in the free list -- that is most
+accounts become consumable accounts, then the option [without
+storage](#free_list_no_storage) is arguably more efficient.
+
+
+
+
 ## Prior art
 
 ## Unresolved questions
 
-- Is it safe to assume that `Location.t` for account deletion is always using the constructor `Location.Account` and never `Location.Generic`?
-  Should we use a GADT to enforce that?
+- Is it safe to assume that `Location.t` for account deletion is always using
+  the constructor `Location.Account` and never `Location.Generic`?  Should we
+  use a GADT to enforce that?
 
 
 <!-- ## Resources - TB removed
