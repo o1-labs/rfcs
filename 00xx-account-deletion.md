@@ -431,7 +431,6 @@ column for all already registered rows.
 
 
 ### Other expected code changes
-#### Ledgers
 
 #### Removal
 
