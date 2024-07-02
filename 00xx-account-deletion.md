@@ -428,6 +428,9 @@ The addition of a field in `Account_update` will need to reflected in table
 The migration of the current database needs to set a `false` value in this new
 column for all already registered rows.
 
+Likewise, the addition of permission field will be reflected in table
+`zkapp_permissions` with the addition of a `delete` column, set to `signature`
+by default.
 
 
 ### Other expected code changes
