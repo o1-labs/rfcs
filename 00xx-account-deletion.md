@@ -226,19 +226,17 @@ the data on the KV database as follows:
 
 **Adapting the parse function**. As of now, the parse function is based on the
 hypothesis that the `bigstring` parameter fully encodes a single value of type
-`Location.t`.  We need to adapt this function to read only as many bytes as
-needed and return the `Location.t` read and how many bytes it actually read for
-the following read to occur. While the cases of decoding `Location.Addr`and
+`Location.t`.  We need to adapt this function to read a sequence that is the
+result of concatenating multiple such values, i.e., only as many bytes as needed
+from a bytes sequence and return the `Location.t` read and where the following
+read should occur. While the cases of decoding `Location.Addr`and
 `Location.Hash` are fully determined by the ledger_depth (see the function
 [`serialize`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_ledger/location.ml#L106)),
 the case of `Location.Generic` is not, since it can contain any data.
 
-**On location serialization**. For that, we need to have a specific additional
-serialization of `Location.t` which is the same as the `serialize`, but for the
-case `Generic data`.  In this case the new encoding would be `[0xff,
-Bigstring.length data, data]` for a generic location contained in the array
-instead of `[0xff, data]` for a single value.
-
+However, in the case of account removal, we need only worry about serializing
+the `Account` constructor. Its size depends on the fixed ledger depth. That
+means we have a simple concatenation of addresses to deserialize.
 
 **Space requirements**. We argue that this is okay to have this simple scheme in
 terms of space use.  Indeed, in the worst case today, the ledger is full and we
