@@ -369,11 +369,50 @@ At the snark level, deletion should thus be equivalent to proving two things
 for some authorized participants, e.g., the contract that created the consumable
 account. We will extend the [permissions
 type](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/mina_base/permissions.ml#L343)
-with a dedicated `delete` field.  The handling of permissions will be similar as
-the one for [nonce
+with a dedicated `delete` field.
+
+```ocaml
+type ('controller, 'txn_version) t =
+            ( 'controller
+            , 'txn_version )
+            Mina_wire_types.Mina_base.Permissions.Poly.V2.t =
+        { edit_state : 'controller
+        ; access : 'controller
+        ; send : 'controller
+        ; receive : 'controller
+        ; set_delegate : 'controller
+        ; set_permissions : 'controller
+        ; set_verification_key : 'controller * 'txn_version
+        ; set_zkapp_uri : 'controller
+        ; edit_action_state : 'controller
+        ; set_token_symbol : 'controller
+        ; increment_nonce : 'controller
+        ; set_voting_for : 'controller
+        ; set_timing : 'controller
+        ; delete : 'controller
+        }
+```
+
+The handling of permissions will be similar as the one for [nonce
 update](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_logic/zkapp_command_logic.ml#L1687)
 for the computation of `has_permission` and the updated `local_state`. This
-updated local state will also depend on extending [`Failure.t`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/mina_base/transaction_status.ml#L9) with an extra variant `Update_not_permitted_delete`.
+updated local state will also depend on extending
+[`Failure.t`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/mina_base/transaction_status.ml#L9)
+with an extra variant `Update_not_permitted_delete`.
+
+
+```ocaml
+
+let delete = Account_update.delete account_update in
+let has_permission =
+   Controller.check ~proof_verifies ~signature_verifies
+        (Account.Permissions.delete a)
+in
+let local_state =
+  Local_state.add_check local_state Update_not_permitted_delete
+        Bool.((not delete) ||| has_permission)
+in ...
+```
 
 
 
