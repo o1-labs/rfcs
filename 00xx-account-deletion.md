@@ -269,7 +269,7 @@ Other strategies are discussed [here](#free_list_db alt). In particular, the
 choice of [storing the free list](#free_list_implementation).
 
 
-#### Syncing ledgers
+#### Syncing ledgers <a name="syncing_ledger"></a>
 
 The current implementation of [syncable
 ledger](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/syncable_ledger/syncable_ledger.ml)
@@ -296,8 +296,13 @@ times as there are chunks in the data.
 The current JSON encoding of ledgers does not mention locations. It is a
 straightforward array of accounts. We now need to state where empty accounts are.
 
-We propose to use a similar strategy as above, that is we still send an
-array. However its elements are all elements within the fill frontier, that is:
+While there is a value that defines the [empty
+account](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/runtime_config/runtime_config.ml#L365),
+we contend we should try to optimize a bit the encoding.
+
+We propose to use a similar strategy as in the [previous
+section](#syncing_ledger), that is we still send an array. However its elements
+are all elements within the fill frontier, that is:
 - either an account (aka a JSON object); or
 - an integer, which represent the size of a contiguous interval of empty accounts.
 
