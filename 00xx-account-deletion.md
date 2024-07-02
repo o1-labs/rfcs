@@ -370,6 +370,19 @@ At the snark level, deletion should thus be equivalent to proving two things
 1. The location $l$ of account $a₀$ is now  equal to the empty account.
    A simple implementation is to call [`set_account`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_snark/transaction_snark.ml#L1531) to location $l$ with the empty account;
    The implementation of a dedicated `remove account` function needs the propagation of a definition of `Account.empty` and `Account.empty_digest`.
+   With that in mind, this would look something like
+   ```ocaml
+ let remove_account ((_root, ledger) : t) ((a, incl) : Account.t * _) =
+( implied_root Account.empty incl |> Ledger_hash.var_of_hash_packed
+ , V.map ledger
+  ~f: As_prover.(fun ledger ->
+                 let a : Mina_base.Account.t =
+                    read Mina_base.Account.Checked.Unhashed.typ a.data
+                  in
+                  let id = Mina_base.Account.identifier a in
+                  Sparse_ledger.remove_account ledger id) )
+   ```
+
 2. The change in MINA of $a₁$ should be equal to
    - the initial creation fee;
    - augmented by any remaining MINA balance.
