@@ -138,6 +138,29 @@ Now adding data `E` would result in
   A    B     E    D
 ```
 
+##### Allocation strategy <a name="allocation_strategy"></a>
+
+With the presence of a free list *and* a fill frontier, we may choose to
+allocate a new account from either. The allocation strategy is the following:
+
+1. If the free list is not empty, pop a location from the free list. In that
+   case, the fill frontier does not change.
+2. If the free list is empty, try to allocate at `fill frontier + 1`
+   1. If that works, set the fill frontier to this new value;
+   2. Otherwise, report failure to allocate (the leaves of the tree are all occupied)
+
+On `[a, b, c, d, e, f, X, X] l = [] i = 5`, case 2.1 applies, so the result is
+`[a, b, c, d, e, f, g, X] l = [] i = 6`.
+
+On `[a, b, c, X, e, f, X, X] l = [3] i = 5`, case 1 applies, so the result is
+`[a, b, c, g, e, f, X, X] l = [] i = 5`.
+
+On `[a, b, c, d, e, f, g, h] l = [] i = 7`, case 2.2 applies, so the allocation
+fails and the result is the same `[a, b, c, g, e, f, g, h] l = [] i = 7`.
+
+
+
+
 ##### <a name="free_list repr"></a>Representation of the free list
 
 The view of the free list shown in the example above is a simplification.
@@ -158,15 +181,11 @@ free list has better properties. Heaps, `OCaml` sets (which rely on a comparison
 function), or even ordered lists are implementation choices that would work in
 this context.
 
-We thus propose to use a **max-heap** (like
-[bheap](https://opam.ocaml.org/packages/bheap/) or
-[CCHeap](https://c-cube.github.io/ocaml-containers/last/containers/CCHeap/index.html))
-for this implementation, that is, the free list is an ordered set of locations,
-from which we always allocate the biggest one. The reason is to optimize what
-happens when deallocating at the fill frontier.
+The deallocation at fill frontier scenario highlights why we need a data
+structure that makes querying and removing its maximal value efficient.
 
-**Deallocation at fill frontier** shows why we need to choose to reallocate the
-maximal element of the free list.
+**Deallocation at fill frontier** shows why *we need a data structure where it
+is efficient to get the maximum value*.
 
 When freeing the location at the fill frontier, we also need to check whether
 the preceeding location in the order of Merkle tree leaves is free or not to
@@ -192,11 +211,6 @@ To get to `i = 2` we need to
     - pop from the free list
     - set i to i - 1
 
-The max-heap data structure handles that
-scenario very gracefully in worst-case O(n log n), where $n$ is the number of
-elements in the free list.  A stack structure could incur an *O(n²)*
-worst-case cost. The min-heap would not be adequate.
-
 
 **The main benefit** of having this ordered data structure is that location
 allocation does not depend on when a location has been freed anymore. Thus, when
@@ -214,7 +228,9 @@ will send its free list to the child to make sure that the child is up to
 date. Now, when getting an account (see
 [get](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_mask/masking_merkle_tree.ml#L248)),
 the child only has to check whether the location has been removed before sending
-the request to its parent.
+the request to its parent. This brings up a second requirement from the data
+structure: *testing whether an element is in the free list should be efficient
+as well*.
 
 **Committing** a masking tree to its parent is impacted by removal as well. [The
 commit
@@ -225,6 +241,29 @@ the `is_committing` flage has been set to true
 the child started with the freed locations from its parent, the parent can
 update its free list directly with the child's free list (no complex merging
 needed).
+
+**Choosing a representation for the free list**. Since we need a data structure
+where it is efficient to query its maximal value, we could propose to use a
+**max-heap** (like [bheap](https://opam.ocaml.org/packages/bheap/) or
+[CCHeap](https://c-cube.github.io/ocaml-containers/last/containers/CCHeap/index.html))
+for this implementation, that is, the free list is an ordered set of locations,
+from which we always allocate the biggest one. The reason is to optimize what
+happens when deallocating at the fill frontier.
+
+The max-heap  the deallocation at fill frontier
+scenario very gracefully in worst-case O(n log n), where $n$ is the number of
+elements in the free list.  A stack structure could incur an *O(n²)*
+worst-case cost. The min-heap would not be adequate.
+
+However, testing membership in the free list is required when querying for the
+contents of a location in our parent/child (maskable/masking) architecture.
+Testing membership in heaps is O(n).
+
+The OCaml `Set` module is thus a natural choice:
+- getting the max value is O(log n)
+- poping a value is O(log n)
+- testing membership is O(log n)
+
 
 
 #### On-disk ledger <a name="free_list_db"></a>
