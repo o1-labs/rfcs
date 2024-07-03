@@ -173,7 +173,7 @@ the preceeding location in the order of Merkle tree leaves is free or not to
 compute the new fill frontier.
 
 Let us start with a tree where the leaves are `[a, b, c, d, e, f, X, X]`: the
-O-indexed fill frontier is 5, and the free list is empty.
+fill frontier is 5, and the free list is empty.
 ```
 [a, b, c, d, e, f, X, X]  l = []   i = 5
 delete(d)
