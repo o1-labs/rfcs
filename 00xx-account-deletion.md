@@ -236,7 +236,7 @@ as well*.
 commit
 function](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_mask/masking_merkle_tree.ml#L617)
 will need to push its removed locations to its parent atomically, that is, after
-the `is_committing` flage has been set to true
+the `is_committing` flag has been set to true
 [here](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/merkle_mask/masking_merkle_tree.ml#L619). Since
 the child started with the freed locations from its parent, the parent can
 update its free list directly with the child's free list (no complex merging
