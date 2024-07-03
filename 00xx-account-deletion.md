@@ -256,14 +256,16 @@ The serialization of and array-based heap (like `bheap`) of integers should be r
 4. write the accounts to the free locations;
 5. reserialize the new value of the heap.
 
-**Simple improvement on batch allocations**. Furthermore, we will implement a
+**Improvement on batch allocations**. Furthermore, we will implement a
 decoding function where one can specify how many locations we ideally want to
 retrieve (up to `n`) to handle functions `set_location_batch`.  This function
 will return a list of free locations together with its size (so that we do not
 need to call `List.length`) in order to know if we need further allocation
-starting from the fill frontier.  This function avoids
-deserializing/serializing multiple times when we know in advance we will do
-multiple allocations.
+starting from the fill frontier.  This function avoids deserializing/serializing
+multiple times when we know in advance we will do multiple allocations. In any
+case, the allocation function will need to write back the list of still free
+locations back to the database. In the case of batch allocations of $n$
+elements, we thus save $n-1$ reads/deserializations and serialization/writes.
 
 There are some further details to be taken care of, such as:
 
