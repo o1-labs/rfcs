@@ -390,7 +390,7 @@ At the snark level, deletion should thus be equivalent to proving two things
 for some authorized participants, e.g., the contract that created the consumable
 account. We will extend the [permissions
 type](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/mina_base/permissions.ml#L343)
-with a dedicated `delete` field.
+with a dedicated `delete` field with default value of `Signature`.
 
 ```ocaml
 type ('controller, 'txn_version) t =
