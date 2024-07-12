@@ -422,16 +422,22 @@ type definitions depending on `Account_update`, including
 
 Deleting an account $a₀$ results in two actions:
 1. Actual removal of account $a₀$ of the storage layer;
-2. Return of balance of MINA tokens from $a₉$ and initial creation fee to a specified $a₁$ account.
+2. Return initial creation fee to "floating balance" of zkApp transaction, that is doing the reverse operations of the two updates to `local_state` [here](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_logic/zkapp_command_logic.ml#L1423). They would, mirroring the operations linked below, conditionally:
+   - add the account creation fee to [fee excess](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_logic/zkapp_command_logic.ml#L1424);
+   - add the account creation fee to the [supply increase](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_logic/zkapp_command_logic.ml#L1440).
 
 Handling other tokens is the responsability of the smart contract(s) dealing with these tokens.
 
 At the snark level, deletion should thus be equivalent to proving two things
-1. The location $l$ of account $a₀$ is now  equal to the empty account.
-   A simple implementation is to call [`set_account`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_snark/transaction_snark.ml#L1531) to location $l$ with the empty account;
-   The implementation of a dedicated `remove account` function needs the propagation of a definition of `Account.empty` and `Account.empty_digest`.
-   With that in mind, this would look something like
-   ```ocaml
+1. The location $l$ of account $a₀$ is now equal to the empty account. A simple
+   implementation is to call
+   [`set_account`](https://github.com/MinaProtocol/mina/blob/4495af5caea5e1bb2f98f92592c065f93a586ade/src/lib/transaction_snark/transaction_snark.ml#L1531)
+   to location $l$ with the empty account; The implementation of a dedicated
+   `remove account` function needs the propagation of a definition of
+   `Account.empty` and `Account.empty_digest`.  With that in mind, this would
+   look something like
+
+```ocaml
  let remove_account ((_root, ledger) : t) ((a, incl) : Account.t * _) =
 ( implied_root Account.empty incl |> Ledger_hash.var_of_hash_packed
  , V.map ledger
@@ -441,9 +447,9 @@ At the snark level, deletion should thus be equivalent to proving two things
                   in
                   let id = Mina_base.Account.identifier a in
                   Sparse_ledger.remove_account ledger id) )
-   ```
+```
 
-2. The change in MINA of $a₁$ should be equal to
+2. The change in MINA tokens should be equal to
    - the initial creation fee;
    - augmented by any remaining MINA balance.
 
