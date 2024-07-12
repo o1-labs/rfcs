@@ -599,15 +599,20 @@ The API used by `o1js` is not expected to change much but for some details.
 
 ### Implementation steps
 
-The implementation of deletable accounts can be broken down in 3 steps
-- Ledger changes to get basic deletion working + unit testing;
-- Add ledger synchronization and test it: upon completing this step, the set of
-  changes implemented could even be part of soft-fork.
-- Transition support:
-  - Extend account updates : upon completion, the SDK team can start working on
-    their end to see if the API works for them, though no effect can be
-    observed;
-  - Add actual support in the logic and the snark
+The implementation of deletable accounts can be broken down in 3 steps,
+targeting the following `[base_branch]`:
+1. `[compatible]` Ledger changes to get basic deletion working and related unit testing;
+2. `[compatible]` Add ledger synchronization and related testing;
+3. `[develop]` Transaction logic support:
+  a. Extend account updates : upon completion, the SDK team can start working on
+     their end to see if the API works for them, though no effect can be
+     observed;
+  b. Add account deletion support in transaction logic and snark
+
+The changes implemented in steps 1 and 2 are *soft-forkable* as they will not
+impact the shape of proofs.  Step 3 updates a number of definitions of
+`Mina_wire_types`, thus can be made available only through a *hard fork*.
+
 
 ### Testing
 
