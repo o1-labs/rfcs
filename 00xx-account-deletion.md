@@ -306,14 +306,15 @@ usually smaller (a single integer instead of a complex data structure).
 Therefore storing free locations does not add more storage requirements than
 today.
 
-The serialization of and array-based heap (like `bheap`) of integers should be rather efficient.
+Serializing and deserializing OCaml sets (that is, AVL-trees) as free list
+representation will basically cost O(n) in space and time with each operation.
 
 **Allocation cost**. Allocating locations from the free list now means
 1. read `free_list`
-2. deserialize the heap value;
+2. deserialize the maximal value of the free list;
 3. get the needed free locations;
 4. write the accounts to the free locations;
-5. reserialize the new value of the heap.
+5. reserialize the new value of the free list.
 
 **Improvement on batch allocations**. Furthermore, we will implement a
 decoding function where one can specify how many locations we ideally want to
