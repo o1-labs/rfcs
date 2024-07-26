@@ -257,7 +257,7 @@ We support competing implementations and see a place for both of these alternati
 
 ## Prior art
 
-There is an existing domain name resolver zkApp that is built with a custom storage solution: https://names.minascan.io/ ([github](https://github.com/Staketab/mina-names)).  They seem to be using an NFT solution, which costs an account creation fee for each domain registered.  A solution using off-chain storage has the potential to be cheaper to operate, but the NFT solution does not have the same DDOS vulnerability.
+There is an existing domain name resolver zkApp that is built with a custom storage solution: https://names.minascan.io/ ([github](https://github.com/Staketab/mina-names/blob/main/contracts/README.md)).  Their rollup system utilizes IPFS and a block system where every block contains the full database of names, a merkle map for verification, and a list of transactions.  Each new block costs a 1 Mina account creation fee, but can represent up to 1000 transactions.  The L1 smart contract stores the last-known block pointer, and accepts proofs of a new block to increment the state.  This design is very solid, but required a lot of custom development.  We are hoping to simplify and lower the barrier to entry for devs to have access to a fully featured offchain storage solution.
 
 
 ## Unresolved questions
