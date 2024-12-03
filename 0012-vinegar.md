@@ -201,7 +201,8 @@ The responsibilities of VinegarWrap will then be to:
 * Verify the remainder of the target proof over the 'base field'
   - What is currently `wrap_verifier/incrementally_verify_proof`.
 * Perform initial verification of the 'VinegarStep' proof over the 'base field'
-  - Also `wrap_verifier/incrementally_verify_proof`, but now again for the VinegarStep. Our VinegarWrap, unlike Wrap, wraps two proofs at a time.
+  - Also `wrap_verifier/incrementally_verify_proof`, but now again for the
+    VinegarStep. Our VinegarWrap, unlike Wrap, wraps two proofs at a time.
 * Expose the remaining unverified information from 'VinegarStep' in the public
   input, so that it can be finalized by a Pickles step proof
     - During 'VinegarWrap', the VinegarStep's `challenge_poly_commitments` and
@@ -234,8 +235,9 @@ Pickles (written in `mina` repo in ocaml), which is intentional.
 The plan for vinegar is as follows:
 1. Move the necessary Pickles datatypes (such as `MessagesForNextStep` and so
    on) into `proof-systems`
-   - (Mostly done in branch `feature/volhovm/vinegar-poc` file
-     `vinegar/src/lib.rs`)
+   - (Mostly done in branch
+     [feature/volhovm/vinegar-poc](https://github.com/o1-labs/proof-systems/tree/feature/volhovm/vinegar-poc)
+     file `vinegar/src/lib.rs`)
 1. Write the computation of `deferred_values`.
    - Or find / reassemble from existing codebase -- it already exists, but it is
      not clear it can be conveniently used. Make sure it can be.
@@ -258,11 +260,13 @@ The plan for vinegar is as follows:
    `VinegarStep` accepts target proof and `VinegarWrap` accepts `VinegarStep`.
    Use the stub target prove system written before.
 1. Test Vinegar with actual Pickles and stub target prover.
-1. Test Vinegar with actual Pickles and actual target prover if the latter is available.
+1. Test Vinegar with actual Pickles and actual target prover if the latter is
+   available.
 
 ## Test plan and functional requirements
 
-See the development plan before. For the final project the requirements are as follows:
+See the development plan before. For the final project the requirements are as
+follows:
 1. Goals and objectives: Vinegar must be able to correctly consume a target
    proof system in a way that is Pickles-compatible and secure.
 2. Testing approach:
